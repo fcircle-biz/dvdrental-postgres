@@ -5,5 +5,5 @@ Dockerホスト名：database (Windowsクライアントからはlocalhostでア
   
 DBMS:postgres:10  
 データベース：dvdrental  
-ユーザー：postgres
-パスワード：postgres
+ユーザー：postgres  
+パスワード：postgres  
