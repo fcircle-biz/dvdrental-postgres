@@ -1,12 +1,12 @@
 -- ========================================================
 -- ユーザーの作成
 -- ========================================================
-CREATE USER "dvdrental" WITH PASSWORD 'dvdrental' SUPERUSER;
+-- CREATE USER "dvdrental" WITH PASSWORD 'dvdrental' SUPERUSER;
 
 -- ========================================================
 -- DBの作成
 -- ========================================================
-CREATE DATABASE "dvdrental" OWNER "dvdrental";
+CREATE DATABASE "dvdrental" OWNER "postgres";
 
 -- ========================================================
 -- データベースを切り替え
@@ -21,39 +21,64 @@ CREATE DATABASE "dvdrental" OWNER "dvdrental";
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 10.21 (Debian 10.21-1.pgdg90+1)
--- Dumped by pg_dump version 10.21 (Debian 10.21-1.pgdg90+1)
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
 SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
+SET standard_conforming_strings = off;
 SET check_function_bodies = false;
-SET xmloption = content;
 SET client_min_messages = warning;
-SET row_security = off;
+SET escape_string_warning = off;
 
 --
--- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: postgres
 --
 
-CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+COMMENT ON SCHEMA public IS 'Standard public schema';
 
 
 --
--- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+-- Name: plpgsql; Type: PROCEDURAL LANGUAGE; Schema: -; Owner: postgres
 --
 
-COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+-- CREATE PROCEDURAL LANGUAGE plpgsql;
+ALTER PROCEDURAL LANGUAGE plpgsql OWNER TO postgres;
 
+SET search_path = public, pg_catalog;
+
+--
+-- Name: actor_actor_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE actor_actor_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.actor_actor_id_seq OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: actor; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE actor (
+    actor_id integer DEFAULT nextval('actor_actor_id_seq'::regclass) NOT NULL,
+    first_name character varying(45) NOT NULL,
+    last_name character varying(45) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.actor OWNER TO postgres;
 
 --
 -- Name: mpaa_rating; Type: TYPE; Schema: public; Owner: postgres
 --
 
-CREATE TYPE public.mpaa_rating AS ENUM (
+CREATE TYPE mpaa_rating AS ENUM (
     'G',
     'PG',
     'PG-13',
@@ -68,7 +93,7 @@ ALTER TYPE public.mpaa_rating OWNER TO postgres;
 -- Name: year; Type: DOMAIN; Schema: public; Owner: postgres
 --
 
-CREATE DOMAIN public.year AS integer
+CREATE DOMAIN year AS integer
 	CONSTRAINT year_check CHECK (((VALUE >= 1901) AND (VALUE <= 2155)));
 
 
@@ -78,32 +103,559 @@ ALTER DOMAIN public.year OWNER TO postgres;
 -- Name: _group_concat(text, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public._group_concat(text, text) RETURNS text
-    LANGUAGE sql IMMUTABLE
+CREATE FUNCTION _group_concat(text, text) RETURNS text
     AS $_$
 SELECT CASE
   WHEN $2 IS NULL THEN $1
   WHEN $1 IS NULL THEN $2
   ELSE $1 || ', ' || $2
 END
-$_$;
+$_$
+    LANGUAGE sql IMMUTABLE;
 
 
 ALTER FUNCTION public._group_concat(text, text) OWNER TO postgres;
 
 --
+-- Name: group_concat(text); Type: AGGREGATE; Schema: public; Owner: postgres
+--
+
+CREATE AGGREGATE group_concat(text) (
+    SFUNC = _group_concat,
+    STYPE = text
+);
+
+
+ALTER AGGREGATE public.group_concat(text) OWNER TO postgres;
+
+--
+-- Name: category_category_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE category_category_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.category_category_id_seq OWNER TO postgres;
+
+--
+-- Name: category; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE category (
+    category_id integer DEFAULT nextval('category_category_id_seq'::regclass) NOT NULL,
+    name character varying(25) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.category OWNER TO postgres;
+
+--
+-- Name: film_film_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE film_film_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.film_film_id_seq OWNER TO postgres;
+
+--
+-- Name: film; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE film (
+    film_id integer DEFAULT nextval('film_film_id_seq'::regclass) NOT NULL,
+    title character varying(255) NOT NULL,
+    description text,
+    release_year year,
+    language_id smallint NOT NULL,
+    original_language_id smallint,
+    rental_duration smallint DEFAULT 3 NOT NULL,
+    rental_rate numeric(4,2) DEFAULT 4.99 NOT NULL,
+    length smallint,
+    replacement_cost numeric(5,2) DEFAULT 19.99 NOT NULL,
+    rating mpaa_rating DEFAULT 'G'::mpaa_rating,
+    last_update timestamp without time zone DEFAULT now() NOT NULL,
+    special_features text[],
+    fulltext tsvector NOT NULL
+);
+
+
+ALTER TABLE public.film OWNER TO postgres;
+
+--
+-- Name: film_actor; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE film_actor (
+    actor_id smallint NOT NULL,
+    film_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.film_actor OWNER TO postgres;
+
+--
+-- Name: film_category; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE film_category (
+    film_id smallint NOT NULL,
+    category_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.film_category OWNER TO postgres;
+
+--
+-- Name: actor_info; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW actor_info AS
+    SELECT a.actor_id, a.first_name, a.last_name, group_concat(DISTINCT (((c.name)::text || ': '::text) || (SELECT group_concat((f.title)::text) AS group_concat FROM ((film f JOIN film_category fc ON ((f.film_id = fc.film_id))) JOIN film_actor fa ON ((f.film_id = fa.film_id))) WHERE ((fc.category_id = c.category_id) AND (fa.actor_id = a.actor_id)) GROUP BY fa.actor_id))) AS film_info FROM (((actor a LEFT JOIN film_actor fa ON ((a.actor_id = fa.actor_id))) LEFT JOIN film_category fc ON ((fa.film_id = fc.film_id))) LEFT JOIN category c ON ((fc.category_id = c.category_id))) GROUP BY a.actor_id, a.first_name, a.last_name;
+
+
+ALTER TABLE public.actor_info OWNER TO postgres;
+
+--
+-- Name: address_address_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE address_address_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.address_address_id_seq OWNER TO postgres;
+
+--
+-- Name: address; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE address (
+    address_id integer DEFAULT nextval('address_address_id_seq'::regclass) NOT NULL,
+    address character varying(50) NOT NULL,
+    address2 character varying(50),
+    district character varying(20) NOT NULL,
+    city_id smallint NOT NULL,
+    postal_code character varying(10),
+    phone character varying(20) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.address OWNER TO postgres;
+
+--
+-- Name: city_city_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE city_city_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.city_city_id_seq OWNER TO postgres;
+
+--
+-- Name: city; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE city (
+    city_id integer DEFAULT nextval('city_city_id_seq'::regclass) NOT NULL,
+    city character varying(50) NOT NULL,
+    country_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.city OWNER TO postgres;
+
+--
+-- Name: country_country_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE country_country_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.country_country_id_seq OWNER TO postgres;
+
+--
+-- Name: country; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE country (
+    country_id integer DEFAULT nextval('country_country_id_seq'::regclass) NOT NULL,
+    country character varying(50) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.country OWNER TO postgres;
+
+--
+-- Name: customer_customer_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE customer_customer_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.customer_customer_id_seq OWNER TO postgres;
+
+--
+-- Name: customer; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE customer (
+    customer_id integer DEFAULT nextval('customer_customer_id_seq'::regclass) NOT NULL,
+    store_id smallint NOT NULL,
+    first_name character varying(45) NOT NULL,
+    last_name character varying(45) NOT NULL,
+    email character varying(50),
+    address_id smallint NOT NULL,
+    activebool boolean DEFAULT true NOT NULL,
+    create_date date DEFAULT ('now'::text)::date NOT NULL,
+    last_update timestamp without time zone DEFAULT now(),
+    active integer
+);
+
+
+ALTER TABLE public.customer OWNER TO postgres;
+
+--
+-- Name: customer_list; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW customer_list AS
+    SELECT cu.customer_id AS id, (((cu.first_name)::text || ' '::text) || (cu.last_name)::text) AS name, a.address, a.postal_code AS "zip code", a.phone, city.city, country.country, CASE WHEN cu.activebool THEN 'active'::text ELSE ''::text END AS notes, cu.store_id AS sid FROM (((customer cu JOIN address a ON ((cu.address_id = a.address_id))) JOIN city ON ((a.city_id = city.city_id))) JOIN country ON ((city.country_id = country.country_id)));
+
+
+ALTER TABLE public.customer_list OWNER TO postgres;
+
+--
+-- Name: film_list; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW film_list AS
+    SELECT film.film_id AS fid, film.title, film.description, category.name AS category, film.rental_rate AS price, film.length, film.rating, group_concat((((actor.first_name)::text || ' '::text) || (actor.last_name)::text)) AS actors FROM ((((category LEFT JOIN film_category ON ((category.category_id = film_category.category_id))) LEFT JOIN film ON ((film_category.film_id = film.film_id))) JOIN film_actor ON ((film.film_id = film_actor.film_id))) JOIN actor ON ((film_actor.actor_id = actor.actor_id))) GROUP BY film.film_id, film.title, film.description, category.name, film.rental_rate, film.length, film.rating;
+
+
+ALTER TABLE public.film_list OWNER TO postgres;
+
+--
+-- Name: inventory_inventory_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE inventory_inventory_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.inventory_inventory_id_seq OWNER TO postgres;
+
+--
+-- Name: inventory; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE inventory (
+    inventory_id integer DEFAULT nextval('inventory_inventory_id_seq'::regclass) NOT NULL,
+    film_id smallint NOT NULL,
+    store_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.inventory OWNER TO postgres;
+
+--
+-- Name: language_language_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE language_language_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.language_language_id_seq OWNER TO postgres;
+
+--
+-- Name: language; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE language (
+    language_id integer DEFAULT nextval('language_language_id_seq'::regclass) NOT NULL,
+    name character(20) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.language OWNER TO postgres;
+
+--
+-- Name: nicer_but_slower_film_list; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW nicer_but_slower_film_list AS
+    SELECT film.film_id AS fid, film.title, film.description, category.name AS category, film.rental_rate AS price, film.length, film.rating, group_concat((((upper("substring"((actor.first_name)::text, 1, 1)) || lower("substring"((actor.first_name)::text, 2))) || upper("substring"((actor.last_name)::text, 1, 1))) || lower("substring"((actor.last_name)::text, 2)))) AS actors FROM ((((category LEFT JOIN film_category ON ((category.category_id = film_category.category_id))) LEFT JOIN film ON ((film_category.film_id = film.film_id))) JOIN film_actor ON ((film.film_id = film_actor.film_id))) JOIN actor ON ((film_actor.actor_id = actor.actor_id))) GROUP BY film.film_id, film.title, film.description, category.name, film.rental_rate, film.length, film.rating;
+
+
+ALTER TABLE public.nicer_but_slower_film_list OWNER TO postgres;
+
+--
+-- Name: payment_payment_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE payment_payment_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.payment_payment_id_seq OWNER TO postgres;
+
+--
+-- Name: payment; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE payment (
+    payment_id integer DEFAULT nextval('payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id smallint NOT NULL,
+    staff_id smallint NOT NULL,
+    rental_id integer NOT NULL,
+    amount numeric(5,2) NOT NULL,
+    payment_date timestamp without time zone NOT NULL
+);
+
+
+ALTER TABLE public.payment OWNER TO postgres;
+
+--
+-- Name: payment_p2007_01; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE payment_p2007_01 (CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date >= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-02-01 00:00:00'::timestamp without time zone)))
+)
+INHERITS (payment);
+
+
+ALTER TABLE public.payment_p2007_01 OWNER TO postgres;
+
+--
+-- Name: payment_p2007_02; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE payment_p2007_02 (CONSTRAINT payment_p2007_02_payment_date_check CHECK (((payment_date >= '2007-02-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-03-01 00:00:00'::timestamp without time zone)))
+)
+INHERITS (payment);
+
+
+ALTER TABLE public.payment_p2007_02 OWNER TO postgres;
+
+--
+-- Name: payment_p2007_03; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE payment_p2007_03 (CONSTRAINT payment_p2007_03_payment_date_check CHECK (((payment_date >= '2007-03-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-04-01 00:00:00'::timestamp without time zone)))
+)
+INHERITS (payment);
+
+
+ALTER TABLE public.payment_p2007_03 OWNER TO postgres;
+
+--
+-- Name: payment_p2007_04; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE payment_p2007_04 (CONSTRAINT payment_p2007_04_payment_date_check CHECK (((payment_date >= '2007-04-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-05-01 00:00:00'::timestamp without time zone)))
+)
+INHERITS (payment);
+
+
+ALTER TABLE public.payment_p2007_04 OWNER TO postgres;
+
+--
+-- Name: payment_p2007_05; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE payment_p2007_05 (CONSTRAINT payment_p2007_05_payment_date_check CHECK (((payment_date >= '2007-05-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-06-01 00:00:00'::timestamp without time zone)))
+)
+INHERITS (payment);
+
+
+ALTER TABLE public.payment_p2007_05 OWNER TO postgres;
+
+--
+-- Name: payment_p2007_06; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE payment_p2007_06 (CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date >= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-07-01 00:00:00'::timestamp without time zone)))
+)
+INHERITS (payment);
+
+
+ALTER TABLE public.payment_p2007_06 OWNER TO postgres;
+
+--
+-- Name: rental_rental_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rental_rental_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.rental_rental_id_seq OWNER TO postgres;
+
+--
+-- Name: rental; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE rental (
+    rental_id integer DEFAULT nextval('rental_rental_id_seq'::regclass) NOT NULL,
+    rental_date timestamp without time zone NOT NULL,
+    inventory_id integer NOT NULL,
+    customer_id smallint NOT NULL,
+    return_date timestamp without time zone,
+    staff_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.rental OWNER TO postgres;
+
+--
+-- Name: sales_by_film_category; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW sales_by_film_category AS
+    SELECT c.name AS category, sum(p.amount) AS total_sales FROM (((((payment p JOIN rental r ON ((p.rental_id = r.rental_id))) JOIN inventory i ON ((r.inventory_id = i.inventory_id))) JOIN film f ON ((i.film_id = f.film_id))) JOIN film_category fc ON ((f.film_id = fc.film_id))) JOIN category c ON ((fc.category_id = c.category_id))) GROUP BY c.name ORDER BY sum(p.amount) DESC;
+
+
+ALTER TABLE public.sales_by_film_category OWNER TO postgres;
+
+--
+-- Name: staff_staff_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE staff_staff_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.staff_staff_id_seq OWNER TO postgres;
+
+--
+-- Name: staff; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE staff (
+    staff_id integer DEFAULT nextval('staff_staff_id_seq'::regclass) NOT NULL,
+    first_name character varying(45) NOT NULL,
+    last_name character varying(45) NOT NULL,
+    address_id smallint NOT NULL,
+    email character varying(50),
+    store_id smallint NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    username character varying(16) NOT NULL,
+    password character varying(40),
+    last_update timestamp without time zone DEFAULT now() NOT NULL,
+    picture bytea
+);
+
+
+ALTER TABLE public.staff OWNER TO postgres;
+
+--
+-- Name: store_store_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE store_store_id_seq
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.store_store_id_seq OWNER TO postgres;
+
+--
+-- Name: store; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE store (
+    store_id integer DEFAULT nextval('store_store_id_seq'::regclass) NOT NULL,
+    manager_staff_id smallint NOT NULL,
+    address_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.store OWNER TO postgres;
+
+--
+-- Name: sales_by_store; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW sales_by_store AS
+    SELECT (((c.city)::text || ','::text) || (cy.country)::text) AS store, (((m.first_name)::text || ' '::text) || (m.last_name)::text) AS manager, sum(p.amount) AS total_sales FROM (((((((payment p JOIN rental r ON ((p.rental_id = r.rental_id))) JOIN inventory i ON ((r.inventory_id = i.inventory_id))) JOIN store s ON ((i.store_id = s.store_id))) JOIN address a ON ((s.address_id = a.address_id))) JOIN city c ON ((a.city_id = c.city_id))) JOIN country cy ON ((c.country_id = cy.country_id))) JOIN staff m ON ((s.manager_staff_id = m.staff_id))) GROUP BY cy.country, c.city, s.store_id, m.first_name, m.last_name ORDER BY cy.country, c.city;
+
+
+ALTER TABLE public.sales_by_store OWNER TO postgres;
+
+--
+-- Name: staff_list; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW staff_list AS
+    SELECT s.staff_id AS id, (((s.first_name)::text || ' '::text) || (s.last_name)::text) AS name, a.address, a.postal_code AS "zip code", a.phone, city.city, country.country, s.store_id AS sid FROM (((staff s JOIN address a ON ((s.address_id = a.address_id))) JOIN city ON ((a.city_id = city.city_id))) JOIN country ON ((city.country_id = country.country_id)));
+
+
+ALTER TABLE public.staff_list OWNER TO postgres;
+
+--
 -- Name: film_in_stock(integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.film_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) RETURNS SETOF integer
-    LANGUAGE sql
+CREATE FUNCTION film_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) RETURNS SETOF integer
     AS $_$
      SELECT inventory_id
      FROM inventory
      WHERE film_id = $1
      AND store_id = $2
      AND inventory_in_stock(inventory_id);
-$_$;
+$_$
+    LANGUAGE sql;
 
 
 ALTER FUNCTION public.film_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) OWNER TO postgres;
@@ -112,15 +664,15 @@ ALTER FUNCTION public.film_in_stock(p_film_id integer, p_store_id integer, OUT p
 -- Name: film_not_in_stock(integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.film_not_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) RETURNS SETOF integer
-    LANGUAGE sql
+CREATE FUNCTION film_not_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) RETURNS SETOF integer
     AS $_$
     SELECT inventory_id
     FROM inventory
     WHERE film_id = $1
     AND store_id = $2
     AND NOT inventory_in_stock(inventory_id);
-$_$;
+$_$
+    LANGUAGE sql;
 
 
 ALTER FUNCTION public.film_not_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) OWNER TO postgres;
@@ -129,8 +681,7 @@ ALTER FUNCTION public.film_not_in_stock(p_film_id integer, p_store_id integer, O
 -- Name: get_customer_balance(integer, timestamp without time zone); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.get_customer_balance(p_customer_id integer, p_effective_date timestamp without time zone) RETURNS numeric
-    LANGUAGE plpgsql
+CREATE FUNCTION get_customer_balance(p_customer_id integer, p_effective_date timestamp without time zone) RETURNS numeric
     AS $$
        --#OK, WE NEED TO CALCULATE THE CURRENT BALANCE GIVEN A CUSTOMER_ID AND A DATE
        --#THAT WE WANT THE BALANCE TO BE EFFECTIVE FOR. THE BALANCE IS:
@@ -165,7 +716,8 @@ BEGIN
 
     RETURN v_rentfees + v_overfees - v_payments;
 END
-$$;
+$$
+    LANGUAGE plpgsql;
 
 
 ALTER FUNCTION public.get_customer_balance(p_customer_id integer, p_effective_date timestamp without time zone) OWNER TO postgres;
@@ -174,8 +726,7 @@ ALTER FUNCTION public.get_customer_balance(p_customer_id integer, p_effective_da
 -- Name: inventory_held_by_customer(integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.inventory_held_by_customer(p_inventory_id integer) RETURNS integer
-    LANGUAGE plpgsql
+CREATE FUNCTION inventory_held_by_customer(p_inventory_id integer) RETURNS integer
     AS $$
 DECLARE
     v_customer_id INTEGER;
@@ -187,7 +738,8 @@ BEGIN
   AND inventory_id = p_inventory_id;
 
   RETURN v_customer_id;
-END $$;
+END $$
+    LANGUAGE plpgsql;
 
 
 ALTER FUNCTION public.inventory_held_by_customer(p_inventory_id integer) OWNER TO postgres;
@@ -196,8 +748,7 @@ ALTER FUNCTION public.inventory_held_by_customer(p_inventory_id integer) OWNER T
 -- Name: inventory_in_stock(integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.inventory_in_stock(p_inventory_id integer) RETURNS boolean
-    LANGUAGE plpgsql
+CREATE FUNCTION inventory_in_stock(p_inventory_id integer) RETURNS boolean
     AS $$
 DECLARE
     v_rentals INTEGER;
@@ -224,7 +775,8 @@ BEGIN
     ELSE
       RETURN TRUE;
     END IF;
-END $$;
+END $$
+    LANGUAGE plpgsql;
 
 
 ALTER FUNCTION public.inventory_in_stock(p_inventory_id integer) OWNER TO postgres;
@@ -233,8 +785,7 @@ ALTER FUNCTION public.inventory_in_stock(p_inventory_id integer) OWNER TO postgr
 -- Name: last_day(timestamp without time zone); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.last_day(timestamp without time zone) RETURNS date
-    LANGUAGE sql IMMUTABLE STRICT
+CREATE FUNCTION last_day(timestamp without time zone) RETURNS date
     AS $_$
   SELECT CASE
     WHEN EXTRACT(MONTH FROM $1) = 12 THEN
@@ -242,7 +793,8 @@ CREATE FUNCTION public.last_day(timestamp without time zone) RETURNS date
     ELSE
       ((EXTRACT(YEAR FROM $1) operator(pg_catalog.||) '-' operator(pg_catalog.||) (EXTRACT(MONTH FROM $1) + 1) operator(pg_catalog.||) '-01')::date - INTERVAL '1 day')::date
     END
-$_$;
+$_$
+    LANGUAGE sql IMMUTABLE STRICT;
 
 
 ALTER FUNCTION public.last_day(timestamp without time zone) OWNER TO postgres;
@@ -251,61 +803,22 @@ ALTER FUNCTION public.last_day(timestamp without time zone) OWNER TO postgres;
 -- Name: last_updated(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.last_updated() RETURNS trigger
-    LANGUAGE plpgsql
+CREATE FUNCTION last_updated() RETURNS trigger
     AS $$
 BEGIN
     NEW.last_update = CURRENT_TIMESTAMP;
     RETURN NEW;
-END $$;
+END $$
+    LANGUAGE plpgsql;
 
 
 ALTER FUNCTION public.last_updated() OWNER TO postgres;
 
 --
--- Name: customer_customer_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.customer_customer_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.customer_customer_id_seq OWNER TO postgres;
-
-SET default_tablespace = '';
-
-SET default_with_oids = false;
-
---
--- Name: customer; Type: TABLE; Schema: public; Owner: dvdrental
---
-
-CREATE TABLE public.customer (
-    customer_id integer DEFAULT nextval('public.customer_customer_id_seq'::regclass) NOT NULL,
-    store_id smallint NOT NULL,
-    first_name character varying(45) NOT NULL,
-    last_name character varying(45) NOT NULL,
-    email character varying(50),
-    address_id smallint NOT NULL,
-    activebool boolean DEFAULT true NOT NULL,
-    create_date date DEFAULT ('now'::text)::date NOT NULL,
-    last_update timestamp without time zone DEFAULT now(),
-    active integer
-);
-
-
-ALTER TABLE public.customer OWNER TO dvdrental;
-
---
 -- Name: rewards_report(integer, numeric); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.rewards_report(min_monthly_purchases integer, min_dollar_amount_purchased numeric) RETURNS SETOF public.customer
-    LANGUAGE plpgsql SECURITY DEFINER
+CREATE FUNCTION rewards_report(min_monthly_purchases integer, min_dollar_amount_purchased numeric) RETURNS SETOF customer
     AS $_$
 DECLARE
     last_month_start DATE;
@@ -359,797 +872,1182 @@ BEGIN
 
 RETURN;
 END
-$_$;
+$_$
+    LANGUAGE plpgsql SECURITY DEFINER;
 
 
 ALTER FUNCTION public.rewards_report(min_monthly_purchases integer, min_dollar_amount_purchased numeric) OWNER TO postgres;
 
 --
--- Name: group_concat(text); Type: AGGREGATE; Schema: public; Owner: postgres
+-- Name: actor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
 --
 
-CREATE AGGREGATE public.group_concat(text) (
-    SFUNC = public._group_concat,
-    STYPE = text
-);
+ALTER TABLE ONLY actor
+    ADD CONSTRAINT actor_pkey PRIMARY KEY (actor_id);
 
 
-ALTER AGGREGATE public.group_concat(text) OWNER TO postgres;
+--
+-- Name: address_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY address
+    ADD CONSTRAINT address_pkey PRIMARY KEY (address_id);
+
+
+--
+-- Name: category_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY category
+    ADD CONSTRAINT category_pkey PRIMARY KEY (category_id);
+
+
+--
+-- Name: city_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY city
+    ADD CONSTRAINT city_pkey PRIMARY KEY (city_id);
+
+
+--
+-- Name: country_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY country
+    ADD CONSTRAINT country_pkey PRIMARY KEY (country_id);
+
+
+--
+-- Name: customer_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY customer
+    ADD CONSTRAINT customer_pkey PRIMARY KEY (customer_id);
+
+
+--
+-- Name: film_actor_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY film_actor
+    ADD CONSTRAINT film_actor_pkey PRIMARY KEY (actor_id, film_id);
+
+
+--
+-- Name: film_category_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY film_category
+    ADD CONSTRAINT film_category_pkey PRIMARY KEY (film_id, category_id);
+
+
+--
+-- Name: film_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY film
+    ADD CONSTRAINT film_pkey PRIMARY KEY (film_id);
+
+
+--
+-- Name: inventory_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY inventory
+    ADD CONSTRAINT inventory_pkey PRIMARY KEY (inventory_id);
+
+
+--
+-- Name: language_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY language
+    ADD CONSTRAINT language_pkey PRIMARY KEY (language_id);
+
+
+--
+-- Name: payment_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY payment
+    ADD CONSTRAINT payment_pkey PRIMARY KEY (payment_id);
+
+
+--
+-- Name: rental_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY rental
+    ADD CONSTRAINT rental_pkey PRIMARY KEY (rental_id);
+
+
+--
+-- Name: staff_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY staff
+    ADD CONSTRAINT staff_pkey PRIMARY KEY (staff_id);
+
+
+--
+-- Name: store_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY store
+    ADD CONSTRAINT store_pkey PRIMARY KEY (store_id);
+
+
+--
+-- Name: film_fulltext_idx; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX film_fulltext_idx ON film USING gist (fulltext);
+
+
+--
+-- Name: idx_actor_last_name; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_actor_last_name ON actor USING btree (last_name);
+
+
+--
+-- Name: idx_fk_address_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_address_id ON customer USING btree (address_id);
+
+
+--
+-- Name: idx_fk_city_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_city_id ON address USING btree (city_id);
+
+
+--
+-- Name: idx_fk_country_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_country_id ON city USING btree (country_id);
+
+
+--
+-- Name: idx_fk_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_customer_id ON payment USING btree (customer_id);
+
+
+--
+-- Name: idx_fk_film_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_film_id ON film_actor USING btree (film_id);
+
+
+--
+-- Name: idx_fk_inventory_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_inventory_id ON rental USING btree (inventory_id);
+
+
+--
+-- Name: idx_fk_language_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_language_id ON film USING btree (language_id);
+
+
+--
+-- Name: idx_fk_original_language_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_original_language_id ON film USING btree (original_language_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_01_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_01_customer_id ON payment_p2007_01 USING btree (customer_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_01_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_01_staff_id ON payment_p2007_01 USING btree (staff_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_02_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_02_customer_id ON payment_p2007_02 USING btree (customer_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_02_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_02_staff_id ON payment_p2007_02 USING btree (staff_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_03_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_03_customer_id ON payment_p2007_03 USING btree (customer_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_03_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_03_staff_id ON payment_p2007_03 USING btree (staff_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_04_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_04_customer_id ON payment_p2007_04 USING btree (customer_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_04_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_04_staff_id ON payment_p2007_04 USING btree (staff_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_05_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_05_customer_id ON payment_p2007_05 USING btree (customer_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_05_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_05_staff_id ON payment_p2007_05 USING btree (staff_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_06_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_06_customer_id ON payment_p2007_06 USING btree (customer_id);
+
+
+--
+-- Name: idx_fk_payment_p2007_06_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_payment_p2007_06_staff_id ON payment_p2007_06 USING btree (staff_id);
+
+
+--
+-- Name: idx_fk_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_staff_id ON payment USING btree (staff_id);
+
+
+--
+-- Name: idx_fk_store_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_fk_store_id ON customer USING btree (store_id);
+
+
+--
+-- Name: idx_last_name; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_last_name ON customer USING btree (last_name);
+
+
+--
+-- Name: idx_store_id_film_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
 
+CREATE INDEX idx_store_id_film_id ON inventory USING btree (store_id, film_id);
+
+
+--
+-- Name: idx_title; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE INDEX idx_title ON film USING btree (title);
+
+
+--
+-- Name: idx_unq_manager_staff_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE UNIQUE INDEX idx_unq_manager_staff_id ON store USING btree (manager_staff_id);
+
+
+--
+-- Name: idx_unq_rental_rental_date_inventory_id_customer_id; Type: INDEX; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON rental USING btree (rental_date, inventory_id, customer_id);
+
+
+--
+-- Name: payment_insert_p2007_01; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE payment_insert_p2007_01 AS ON INSERT TO payment WHERE ((new.payment_date >= '2007-01-01 00:00:00'::timestamp without time zone) AND (new.payment_date < '2007-02-01 00:00:00'::timestamp without time zone)) DO INSTEAD INSERT INTO payment_p2007_01 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) VALUES (DEFAULT, new.customer_id, new.staff_id, new.rental_id, new.amount, new.payment_date);
+
+
+--
+-- Name: payment_insert_p2007_02; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE payment_insert_p2007_02 AS ON INSERT TO payment WHERE ((new.payment_date >= '2007-02-01 00:00:00'::timestamp without time zone) AND (new.payment_date < '2007-03-01 00:00:00'::timestamp without time zone)) DO INSTEAD INSERT INTO payment_p2007_02 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) VALUES (DEFAULT, new.customer_id, new.staff_id, new.rental_id, new.amount, new.payment_date);
+
+
+--
+-- Name: payment_insert_p2007_03; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE payment_insert_p2007_03 AS ON INSERT TO payment WHERE ((new.payment_date >= '2007-03-01 00:00:00'::timestamp without time zone) AND (new.payment_date < '2007-04-01 00:00:00'::timestamp without time zone)) DO INSTEAD INSERT INTO payment_p2007_03 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) VALUES (DEFAULT, new.customer_id, new.staff_id, new.rental_id, new.amount, new.payment_date);
+
+
+--
+-- Name: payment_insert_p2007_04; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE payment_insert_p2007_04 AS ON INSERT TO payment WHERE ((new.payment_date >= '2007-04-01 00:00:00'::timestamp without time zone) AND (new.payment_date < '2007-05-01 00:00:00'::timestamp without time zone)) DO INSTEAD INSERT INTO payment_p2007_04 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) VALUES (DEFAULT, new.customer_id, new.staff_id, new.rental_id, new.amount, new.payment_date);
+
+
+--
+-- Name: payment_insert_p2007_05; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE payment_insert_p2007_05 AS ON INSERT TO payment WHERE ((new.payment_date >= '2007-05-01 00:00:00'::timestamp without time zone) AND (new.payment_date < '2007-06-01 00:00:00'::timestamp without time zone)) DO INSTEAD INSERT INTO payment_p2007_05 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) VALUES (DEFAULT, new.customer_id, new.staff_id, new.rental_id, new.amount, new.payment_date);
+
+
+--
+-- Name: payment_insert_p2007_06; Type: RULE; Schema: public; Owner: postgres
+--
+
+CREATE RULE payment_insert_p2007_06 AS ON INSERT TO payment WHERE ((new.payment_date >= '2007-06-01 00:00:00'::timestamp without time zone) AND (new.payment_date < '2007-07-01 00:00:00'::timestamp without time zone)) DO INSTEAD INSERT INTO payment_p2007_06 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) VALUES (DEFAULT, new.customer_id, new.staff_id, new.rental_id, new.amount, new.payment_date);
+
+
+--
+-- Name: film_fulltext_trigger; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER film_fulltext_trigger
+    BEFORE INSERT OR UPDATE ON film
+    FOR EACH ROW
+    EXECUTE PROCEDURE tsvector_update_trigger('fulltext', 'pg_catalog.english', 'title', 'description');
+
+
+--
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON actor
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
+
+
+--
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON address
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
+
+
 --
--- Name: actor_actor_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
+
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON category
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
+
 
-CREATE SEQUENCE public.actor_actor_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+--
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
+--
 
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON city
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
 
-ALTER TABLE public.actor_actor_id_seq OWNER TO postgres;
 
 --
--- Name: actor; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
+
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON country
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
 
-CREATE TABLE public.actor (
-    actor_id integer DEFAULT nextval('public.actor_actor_id_seq'::regclass) NOT NULL,
-    first_name character varying(45) NOT NULL,
-    last_name character varying(45) NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
 
+--
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON customer
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
 
-ALTER TABLE public.actor OWNER TO dvdrental;
 
 --
--- Name: category_category_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE SEQUENCE public.category_category_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON film
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
+
+
+--
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
+--
 
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON film_actor
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
 
-ALTER TABLE public.category_category_id_seq OWNER TO postgres;
 
 --
--- Name: category; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
+
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON film_category
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
+
 
-CREATE TABLE public.category (
-    category_id integer DEFAULT nextval('public.category_category_id_seq'::regclass) NOT NULL,
-    name character varying(25) NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
+--
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
+--
 
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON inventory
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
 
-ALTER TABLE public.category OWNER TO dvdrental;
 
 --
--- Name: film_film_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
+
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON language
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
 
-CREATE SEQUENCE public.film_film_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
 
+--
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON rental
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
 
-ALTER TABLE public.film_film_id_seq OWNER TO postgres;
 
 --
--- Name: film; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.film (
-    film_id integer DEFAULT nextval('public.film_film_id_seq'::regclass) NOT NULL,
-    title character varying(255) NOT NULL,
-    description text,
-    release_year public.year,
-    language_id smallint NOT NULL,
-    rental_duration smallint DEFAULT 3 NOT NULL,
-    rental_rate numeric(4,2) DEFAULT 4.99 NOT NULL,
-    length smallint,
-    replacement_cost numeric(5,2) DEFAULT 19.99 NOT NULL,
-    rating public.mpaa_rating DEFAULT 'G'::public.mpaa_rating,
-    last_update timestamp without time zone DEFAULT now() NOT NULL,
-    special_features text[],
-    fulltext tsvector NOT NULL
-);
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON staff
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
+
+
+--
+-- Name: last_updated; Type: TRIGGER; Schema: public; Owner: postgres
+--
 
+CREATE TRIGGER last_updated
+    BEFORE UPDATE ON store
+    FOR EACH ROW
+    EXECUTE PROCEDURE last_updated();
 
-ALTER TABLE public.film OWNER TO dvdrental;
 
 --
--- Name: film_actor; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY address
+    ADD CONSTRAINT address_city_id_fkey FOREIGN KEY (city_id) REFERENCES city(city_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
 
-CREATE TABLE public.film_actor (
-    actor_id smallint NOT NULL,
-    film_id smallint NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
+--
+-- Name: city_country_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY city
+    ADD CONSTRAINT city_country_id_fkey FOREIGN KEY (country_id) REFERENCES country(country_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-ALTER TABLE public.film_actor OWNER TO dvdrental;
 
 --
--- Name: film_category; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: customer_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY customer
+    ADD CONSTRAINT customer_address_id_fkey FOREIGN KEY (address_id) REFERENCES address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-CREATE TABLE public.film_category (
-    film_id smallint NOT NULL,
-    category_id smallint NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
 
+--
+-- Name: customer_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY customer
+    ADD CONSTRAINT customer_store_id_fkey FOREIGN KEY (store_id) REFERENCES store(store_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-ALTER TABLE public.film_category OWNER TO dvdrental;
 
 --
--- Name: actor_info; Type: VIEW; Schema: public; Owner: dvdrental
+-- Name: film_actor_actor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.actor_info AS
- SELECT a.actor_id,
-    a.first_name,
-    a.last_name,
-    public.group_concat(DISTINCT (((c.name)::text || ': '::text) || ( SELECT public.group_concat((f.title)::text) AS group_concat
-           FROM ((public.film f
-             JOIN public.film_category fc_1 ON ((f.film_id = fc_1.film_id)))
-             JOIN public.film_actor fa_1 ON ((f.film_id = fa_1.film_id)))
-          WHERE ((fc_1.category_id = c.category_id) AND (fa_1.actor_id = a.actor_id))
-          GROUP BY fa_1.actor_id))) AS film_info
-   FROM (((public.actor a
-     LEFT JOIN public.film_actor fa ON ((a.actor_id = fa.actor_id)))
-     LEFT JOIN public.film_category fc ON ((fa.film_id = fc.film_id)))
-     LEFT JOIN public.category c ON ((fc.category_id = c.category_id)))
-  GROUP BY a.actor_id, a.first_name, a.last_name;
+ALTER TABLE ONLY film_actor
+    ADD CONSTRAINT film_actor_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES actor(actor_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: film_actor_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY film_actor
+    ADD CONSTRAINT film_actor_film_id_fkey FOREIGN KEY (film_id) REFERENCES film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-ALTER TABLE public.actor_info OWNER TO dvdrental;
 
 --
--- Name: address_address_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: film_category_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-CREATE SEQUENCE public.address_address_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+ALTER TABLE ONLY film_category
+    ADD CONSTRAINT film_category_category_id_fkey FOREIGN KEY (category_id) REFERENCES category(category_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
-ALTER TABLE public.address_address_id_seq OWNER TO postgres;
+--
+-- Name: film_category_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY film_category
+    ADD CONSTRAINT film_category_film_id_fkey FOREIGN KEY (film_id) REFERENCES film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
+
 --
--- Name: address; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: film_language_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY film
+    ADD CONSTRAINT film_language_id_fkey FOREIGN KEY (language_id) REFERENCES language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
 
-CREATE TABLE public.address (
-    address_id integer DEFAULT nextval('public.address_address_id_seq'::regclass) NOT NULL,
-    address character varying(50) NOT NULL,
-    address2 character varying(50),
-    district character varying(20) NOT NULL,
-    city_id smallint NOT NULL,
-    postal_code character varying(10),
-    phone character varying(20) NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
+--
+-- Name: film_original_language_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY film
+    ADD CONSTRAINT film_original_language_id_fkey FOREIGN KEY (original_language_id) REFERENCES language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-ALTER TABLE public.address OWNER TO dvdrental;
 
 --
--- Name: city_city_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: inventory_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY inventory
+    ADD CONSTRAINT inventory_film_id_fkey FOREIGN KEY (film_id) REFERENCES film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-CREATE SEQUENCE public.city_city_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+
+--
+-- Name: inventory_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY inventory
+    ADD CONSTRAINT inventory_store_id_fkey FOREIGN KEY (store_id) REFERENCES store(store_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-ALTER TABLE public.city_city_id_seq OWNER TO postgres;
 
 --
--- Name: city; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: payment_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.city (
-    city_id integer DEFAULT nextval('public.city_city_id_seq'::regclass) NOT NULL,
-    city character varying(50) NOT NULL,
-    country_id smallint NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
+ALTER TABLE ONLY payment
+    ADD CONSTRAINT payment_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
-ALTER TABLE public.city OWNER TO dvdrental;
+--
+-- Name: payment_p2007_01_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY payment_p2007_01
+    ADD CONSTRAINT payment_p2007_01_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id);
 
+
 --
--- Name: country_country_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: payment_p2007_01_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY payment_p2007_01
+    ADD CONSTRAINT payment_p2007_01_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES rental(rental_id);
+
 
-CREATE SEQUENCE public.country_country_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+--
+-- Name: payment_p2007_01_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY payment_p2007_01
+    ADD CONSTRAINT payment_p2007_01_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff(staff_id);
 
-ALTER TABLE public.country_country_id_seq OWNER TO postgres;
 
 --
--- Name: country; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: payment_p2007_02_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY payment_p2007_02
+    ADD CONSTRAINT payment_p2007_02_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id);
 
-CREATE TABLE public.country (
-    country_id integer DEFAULT nextval('public.country_country_id_seq'::regclass) NOT NULL,
-    country character varying(50) NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
+
+--
+-- Name: payment_p2007_02_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY payment_p2007_02
+    ADD CONSTRAINT payment_p2007_02_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES rental(rental_id);
 
-ALTER TABLE public.country OWNER TO dvdrental;
 
 --
--- Name: customer_list; Type: VIEW; Schema: public; Owner: dvdrental
+-- Name: payment_p2007_02_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-CREATE VIEW public.customer_list AS
- SELECT cu.customer_id AS id,
-    (((cu.first_name)::text || ' '::text) || (cu.last_name)::text) AS name,
-    a.address,
-    a.postal_code AS "zip code",
-    a.phone,
-    city.city,
-    country.country,
-        CASE
-            WHEN cu.activebool THEN 'active'::text
-            ELSE ''::text
-        END AS notes,
-    cu.store_id AS sid
-   FROM (((public.customer cu
-     JOIN public.address a ON ((cu.address_id = a.address_id)))
-     JOIN public.city ON ((a.city_id = city.city_id)))
-     JOIN public.country ON ((city.country_id = country.country_id)));
+ALTER TABLE ONLY payment_p2007_02
+    ADD CONSTRAINT payment_p2007_02_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff(staff_id);
 
 
-ALTER TABLE public.customer_list OWNER TO dvdrental;
+--
+-- Name: payment_p2007_03_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY payment_p2007_03
+    ADD CONSTRAINT payment_p2007_03_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id);
 
+
 --
--- Name: film_list; Type: VIEW; Schema: public; Owner: dvdrental
+-- Name: payment_p2007_03_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY payment_p2007_03
+    ADD CONSTRAINT payment_p2007_03_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES rental(rental_id);
+
 
-CREATE VIEW public.film_list AS
- SELECT film.film_id AS fid,
-    film.title,
-    film.description,
-    category.name AS category,
-    film.rental_rate AS price,
-    film.length,
-    film.rating,
-    public.group_concat((((actor.first_name)::text || ' '::text) || (actor.last_name)::text)) AS actors
-   FROM ((((public.category
-     LEFT JOIN public.film_category ON ((category.category_id = film_category.category_id)))
-     LEFT JOIN public.film ON ((film_category.film_id = film.film_id)))
-     JOIN public.film_actor ON ((film.film_id = film_actor.film_id)))
-     JOIN public.actor ON ((film_actor.actor_id = actor.actor_id)))
-  GROUP BY film.film_id, film.title, film.description, category.name, film.rental_rate, film.length, film.rating;
+--
+-- Name: payment_p2007_03_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY payment_p2007_03
+    ADD CONSTRAINT payment_p2007_03_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff(staff_id);
 
-ALTER TABLE public.film_list OWNER TO dvdrental;
 
 --
--- Name: inventory_inventory_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: payment_p2007_04_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY payment_p2007_04
+    ADD CONSTRAINT payment_p2007_04_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id);
 
-CREATE SEQUENCE public.inventory_inventory_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+
+--
+-- Name: payment_p2007_04_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY payment_p2007_04
+    ADD CONSTRAINT payment_p2007_04_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES rental(rental_id);
 
-ALTER TABLE public.inventory_inventory_id_seq OWNER TO postgres;
 
 --
--- Name: inventory; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: payment_p2007_04_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.inventory (
-    inventory_id integer DEFAULT nextval('public.inventory_inventory_id_seq'::regclass) NOT NULL,
-    film_id smallint NOT NULL,
-    store_id smallint NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
+ALTER TABLE ONLY payment_p2007_04
+    ADD CONSTRAINT payment_p2007_04_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff(staff_id);
 
 
-ALTER TABLE public.inventory OWNER TO dvdrental;
+--
+-- Name: payment_p2007_05_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY payment_p2007_05
+    ADD CONSTRAINT payment_p2007_05_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id);
 
+
 --
--- Name: language_language_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: payment_p2007_05_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY payment_p2007_05
+    ADD CONSTRAINT payment_p2007_05_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES rental(rental_id);
+
 
-CREATE SEQUENCE public.language_language_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+--
+-- Name: payment_p2007_05_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY payment_p2007_05
+    ADD CONSTRAINT payment_p2007_05_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff(staff_id);
 
-ALTER TABLE public.language_language_id_seq OWNER TO postgres;
 
 --
--- Name: language; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: payment_p2007_06_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY payment_p2007_06
+    ADD CONSTRAINT payment_p2007_06_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id);
 
-CREATE TABLE public.language (
-    language_id integer DEFAULT nextval('public.language_language_id_seq'::regclass) NOT NULL,
-    name character(20) NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
 
+--
+-- Name: payment_p2007_06_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
-ALTER TABLE public.language OWNER TO dvdrental;
+ALTER TABLE ONLY payment_p2007_06
+    ADD CONSTRAINT payment_p2007_06_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES rental(rental_id);
 
+
 --
--- Name: nicer_but_slower_film_list; Type: VIEW; Schema: public; Owner: dvdrental
+-- Name: payment_p2007_06_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY payment_p2007_06
+    ADD CONSTRAINT payment_p2007_06_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff(staff_id);
 
-CREATE VIEW public.nicer_but_slower_film_list AS
- SELECT film.film_id AS fid,
-    film.title,
-    film.description,
-    category.name AS category,
-    film.rental_rate AS price,
-    film.length,
-    film.rating,
-    public.group_concat((((upper("substring"((actor.first_name)::text, 1, 1)) || lower("substring"((actor.first_name)::text, 2))) || upper("substring"((actor.last_name)::text, 1, 1))) || lower("substring"((actor.last_name)::text, 2)))) AS actors
-   FROM ((((public.category
-     LEFT JOIN public.film_category ON ((category.category_id = film_category.category_id)))
-     LEFT JOIN public.film ON ((film_category.film_id = film.film_id)))
-     JOIN public.film_actor ON ((film.film_id = film_actor.film_id)))
-     JOIN public.actor ON ((film_actor.actor_id = actor.actor_id)))
-  GROUP BY film.film_id, film.title, film.description, category.name, film.rental_rate, film.length, film.rating;
 
+--
+-- Name: payment_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY payment
+    ADD CONSTRAINT payment_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES rental(rental_id) ON UPDATE CASCADE ON DELETE SET NULL;
 
-ALTER TABLE public.nicer_but_slower_film_list OWNER TO dvdrental;
 
 --
--- Name: payment_payment_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: payment_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-CREATE SEQUENCE public.payment_payment_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+ALTER TABLE ONLY payment
+    ADD CONSTRAINT payment_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: rental_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY rental
+    ADD CONSTRAINT rental_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customer(customer_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-ALTER TABLE public.payment_payment_id_seq OWNER TO postgres;
 
 --
--- Name: payment; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: rental_inventory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY rental
+    ADD CONSTRAINT rental_inventory_id_fkey FOREIGN KEY (inventory_id) REFERENCES inventory(inventory_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
 
-CREATE TABLE public.payment (
-    payment_id integer DEFAULT nextval('public.payment_payment_id_seq'::regclass) NOT NULL,
-    customer_id smallint NOT NULL,
-    staff_id smallint NOT NULL,
-    rental_id integer NOT NULL,
-    amount numeric(5,2) NOT NULL,
-    payment_date timestamp without time zone NOT NULL
-);
+--
+-- Name: rental_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY rental
+    ADD CONSTRAINT rental_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-ALTER TABLE public.payment OWNER TO dvdrental;
 
 --
--- Name: rental_rental_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: staff_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
+
+ALTER TABLE ONLY staff
+    ADD CONSTRAINT staff_address_id_fkey FOREIGN KEY (address_id) REFERENCES address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-CREATE SEQUENCE public.rental_rental_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
 
+--
+-- Name: staff_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY staff
+    ADD CONSTRAINT staff_store_id_fkey FOREIGN KEY (store_id) REFERENCES store(store_id);
 
-ALTER TABLE public.rental_rental_id_seq OWNER TO postgres;
 
 --
--- Name: rental; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: store_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.rental (
-    rental_id integer DEFAULT nextval('public.rental_rental_id_seq'::regclass) NOT NULL,
-    rental_date timestamp without time zone NOT NULL,
-    inventory_id integer NOT NULL,
-    customer_id smallint NOT NULL,
-    return_date timestamp without time zone,
-    staff_id smallint NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
+ALTER TABLE ONLY store
+    ADD CONSTRAINT store_address_id_fkey FOREIGN KEY (address_id) REFERENCES address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- Name: store_manager_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
+ALTER TABLE ONLY store
+    ADD CONSTRAINT store_manager_staff_id_fkey FOREIGN KEY (manager_staff_id) REFERENCES staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
-ALTER TABLE public.rental OWNER TO dvdrental;
 
 --
--- Name: sales_by_category_month; Type: VIEW; Schema: public; Owner: dvdrental
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
 --
 
-CREATE VIEW public.sales_by_category_month AS
- SELECT date_trunc('MONTH'::text, p.payment_date) AS payment_date_ym,
-    c.category_id,
-    c.name AS category,
-    sum(p.amount) AS total_sales
-   FROM (((((public.payment p
-     JOIN public.rental r ON ((p.rental_id = r.rental_id)))
-     JOIN public.inventory i ON ((r.inventory_id = i.inventory_id)))
-     JOIN public.film f ON ((i.film_id = f.film_id)))
-     JOIN public.film_category fc ON ((f.film_id = fc.film_id)))
-     JOIN public.category c ON ((fc.category_id = c.category_id)))
-  GROUP BY (date_trunc('MONTH'::text, p.payment_date)), c.category_id, c.name
-  ORDER BY (date_trunc('MONTH'::text, p.payment_date));
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO PUBLIC;
 
 
-ALTER TABLE public.sales_by_category_month OWNER TO dvdrental;
+--
+-- PostgreSQL database dump complete
+--
 
 --
--- Name: sales_by_film_category; Type: VIEW; Schema: public; Owner: dvdrental
+-- PostgreSQL database dump
 --
 
-CREATE VIEW public.sales_by_film_category AS
- SELECT c.name AS category,
-    sum(p.amount) AS total_sales
-   FROM (((((public.payment p
-     JOIN public.rental r ON ((p.rental_id = r.rental_id)))
-     JOIN public.inventory i ON ((r.inventory_id = i.inventory_id)))
-     JOIN public.film f ON ((i.film_id = f.film_id)))
-     JOIN public.film_category fc ON ((f.film_id = fc.film_id)))
-     JOIN public.category c ON ((fc.category_id = c.category_id)))
-  GROUP BY c.name
-  ORDER BY (sum(p.amount)) DESC;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = off;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET escape_string_warning = off;
+
+SET search_path = public, pg_catalog;
+
+--
+-- Name: actor_actor_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
+SELECT pg_catalog.setval('actor_actor_id_seq', 200, true);
 
-ALTER TABLE public.sales_by_film_category OWNER TO dvdrental;
 
 --
--- Name: staff_staff_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: category_category_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-CREATE SEQUENCE public.staff_staff_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+SELECT pg_catalog.setval('category_category_id_seq', 16, true);
 
 
-ALTER TABLE public.staff_staff_id_seq OWNER TO postgres;
+--
+-- Name: film_film_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('film_film_id_seq', 1000, true);
 
+
 --
--- Name: staff; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: address_address_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
+
+SELECT pg_catalog.setval('address_address_id_seq', 605, true);
+
 
-CREATE TABLE public.staff (
-    staff_id integer DEFAULT nextval('public.staff_staff_id_seq'::regclass) NOT NULL,
-    first_name character varying(45) NOT NULL,
-    last_name character varying(45) NOT NULL,
-    address_id smallint NOT NULL,
-    email character varying(50),
-    store_id smallint NOT NULL,
-    active boolean DEFAULT true NOT NULL,
-    username character varying(16) NOT NULL,
-    password character varying(40),
-    last_update timestamp without time zone DEFAULT now() NOT NULL,
-    picture bytea
-);
+--
+-- Name: city_city_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
+SELECT pg_catalog.setval('city_city_id_seq', 600, true);
 
-ALTER TABLE public.staff OWNER TO dvdrental;
 
 --
--- Name: store_store_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+-- Name: country_country_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
+
+SELECT pg_catalog.setval('country_country_id_seq', 109, true);
 
-CREATE SEQUENCE public.store_store_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+
+--
+-- Name: customer_customer_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
+SELECT pg_catalog.setval('customer_customer_id_seq', 599, true);
 
-ALTER TABLE public.store_store_id_seq OWNER TO postgres;
 
 --
--- Name: store; Type: TABLE; Schema: public; Owner: dvdrental
+-- Name: inventory_inventory_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-CREATE TABLE public.store (
-    store_id integer DEFAULT nextval('public.store_store_id_seq'::regclass) NOT NULL,
-    manager_staff_id smallint NOT NULL,
-    address_id smallint NOT NULL,
-    last_update timestamp without time zone DEFAULT now() NOT NULL
-);
+SELECT pg_catalog.setval('inventory_inventory_id_seq', 4581, true);
 
 
-ALTER TABLE public.store OWNER TO dvdrental;
+--
+-- Name: language_language_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('language_language_id_seq', 6, true);
 
+
 --
--- Name: sales_by_store; Type: VIEW; Schema: public; Owner: dvdrental
+-- Name: payment_payment_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
+
+SELECT pg_catalog.setval('payment_payment_id_seq', 32098, true);
+
 
-CREATE VIEW public.sales_by_store AS
- SELECT (((c.city)::text || ','::text) || (cy.country)::text) AS store,
-    (((m.first_name)::text || ' '::text) || (m.last_name)::text) AS manager,
-    sum(p.amount) AS total_sales
-   FROM (((((((public.payment p
-     JOIN public.rental r ON ((p.rental_id = r.rental_id)))
-     JOIN public.inventory i ON ((r.inventory_id = i.inventory_id)))
-     JOIN public.store s ON ((i.store_id = s.store_id)))
-     JOIN public.address a ON ((s.address_id = a.address_id)))
-     JOIN public.city c ON ((a.city_id = c.city_id)))
-     JOIN public.country cy ON ((c.country_id = cy.country_id)))
-     JOIN public.staff m ON ((s.manager_staff_id = m.staff_id)))
-  GROUP BY cy.country, c.city, s.store_id, m.first_name, m.last_name
-  ORDER BY cy.country, c.city;
+--
+-- Name: rental_rental_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
+SELECT pg_catalog.setval('rental_rental_id_seq', 16049, true);
 
-ALTER TABLE public.sales_by_store OWNER TO dvdrental;
 
 --
--- Name: staff_list; Type: VIEW; Schema: public; Owner: dvdrental
+-- Name: staff_staff_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
+
+SELECT pg_catalog.setval('staff_staff_id_seq', 2, true);
 
-CREATE VIEW public.staff_list AS
- SELECT s.staff_id AS id,
-    (((s.first_name)::text || ' '::text) || (s.last_name)::text) AS name,
-    a.address,
-    a.postal_code AS "zip code",
-    a.phone,
-    city.city,
-    country.country,
-    s.store_id AS sid
-   FROM (((public.staff s
-     JOIN public.address a ON ((s.address_id = a.address_id)))
-     JOIN public.city ON ((a.city_id = city.city_id)))
-     JOIN public.country ON ((city.country_id = country.country_id)));
 
+--
+-- Name: store_store_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
-ALTER TABLE public.staff_list OWNER TO dvdrental;
+SELECT pg_catalog.setval('store_store_id_seq', 2, true);
 
+
 --
--- Data for Name: actor; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: actor; Type: TABLE DATA; Schema: public; Owner: postgres
 --
+
+ALTER TABLE actor DISABLE TRIGGER ALL;
 
-COPY public.actor (actor_id, first_name, last_name, last_update) FROM stdin;
-1	Penelope	Guiness	2013-05-26 14:47:57.62
-2	Nick	Wahlberg	2013-05-26 14:47:57.62
-3	Ed	Chase	2013-05-26 14:47:57.62
-4	Jennifer	Davis	2013-05-26 14:47:57.62
-5	Johnny	Lollobrigida	2013-05-26 14:47:57.62
-6	Bette	Nicholson	2013-05-26 14:47:57.62
-7	Grace	Mostel	2013-05-26 14:47:57.62
-8	Matthew	Johansson	2013-05-26 14:47:57.62
-9	Joe	Swank	2013-05-26 14:47:57.62
-10	Christian	Gable	2013-05-26 14:47:57.62
-11	Zero	Cage	2013-05-26 14:47:57.62
-12	Karl	Berry	2013-05-26 14:47:57.62
-13	Uma	Wood	2013-05-26 14:47:57.62
-14	Vivien	Bergen	2013-05-26 14:47:57.62
-15	Cuba	Olivier	2013-05-26 14:47:57.62
-16	Fred	Costner	2013-05-26 14:47:57.62
-17	Helen	Voight	2013-05-26 14:47:57.62
-18	Dan	Torn	2013-05-26 14:47:57.62
-19	Bob	Fawcett	2013-05-26 14:47:57.62
-20	Lucille	Tracy	2013-05-26 14:47:57.62
-21	Kirsten	Paltrow	2013-05-26 14:47:57.62
-22	Elvis	Marx	2013-05-26 14:47:57.62
-23	Sandra	Kilmer	2013-05-26 14:47:57.62
-24	Cameron	Streep	2013-05-26 14:47:57.62
-25	Kevin	Bloom	2013-05-26 14:47:57.62
-26	Rip	Crawford	2013-05-26 14:47:57.62
-27	Julia	Mcqueen	2013-05-26 14:47:57.62
-28	Woody	Hoffman	2013-05-26 14:47:57.62
-29	Alec	Wayne	2013-05-26 14:47:57.62
-30	Sandra	Peck	2013-05-26 14:47:57.62
-31	Sissy	Sobieski	2013-05-26 14:47:57.62
-32	Tim	Hackman	2013-05-26 14:47:57.62
-33	Milla	Peck	2013-05-26 14:47:57.62
-34	Audrey	Olivier	2013-05-26 14:47:57.62
-35	Judy	Dean	2013-05-26 14:47:57.62
-36	Burt	Dukakis	2013-05-26 14:47:57.62
-37	Val	Bolger	2013-05-26 14:47:57.62
-38	Tom	Mckellen	2013-05-26 14:47:57.62
-39	Goldie	Brody	2013-05-26 14:47:57.62
-40	Johnny	Cage	2013-05-26 14:47:57.62
-41	Jodie	Degeneres	2013-05-26 14:47:57.62
-42	Tom	Miranda	2013-05-26 14:47:57.62
-43	Kirk	Jovovich	2013-05-26 14:47:57.62
-44	Nick	Stallone	2013-05-26 14:47:57.62
-45	Reese	Kilmer	2013-05-26 14:47:57.62
-46	Parker	Goldberg	2013-05-26 14:47:57.62
-47	Julia	Barrymore	2013-05-26 14:47:57.62
-48	Frances	Day-Lewis	2013-05-26 14:47:57.62
-49	Anne	Cronyn	2013-05-26 14:47:57.62
-50	Natalie	Hopkins	2013-05-26 14:47:57.62
-51	Gary	Phoenix	2013-05-26 14:47:57.62
-52	Carmen	Hunt	2013-05-26 14:47:57.62
-53	Mena	Temple	2013-05-26 14:47:57.62
-54	Penelope	Pinkett	2013-05-26 14:47:57.62
-55	Fay	Kilmer	2013-05-26 14:47:57.62
-56	Dan	Harris	2013-05-26 14:47:57.62
-57	Jude	Cruise	2013-05-26 14:47:57.62
-58	Christian	Akroyd	2013-05-26 14:47:57.62
-59	Dustin	Tautou	2013-05-26 14:47:57.62
-60	Henry	Berry	2013-05-26 14:47:57.62
-61	Christian	Neeson	2013-05-26 14:47:57.62
-62	Jayne	Neeson	2013-05-26 14:47:57.62
-63	Cameron	Wray	2013-05-26 14:47:57.62
-64	Ray	Johansson	2013-05-26 14:47:57.62
-65	Angela	Hudson	2013-05-26 14:47:57.62
-66	Mary	Tandy	2013-05-26 14:47:57.62
-67	Jessica	Bailey	2013-05-26 14:47:57.62
-68	Rip	Winslet	2013-05-26 14:47:57.62
-69	Kenneth	Paltrow	2013-05-26 14:47:57.62
-70	Michelle	Mcconaughey	2013-05-26 14:47:57.62
-71	Adam	Grant	2013-05-26 14:47:57.62
-72	Sean	Williams	2013-05-26 14:47:57.62
-73	Gary	Penn	2013-05-26 14:47:57.62
-74	Milla	Keitel	2013-05-26 14:47:57.62
-75	Burt	Posey	2013-05-26 14:47:57.62
-76	Angelina	Astaire	2013-05-26 14:47:57.62
-77	Cary	Mcconaughey	2013-05-26 14:47:57.62
-78	Groucho	Sinatra	2013-05-26 14:47:57.62
-79	Mae	Hoffman	2013-05-26 14:47:57.62
-80	Ralph	Cruz	2013-05-26 14:47:57.62
-81	Scarlett	Damon	2013-05-26 14:47:57.62
-82	Woody	Jolie	2013-05-26 14:47:57.62
-83	Ben	Willis	2013-05-26 14:47:57.62
-84	James	Pitt	2013-05-26 14:47:57.62
-85	Minnie	Zellweger	2013-05-26 14:47:57.62
-143	River	Dean	2013-05-26 14:47:57.62
-86	Greg	Chaplin	2013-05-26 14:47:57.62
-87	Spencer	Peck	2013-05-26 14:47:57.62
-88	Kenneth	Pesci	2013-05-26 14:47:57.62
-89	Charlize	Dench	2013-05-26 14:47:57.62
-90	Sean	Guiness	2013-05-26 14:47:57.62
-91	Christopher	Berry	2013-05-26 14:47:57.62
-92	Kirsten	Akroyd	2013-05-26 14:47:57.62
-93	Ellen	Presley	2013-05-26 14:47:57.62
-94	Kenneth	Torn	2013-05-26 14:47:57.62
-95	Daryl	Wahlberg	2013-05-26 14:47:57.62
-96	Gene	Willis	2013-05-26 14:47:57.62
-97	Meg	Hawke	2013-05-26 14:47:57.62
-98	Chris	Bridges	2013-05-26 14:47:57.62
-99	Jim	Mostel	2013-05-26 14:47:57.62
-100	Spencer	Depp	2013-05-26 14:47:57.62
-101	Susan	Davis	2013-05-26 14:47:57.62
-102	Walter	Torn	2013-05-26 14:47:57.62
-103	Matthew	Leigh	2013-05-26 14:47:57.62
-104	Penelope	Cronyn	2013-05-26 14:47:57.62
-105	Sidney	Crowe	2013-05-26 14:47:57.62
-106	Groucho	Dunst	2013-05-26 14:47:57.62
-107	Gina	Degeneres	2013-05-26 14:47:57.62
-108	Warren	Nolte	2013-05-26 14:47:57.62
-109	Sylvester	Dern	2013-05-26 14:47:57.62
-110	Susan	Davis	2013-05-26 14:47:57.62
-111	Cameron	Zellweger	2013-05-26 14:47:57.62
-112	Russell	Bacall	2013-05-26 14:47:57.62
-113	Morgan	Hopkins	2013-05-26 14:47:57.62
-114	Morgan	Mcdormand	2013-05-26 14:47:57.62
-115	Harrison	Bale	2013-05-26 14:47:57.62
-116	Dan	Streep	2013-05-26 14:47:57.62
-117	Renee	Tracy	2013-05-26 14:47:57.62
-118	Cuba	Allen	2013-05-26 14:47:57.62
-119	Warren	Jackman	2013-05-26 14:47:57.62
-120	Penelope	Monroe	2013-05-26 14:47:57.62
-121	Liza	Bergman	2013-05-26 14:47:57.62
-122	Salma	Nolte	2013-05-26 14:47:57.62
-123	Julianne	Dench	2013-05-26 14:47:57.62
-124	Scarlett	Bening	2013-05-26 14:47:57.62
-125	Albert	Nolte	2013-05-26 14:47:57.62
-126	Frances	Tomei	2013-05-26 14:47:57.62
-127	Kevin	Garland	2013-05-26 14:47:57.62
-128	Cate	Mcqueen	2013-05-26 14:47:57.62
-129	Daryl	Crawford	2013-05-26 14:47:57.62
-130	Greta	Keitel	2013-05-26 14:47:57.62
-131	Jane	Jackman	2013-05-26 14:47:57.62
-132	Adam	Hopper	2013-05-26 14:47:57.62
-133	Richard	Penn	2013-05-26 14:47:57.62
-134	Gene	Hopkins	2013-05-26 14:47:57.62
-135	Rita	Reynolds	2013-05-26 14:47:57.62
-136	Ed	Mansfield	2013-05-26 14:47:57.62
-137	Morgan	Williams	2013-05-26 14:47:57.62
-138	Lucille	Dee	2013-05-26 14:47:57.62
-139	Ewan	Gooding	2013-05-26 14:47:57.62
-140	Whoopi	Hurt	2013-05-26 14:47:57.62
-141	Cate	Harris	2013-05-26 14:47:57.62
-142	Jada	Ryder	2013-05-26 14:47:57.62
-144	Angela	Witherspoon	2013-05-26 14:47:57.62
-145	Kim	Allen	2013-05-26 14:47:57.62
-146	Albert	Johansson	2013-05-26 14:47:57.62
-147	Fay	Winslet	2013-05-26 14:47:57.62
-148	Emily	Dee	2013-05-26 14:47:57.62
-149	Russell	Temple	2013-05-26 14:47:57.62
-150	Jayne	Nolte	2013-05-26 14:47:57.62
-151	Geoffrey	Heston	2013-05-26 14:47:57.62
-152	Ben	Harris	2013-05-26 14:47:57.62
-153	Minnie	Kilmer	2013-05-26 14:47:57.62
-154	Meryl	Gibson	2013-05-26 14:47:57.62
-155	Ian	Tandy	2013-05-26 14:47:57.62
-156	Fay	Wood	2013-05-26 14:47:57.62
-157	Greta	Malden	2013-05-26 14:47:57.62
-158	Vivien	Basinger	2013-05-26 14:47:57.62
-159	Laura	Brody	2013-05-26 14:47:57.62
-160	Chris	Depp	2013-05-26 14:47:57.62
-161	Harvey	Hope	2013-05-26 14:47:57.62
-162	Oprah	Kilmer	2013-05-26 14:47:57.62
-163	Christopher	West	2013-05-26 14:47:57.62
-164	Humphrey	Willis	2013-05-26 14:47:57.62
-165	Al	Garland	2013-05-26 14:47:57.62
-166	Nick	Degeneres	2013-05-26 14:47:57.62
-167	Laurence	Bullock	2013-05-26 14:47:57.62
-168	Will	Wilson	2013-05-26 14:47:57.62
-169	Kenneth	Hoffman	2013-05-26 14:47:57.62
-170	Mena	Hopper	2013-05-26 14:47:57.62
-171	Olympia	Pfeiffer	2013-05-26 14:47:57.62
-172	Groucho	Williams	2013-05-26 14:47:57.62
-173	Alan	Dreyfuss	2013-05-26 14:47:57.62
-174	Michael	Bening	2013-05-26 14:47:57.62
-175	William	Hackman	2013-05-26 14:47:57.62
-176	Jon	Chase	2013-05-26 14:47:57.62
-177	Gene	Mckellen	2013-05-26 14:47:57.62
-178	Lisa	Monroe	2013-05-26 14:47:57.62
-179	Ed	Guiness	2013-05-26 14:47:57.62
-180	Jeff	Silverstone	2013-05-26 14:47:57.62
-181	Matthew	Carrey	2013-05-26 14:47:57.62
-182	Debbie	Akroyd	2013-05-26 14:47:57.62
-183	Russell	Close	2013-05-26 14:47:57.62
-184	Humphrey	Garland	2013-05-26 14:47:57.62
-185	Michael	Bolger	2013-05-26 14:47:57.62
-186	Julia	Zellweger	2013-05-26 14:47:57.62
-187	Renee	Ball	2013-05-26 14:47:57.62
-188	Rock	Dukakis	2013-05-26 14:47:57.62
-189	Cuba	Birch	2013-05-26 14:47:57.62
-190	Audrey	Bailey	2013-05-26 14:47:57.62
-191	Gregory	Gooding	2013-05-26 14:47:57.62
-192	John	Suvari	2013-05-26 14:47:57.62
-193	Burt	Temple	2013-05-26 14:47:57.62
-194	Meryl	Allen	2013-05-26 14:47:57.62
-195	Jayne	Silverstone	2013-05-26 14:47:57.62
-196	Bela	Walken	2013-05-26 14:47:57.62
-197	Reese	West	2013-05-26 14:47:57.62
-198	Mary	Keitel	2013-05-26 14:47:57.62
-199	Julia	Fawcett	2013-05-26 14:47:57.62
-200	Thora	Temple	2013-05-26 14:47:57.62
+COPY actor (actor_id, first_name, last_name, last_update) FROM stdin;
+1	PENELOPE	GUINESS	2006-02-15 09:34:33
+2	NICK	WAHLBERG	2006-02-15 09:34:33
+3	ED	CHASE	2006-02-15 09:34:33
+4	JENNIFER	DAVIS	2006-02-15 09:34:33
+5	JOHNNY	LOLLOBRIGIDA	2006-02-15 09:34:33
+6	BETTE	NICHOLSON	2006-02-15 09:34:33
+7	GRACE	MOSTEL	2006-02-15 09:34:33
+8	MATTHEW	JOHANSSON	2006-02-15 09:34:33
+9	JOE	SWANK	2006-02-15 09:34:33
+10	CHRISTIAN	GABLE	2006-02-15 09:34:33
+11	ZERO	CAGE	2006-02-15 09:34:33
+12	KARL	BERRY	2006-02-15 09:34:33
+13	UMA	WOOD	2006-02-15 09:34:33
+14	VIVIEN	BERGEN	2006-02-15 09:34:33
+15	CUBA	OLIVIER	2006-02-15 09:34:33
+16	FRED	COSTNER	2006-02-15 09:34:33
+17	HELEN	VOIGHT	2006-02-15 09:34:33
+18	DAN	TORN	2006-02-15 09:34:33
+19	BOB	FAWCETT	2006-02-15 09:34:33
+20	LUCILLE	TRACY	2006-02-15 09:34:33
+21	KIRSTEN	PALTROW	2006-02-15 09:34:33
+22	ELVIS	MARX	2006-02-15 09:34:33
+23	SANDRA	KILMER	2006-02-15 09:34:33
+24	CAMERON	STREEP	2006-02-15 09:34:33
+25	KEVIN	BLOOM	2006-02-15 09:34:33
+26	RIP	CRAWFORD	2006-02-15 09:34:33
+27	JULIA	MCQUEEN	2006-02-15 09:34:33
+28	WOODY	HOFFMAN	2006-02-15 09:34:33
+29	ALEC	WAYNE	2006-02-15 09:34:33
+30	SANDRA	PECK	2006-02-15 09:34:33
+31	SISSY	SOBIESKI	2006-02-15 09:34:33
+32	TIM	HACKMAN	2006-02-15 09:34:33
+33	MILLA	PECK	2006-02-15 09:34:33
+34	AUDREY	OLIVIER	2006-02-15 09:34:33
+35	JUDY	DEAN	2006-02-15 09:34:33
+36	BURT	DUKAKIS	2006-02-15 09:34:33
+37	VAL	BOLGER	2006-02-15 09:34:33
+38	TOM	MCKELLEN	2006-02-15 09:34:33
+39	GOLDIE	BRODY	2006-02-15 09:34:33
+40	JOHNNY	CAGE	2006-02-15 09:34:33
+41	JODIE	DEGENERES	2006-02-15 09:34:33
+42	TOM	MIRANDA	2006-02-15 09:34:33
+43	KIRK	JOVOVICH	2006-02-15 09:34:33
+44	NICK	STALLONE	2006-02-15 09:34:33
+45	REESE	KILMER	2006-02-15 09:34:33
+46	PARKER	GOLDBERG	2006-02-15 09:34:33
+47	JULIA	BARRYMORE	2006-02-15 09:34:33
+48	FRANCES	DAY-LEWIS	2006-02-15 09:34:33
+49	ANNE	CRONYN	2006-02-15 09:34:33
+50	NATALIE	HOPKINS	2006-02-15 09:34:33
+51	GARY	PHOENIX	2006-02-15 09:34:33
+52	CARMEN	HUNT	2006-02-15 09:34:33
+53	MENA	TEMPLE	2006-02-15 09:34:33
+54	PENELOPE	PINKETT	2006-02-15 09:34:33
+55	FAY	KILMER	2006-02-15 09:34:33
+56	DAN	HARRIS	2006-02-15 09:34:33
+57	JUDE	CRUISE	2006-02-15 09:34:33
+58	CHRISTIAN	AKROYD	2006-02-15 09:34:33
+59	DUSTIN	TAUTOU	2006-02-15 09:34:33
+60	HENRY	BERRY	2006-02-15 09:34:33
+61	CHRISTIAN	NEESON	2006-02-15 09:34:33
+62	JAYNE	NEESON	2006-02-15 09:34:33
+63	CAMERON	WRAY	2006-02-15 09:34:33
+64	RAY	JOHANSSON	2006-02-15 09:34:33
+65	ANGELA	HUDSON	2006-02-15 09:34:33
+66	MARY	TANDY	2006-02-15 09:34:33
+67	JESSICA	BAILEY	2006-02-15 09:34:33
+68	RIP	WINSLET	2006-02-15 09:34:33
+69	KENNETH	PALTROW	2006-02-15 09:34:33
+70	MICHELLE	MCCONAUGHEY	2006-02-15 09:34:33
+71	ADAM	GRANT	2006-02-15 09:34:33
+72	SEAN	WILLIAMS	2006-02-15 09:34:33
+73	GARY	PENN	2006-02-15 09:34:33
+74	MILLA	KEITEL	2006-02-15 09:34:33
+75	BURT	POSEY	2006-02-15 09:34:33
+76	ANGELINA	ASTAIRE	2006-02-15 09:34:33
+77	CARY	MCCONAUGHEY	2006-02-15 09:34:33
+78	GROUCHO	SINATRA	2006-02-15 09:34:33
+79	MAE	HOFFMAN	2006-02-15 09:34:33
+80	RALPH	CRUZ	2006-02-15 09:34:33
+81	SCARLETT	DAMON	2006-02-15 09:34:33
+82	WOODY	JOLIE	2006-02-15 09:34:33
+83	BEN	WILLIS	2006-02-15 09:34:33
+84	JAMES	PITT	2006-02-15 09:34:33
+85	MINNIE	ZELLWEGER	2006-02-15 09:34:33
+86	GREG	CHAPLIN	2006-02-15 09:34:33
+87	SPENCER	PECK	2006-02-15 09:34:33
+88	KENNETH	PESCI	2006-02-15 09:34:33
+89	CHARLIZE	DENCH	2006-02-15 09:34:33
+90	SEAN	GUINESS	2006-02-15 09:34:33
+91	CHRISTOPHER	BERRY	2006-02-15 09:34:33
+92	KIRSTEN	AKROYD	2006-02-15 09:34:33
+93	ELLEN	PRESLEY	2006-02-15 09:34:33
+94	KENNETH	TORN	2006-02-15 09:34:33
+95	DARYL	WAHLBERG	2006-02-15 09:34:33
+96	GENE	WILLIS	2006-02-15 09:34:33
+97	MEG	HAWKE	2006-02-15 09:34:33
+98	CHRIS	BRIDGES	2006-02-15 09:34:33
+99	JIM	MOSTEL	2006-02-15 09:34:33
+100	SPENCER	DEPP	2006-02-15 09:34:33
+101	SUSAN	DAVIS	2006-02-15 09:34:33
+102	WALTER	TORN	2006-02-15 09:34:33
+103	MATTHEW	LEIGH	2006-02-15 09:34:33
+104	PENELOPE	CRONYN	2006-02-15 09:34:33
+105	SIDNEY	CROWE	2006-02-15 09:34:33
+106	GROUCHO	DUNST	2006-02-15 09:34:33
+107	GINA	DEGENERES	2006-02-15 09:34:33
+108	WARREN	NOLTE	2006-02-15 09:34:33
+109	SYLVESTER	DERN	2006-02-15 09:34:33
+110	SUSAN	DAVIS	2006-02-15 09:34:33
+111	CAMERON	ZELLWEGER	2006-02-15 09:34:33
+112	RUSSELL	BACALL	2006-02-15 09:34:33
+113	MORGAN	HOPKINS	2006-02-15 09:34:33
+114	MORGAN	MCDORMAND	2006-02-15 09:34:33
+115	HARRISON	BALE	2006-02-15 09:34:33
+116	DAN	STREEP	2006-02-15 09:34:33
+117	RENEE	TRACY	2006-02-15 09:34:33
+118	CUBA	ALLEN	2006-02-15 09:34:33
+119	WARREN	JACKMAN	2006-02-15 09:34:33
+120	PENELOPE	MONROE	2006-02-15 09:34:33
+121	LIZA	BERGMAN	2006-02-15 09:34:33
+122	SALMA	NOLTE	2006-02-15 09:34:33
+123	JULIANNE	DENCH	2006-02-15 09:34:33
+124	SCARLETT	BENING	2006-02-15 09:34:33
+125	ALBERT	NOLTE	2006-02-15 09:34:33
+126	FRANCES	TOMEI	2006-02-15 09:34:33
+127	KEVIN	GARLAND	2006-02-15 09:34:33
+128	CATE	MCQUEEN	2006-02-15 09:34:33
+129	DARYL	CRAWFORD	2006-02-15 09:34:33
+130	GRETA	KEITEL	2006-02-15 09:34:33
+131	JANE	JACKMAN	2006-02-15 09:34:33
+132	ADAM	HOPPER	2006-02-15 09:34:33
+133	RICHARD	PENN	2006-02-15 09:34:33
+134	GENE	HOPKINS	2006-02-15 09:34:33
+135	RITA	REYNOLDS	2006-02-15 09:34:33
+136	ED	MANSFIELD	2006-02-15 09:34:33
+137	MORGAN	WILLIAMS	2006-02-15 09:34:33
+138	LUCILLE	DEE	2006-02-15 09:34:33
+139	EWAN	GOODING	2006-02-15 09:34:33
+140	WHOOPI	HURT	2006-02-15 09:34:33
+141	CATE	HARRIS	2006-02-15 09:34:33
+142	JADA	RYDER	2006-02-15 09:34:33
+143	RIVER	DEAN	2006-02-15 09:34:33
+144	ANGELA	WITHERSPOON	2006-02-15 09:34:33
+145	KIM	ALLEN	2006-02-15 09:34:33
+146	ALBERT	JOHANSSON	2006-02-15 09:34:33
+147	FAY	WINSLET	2006-02-15 09:34:33
+148	EMILY	DEE	2006-02-15 09:34:33
+149	RUSSELL	TEMPLE	2006-02-15 09:34:33
+150	JAYNE	NOLTE	2006-02-15 09:34:33
+151	GEOFFREY	HESTON	2006-02-15 09:34:33
+152	BEN	HARRIS	2006-02-15 09:34:33
+153	MINNIE	KILMER	2006-02-15 09:34:33
+154	MERYL	GIBSON	2006-02-15 09:34:33
+155	IAN	TANDY	2006-02-15 09:34:33
+156	FAY	WOOD	2006-02-15 09:34:33
+157	GRETA	MALDEN	2006-02-15 09:34:33
+158	VIVIEN	BASINGER	2006-02-15 09:34:33
+159	LAURA	BRODY	2006-02-15 09:34:33
+160	CHRIS	DEPP	2006-02-15 09:34:33
+161	HARVEY	HOPE	2006-02-15 09:34:33
+162	OPRAH	KILMER	2006-02-15 09:34:33
+163	CHRISTOPHER	WEST	2006-02-15 09:34:33
+164	HUMPHREY	WILLIS	2006-02-15 09:34:33
+165	AL	GARLAND	2006-02-15 09:34:33
+166	NICK	DEGENERES	2006-02-15 09:34:33
+167	LAURENCE	BULLOCK	2006-02-15 09:34:33
+168	WILL	WILSON	2006-02-15 09:34:33
+169	KENNETH	HOFFMAN	2006-02-15 09:34:33
+170	MENA	HOPPER	2006-02-15 09:34:33
+171	OLYMPIA	PFEIFFER	2006-02-15 09:34:33
+172	GROUCHO	WILLIAMS	2006-02-15 09:34:33
+173	ALAN	DREYFUSS	2006-02-15 09:34:33
+174	MICHAEL	BENING	2006-02-15 09:34:33
+175	WILLIAM	HACKMAN	2006-02-15 09:34:33
+176	JON	CHASE	2006-02-15 09:34:33
+177	GENE	MCKELLEN	2006-02-15 09:34:33
+178	LISA	MONROE	2006-02-15 09:34:33
+179	ED	GUINESS	2006-02-15 09:34:33
+180	JEFF	SILVERSTONE	2006-02-15 09:34:33
+181	MATTHEW	CARREY	2006-02-15 09:34:33
+182	DEBBIE	AKROYD	2006-02-15 09:34:33
+183	RUSSELL	CLOSE	2006-02-15 09:34:33
+184	HUMPHREY	GARLAND	2006-02-15 09:34:33
+185	MICHAEL	BOLGER	2006-02-15 09:34:33
+186	JULIA	ZELLWEGER	2006-02-15 09:34:33
+187	RENEE	BALL	2006-02-15 09:34:33
+188	ROCK	DUKAKIS	2006-02-15 09:34:33
+189	CUBA	BIRCH	2006-02-15 09:34:33
+190	AUDREY	BAILEY	2006-02-15 09:34:33
+191	GREGORY	GOODING	2006-02-15 09:34:33
+192	JOHN	SUVARI	2006-02-15 09:34:33
+193	BURT	TEMPLE	2006-02-15 09:34:33
+194	MERYL	ALLEN	2006-02-15 09:34:33
+195	JAYNE	SILVERSTONE	2006-02-15 09:34:33
+196	BELA	WALKEN	2006-02-15 09:34:33
+197	REESE	WEST	2006-02-15 09:34:33
+198	MARY	KEITEL	2006-02-15 09:34:33
+199	JULIA	FAWCETT	2006-02-15 09:34:33
+200	THORA	TEMPLE	2006-02-15 09:34:33
 \.
 
 
+ALTER TABLE actor ENABLE TRIGGER ALL;
+
 --
--- Data for Name: address; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: address; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.address (address_id, address, address2, district, city_id, postal_code, phone, last_update) FROM stdin;
+ALTER TABLE address DISABLE TRIGGER ALL;
+
+COPY address (address_id, address, address2, district, city_id, postal_code, phone, last_update) FROM stdin;
 1	47 MySakila Drive	\N	Alberta	300			2006-02-15 09:45:30
 2	28 MySQL Boulevard	\N	QLD	576			2006-02-15 09:45:30
 3	23 Workhaven Lane	\N	Alberta	300		14033335568	2006-02-15 09:45:30
@@ -1756,11 +2654,15 @@ COPY public.address (address_id, address, address2, district, city_id, postal_co
 \.
 
 
+ALTER TABLE address ENABLE TRIGGER ALL;
+
 --
--- Data for Name: category; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: category; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.category (category_id, name, last_update) FROM stdin;
+ALTER TABLE category DISABLE TRIGGER ALL;
+
+COPY category (category_id, name, last_update) FROM stdin;
 1	Action	2006-02-15 09:46:27
 2	Animation	2006-02-15 09:46:27
 3	Children	2006-02-15 09:46:27
@@ -1780,11 +2682,15 @@ COPY public.category (category_id, name, last_update) FROM stdin;
 \.
 
 
+ALTER TABLE category ENABLE TRIGGER ALL;
+
 --
--- Data for Name: city; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: city; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.city (city_id, city, country_id, last_update) FROM stdin;
+ALTER TABLE city DISABLE TRIGGER ALL;
+
+COPY city (city_id, city, country_id, last_update) FROM stdin;
 1	A Corua (La Corua)	87	2006-02-15 09:45:25
 2	Abha	82	2006-02-15 09:45:25
 3	Abu Dhabi	101	2006-02-15 09:45:25
@@ -2388,11 +3294,15 @@ COPY public.city (city_id, city, country_id, last_update) FROM stdin;
 \.
 
 
+ALTER TABLE city ENABLE TRIGGER ALL;
+
 --
--- Data for Name: country; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: country; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.country (country_id, country, last_update) FROM stdin;
+ALTER TABLE country DISABLE TRIGGER ALL;
+
+COPY country (country_id, country, last_update) FROM stdin;
 1	Afghanistan	2006-02-15 09:44:00
 2	Algeria	2006-02-15 09:44:00
 3	American Samoa	2006-02-15 09:44:00
@@ -2505,1626 +3415,1638 @@ COPY public.country (country_id, country, last_update) FROM stdin;
 \.
 
 
+ALTER TABLE country ENABLE TRIGGER ALL;
+
 --
--- Data for Name: customer; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: customer; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.customer (customer_id, store_id, first_name, last_name, email, address_id, activebool, create_date, last_update, active) FROM stdin;
-524	1	Jared	Ely	jared.ely@sakilacustomer.org	530	t	2006-02-14	2013-05-26 14:49:45.738	1
-1	1	Mary	Smith	mary.smith@sakilacustomer.org	5	t	2006-02-14	2013-05-26 14:49:45.738	1
-2	1	Patricia	Johnson	patricia.johnson@sakilacustomer.org	6	t	2006-02-14	2013-05-26 14:49:45.738	1
-3	1	Linda	Williams	linda.williams@sakilacustomer.org	7	t	2006-02-14	2013-05-26 14:49:45.738	1
-4	2	Barbara	Jones	barbara.jones@sakilacustomer.org	8	t	2006-02-14	2013-05-26 14:49:45.738	1
-5	1	Elizabeth	Brown	elizabeth.brown@sakilacustomer.org	9	t	2006-02-14	2013-05-26 14:49:45.738	1
-6	2	Jennifer	Davis	jennifer.davis@sakilacustomer.org	10	t	2006-02-14	2013-05-26 14:49:45.738	1
-7	1	Maria	Miller	maria.miller@sakilacustomer.org	11	t	2006-02-14	2013-05-26 14:49:45.738	1
-8	2	Susan	Wilson	susan.wilson@sakilacustomer.org	12	t	2006-02-14	2013-05-26 14:49:45.738	1
-9	2	Margaret	Moore	margaret.moore@sakilacustomer.org	13	t	2006-02-14	2013-05-26 14:49:45.738	1
-10	1	Dorothy	Taylor	dorothy.taylor@sakilacustomer.org	14	t	2006-02-14	2013-05-26 14:49:45.738	1
-11	2	Lisa	Anderson	lisa.anderson@sakilacustomer.org	15	t	2006-02-14	2013-05-26 14:49:45.738	1
-12	1	Nancy	Thomas	nancy.thomas@sakilacustomer.org	16	t	2006-02-14	2013-05-26 14:49:45.738	1
-13	2	Karen	Jackson	karen.jackson@sakilacustomer.org	17	t	2006-02-14	2013-05-26 14:49:45.738	1
-14	2	Betty	White	betty.white@sakilacustomer.org	18	t	2006-02-14	2013-05-26 14:49:45.738	1
-15	1	Helen	Harris	helen.harris@sakilacustomer.org	19	t	2006-02-14	2013-05-26 14:49:45.738	1
-16	2	Sandra	Martin	sandra.martin@sakilacustomer.org	20	t	2006-02-14	2013-05-26 14:49:45.738	0
-17	1	Donna	Thompson	donna.thompson@sakilacustomer.org	21	t	2006-02-14	2013-05-26 14:49:45.738	1
-18	2	Carol	Garcia	carol.garcia@sakilacustomer.org	22	t	2006-02-14	2013-05-26 14:49:45.738	1
-19	1	Ruth	Martinez	ruth.martinez@sakilacustomer.org	23	t	2006-02-14	2013-05-26 14:49:45.738	1
-20	2	Sharon	Robinson	sharon.robinson@sakilacustomer.org	24	t	2006-02-14	2013-05-26 14:49:45.738	1
-21	1	Michelle	Clark	michelle.clark@sakilacustomer.org	25	t	2006-02-14	2013-05-26 14:49:45.738	1
-22	1	Laura	Rodriguez	laura.rodriguez@sakilacustomer.org	26	t	2006-02-14	2013-05-26 14:49:45.738	1
-23	2	Sarah	Lewis	sarah.lewis@sakilacustomer.org	27	t	2006-02-14	2013-05-26 14:49:45.738	1
-24	2	Kimberly	Lee	kimberly.lee@sakilacustomer.org	28	t	2006-02-14	2013-05-26 14:49:45.738	1
-25	1	Deborah	Walker	deborah.walker@sakilacustomer.org	29	t	2006-02-14	2013-05-26 14:49:45.738	1
-26	2	Jessica	Hall	jessica.hall@sakilacustomer.org	30	t	2006-02-14	2013-05-26 14:49:45.738	1
-27	2	Shirley	Allen	shirley.allen@sakilacustomer.org	31	t	2006-02-14	2013-05-26 14:49:45.738	1
-28	1	Cynthia	Young	cynthia.young@sakilacustomer.org	32	t	2006-02-14	2013-05-26 14:49:45.738	1
-29	2	Angela	Hernandez	angela.hernandez@sakilacustomer.org	33	t	2006-02-14	2013-05-26 14:49:45.738	1
-30	1	Melissa	King	melissa.king@sakilacustomer.org	34	t	2006-02-14	2013-05-26 14:49:45.738	1
-31	2	Brenda	Wright	brenda.wright@sakilacustomer.org	35	t	2006-02-14	2013-05-26 14:49:45.738	1
-32	1	Amy	Lopez	amy.lopez@sakilacustomer.org	36	t	2006-02-14	2013-05-26 14:49:45.738	1
-33	2	Anna	Hill	anna.hill@sakilacustomer.org	37	t	2006-02-14	2013-05-26 14:49:45.738	1
-34	2	Rebecca	Scott	rebecca.scott@sakilacustomer.org	38	t	2006-02-14	2013-05-26 14:49:45.738	1
-35	2	Virginia	Green	virginia.green@sakilacustomer.org	39	t	2006-02-14	2013-05-26 14:49:45.738	1
-36	2	Kathleen	Adams	kathleen.adams@sakilacustomer.org	40	t	2006-02-14	2013-05-26 14:49:45.738	1
-37	1	Pamela	Baker	pamela.baker@sakilacustomer.org	41	t	2006-02-14	2013-05-26 14:49:45.738	1
-38	1	Martha	Gonzalez	martha.gonzalez@sakilacustomer.org	42	t	2006-02-14	2013-05-26 14:49:45.738	1
-39	1	Debra	Nelson	debra.nelson@sakilacustomer.org	43	t	2006-02-14	2013-05-26 14:49:45.738	1
-40	2	Amanda	Carter	amanda.carter@sakilacustomer.org	44	t	2006-02-14	2013-05-26 14:49:45.738	1
-41	1	Stephanie	Mitchell	stephanie.mitchell@sakilacustomer.org	45	t	2006-02-14	2013-05-26 14:49:45.738	1
-42	2	Carolyn	Perez	carolyn.perez@sakilacustomer.org	46	t	2006-02-14	2013-05-26 14:49:45.738	1
-43	2	Christine	Roberts	christine.roberts@sakilacustomer.org	47	t	2006-02-14	2013-05-26 14:49:45.738	1
-44	1	Marie	Turner	marie.turner@sakilacustomer.org	48	t	2006-02-14	2013-05-26 14:49:45.738	1
-45	1	Janet	Phillips	janet.phillips@sakilacustomer.org	49	t	2006-02-14	2013-05-26 14:49:45.738	1
-46	2	Catherine	Campbell	catherine.campbell@sakilacustomer.org	50	t	2006-02-14	2013-05-26 14:49:45.738	1
-47	1	Frances	Parker	frances.parker@sakilacustomer.org	51	t	2006-02-14	2013-05-26 14:49:45.738	1
-48	1	Ann	Evans	ann.evans@sakilacustomer.org	52	t	2006-02-14	2013-05-26 14:49:45.738	1
-49	2	Joyce	Edwards	joyce.edwards@sakilacustomer.org	53	t	2006-02-14	2013-05-26 14:49:45.738	1
-50	1	Diane	Collins	diane.collins@sakilacustomer.org	54	t	2006-02-14	2013-05-26 14:49:45.738	1
-51	1	Alice	Stewart	alice.stewart@sakilacustomer.org	55	t	2006-02-14	2013-05-26 14:49:45.738	1
-52	1	Julie	Sanchez	julie.sanchez@sakilacustomer.org	56	t	2006-02-14	2013-05-26 14:49:45.738	1
-53	1	Heather	Morris	heather.morris@sakilacustomer.org	57	t	2006-02-14	2013-05-26 14:49:45.738	1
-54	1	Teresa	Rogers	teresa.rogers@sakilacustomer.org	58	t	2006-02-14	2013-05-26 14:49:45.738	1
-55	2	Doris	Reed	doris.reed@sakilacustomer.org	59	t	2006-02-14	2013-05-26 14:49:45.738	1
-56	1	Gloria	Cook	gloria.cook@sakilacustomer.org	60	t	2006-02-14	2013-05-26 14:49:45.738	1
-57	2	Evelyn	Morgan	evelyn.morgan@sakilacustomer.org	61	t	2006-02-14	2013-05-26 14:49:45.738	1
-58	1	Jean	Bell	jean.bell@sakilacustomer.org	62	t	2006-02-14	2013-05-26 14:49:45.738	1
-59	1	Cheryl	Murphy	cheryl.murphy@sakilacustomer.org	63	t	2006-02-14	2013-05-26 14:49:45.738	1
-60	1	Mildred	Bailey	mildred.bailey@sakilacustomer.org	64	t	2006-02-14	2013-05-26 14:49:45.738	1
-61	2	Katherine	Rivera	katherine.rivera@sakilacustomer.org	65	t	2006-02-14	2013-05-26 14:49:45.738	1
-62	1	Joan	Cooper	joan.cooper@sakilacustomer.org	66	t	2006-02-14	2013-05-26 14:49:45.738	1
-63	1	Ashley	Richardson	ashley.richardson@sakilacustomer.org	67	t	2006-02-14	2013-05-26 14:49:45.738	1
-64	2	Judith	Cox	judith.cox@sakilacustomer.org	68	t	2006-02-14	2013-05-26 14:49:45.738	0
-65	2	Rose	Howard	rose.howard@sakilacustomer.org	69	t	2006-02-14	2013-05-26 14:49:45.738	1
-66	2	Janice	Ward	janice.ward@sakilacustomer.org	70	t	2006-02-14	2013-05-26 14:49:45.738	1
-67	1	Kelly	Torres	kelly.torres@sakilacustomer.org	71	t	2006-02-14	2013-05-26 14:49:45.738	1
-68	1	Nicole	Peterson	nicole.peterson@sakilacustomer.org	72	t	2006-02-14	2013-05-26 14:49:45.738	1
-69	2	Judy	Gray	judy.gray@sakilacustomer.org	73	t	2006-02-14	2013-05-26 14:49:45.738	1
-70	2	Christina	Ramirez	christina.ramirez@sakilacustomer.org	74	t	2006-02-14	2013-05-26 14:49:45.738	1
-71	1	Kathy	James	kathy.james@sakilacustomer.org	75	t	2006-02-14	2013-05-26 14:49:45.738	1
-72	2	Theresa	Watson	theresa.watson@sakilacustomer.org	76	t	2006-02-14	2013-05-26 14:49:45.738	1
-73	2	Beverly	Brooks	beverly.brooks@sakilacustomer.org	77	t	2006-02-14	2013-05-26 14:49:45.738	1
-74	1	Denise	Kelly	denise.kelly@sakilacustomer.org	78	t	2006-02-14	2013-05-26 14:49:45.738	1
-75	2	Tammy	Sanders	tammy.sanders@sakilacustomer.org	79	t	2006-02-14	2013-05-26 14:49:45.738	1
-76	2	Irene	Price	irene.price@sakilacustomer.org	80	t	2006-02-14	2013-05-26 14:49:45.738	1
-77	2	Jane	Bennett	jane.bennett@sakilacustomer.org	81	t	2006-02-14	2013-05-26 14:49:45.738	1
-78	1	Lori	Wood	lori.wood@sakilacustomer.org	82	t	2006-02-14	2013-05-26 14:49:45.738	1
-79	1	Rachel	Barnes	rachel.barnes@sakilacustomer.org	83	t	2006-02-14	2013-05-26 14:49:45.738	1
-80	1	Marilyn	Ross	marilyn.ross@sakilacustomer.org	84	t	2006-02-14	2013-05-26 14:49:45.738	1
-81	1	Andrea	Henderson	andrea.henderson@sakilacustomer.org	85	t	2006-02-14	2013-05-26 14:49:45.738	1
-82	1	Kathryn	Coleman	kathryn.coleman@sakilacustomer.org	86	t	2006-02-14	2013-05-26 14:49:45.738	1
-83	1	Louise	Jenkins	louise.jenkins@sakilacustomer.org	87	t	2006-02-14	2013-05-26 14:49:45.738	1
-84	2	Sara	Perry	sara.perry@sakilacustomer.org	88	t	2006-02-14	2013-05-26 14:49:45.738	1
-85	2	Anne	Powell	anne.powell@sakilacustomer.org	89	t	2006-02-14	2013-05-26 14:49:45.738	1
-86	2	Jacqueline	Long	jacqueline.long@sakilacustomer.org	90	t	2006-02-14	2013-05-26 14:49:45.738	1
-87	1	Wanda	Patterson	wanda.patterson@sakilacustomer.org	91	t	2006-02-14	2013-05-26 14:49:45.738	1
-88	2	Bonnie	Hughes	bonnie.hughes@sakilacustomer.org	92	t	2006-02-14	2013-05-26 14:49:45.738	1
-89	1	Julia	Flores	julia.flores@sakilacustomer.org	93	t	2006-02-14	2013-05-26 14:49:45.738	1
-90	2	Ruby	Washington	ruby.washington@sakilacustomer.org	94	t	2006-02-14	2013-05-26 14:49:45.738	1
-91	2	Lois	Butler	lois.butler@sakilacustomer.org	95	t	2006-02-14	2013-05-26 14:49:45.738	1
-92	2	Tina	Simmons	tina.simmons@sakilacustomer.org	96	t	2006-02-14	2013-05-26 14:49:45.738	1
-93	1	Phyllis	Foster	phyllis.foster@sakilacustomer.org	97	t	2006-02-14	2013-05-26 14:49:45.738	1
-94	1	Norma	Gonzales	norma.gonzales@sakilacustomer.org	98	t	2006-02-14	2013-05-26 14:49:45.738	1
-95	2	Paula	Bryant	paula.bryant@sakilacustomer.org	99	t	2006-02-14	2013-05-26 14:49:45.738	1
-96	1	Diana	Alexander	diana.alexander@sakilacustomer.org	100	t	2006-02-14	2013-05-26 14:49:45.738	1
-97	2	Annie	Russell	annie.russell@sakilacustomer.org	101	t	2006-02-14	2013-05-26 14:49:45.738	1
-98	1	Lillian	Griffin	lillian.griffin@sakilacustomer.org	102	t	2006-02-14	2013-05-26 14:49:45.738	1
-99	2	Emily	Diaz	emily.diaz@sakilacustomer.org	103	t	2006-02-14	2013-05-26 14:49:45.738	1
-100	1	Robin	Hayes	robin.hayes@sakilacustomer.org	104	t	2006-02-14	2013-05-26 14:49:45.738	1
-101	1	Peggy	Myers	peggy.myers@sakilacustomer.org	105	t	2006-02-14	2013-05-26 14:49:45.738	1
-102	1	Crystal	Ford	crystal.ford@sakilacustomer.org	106	t	2006-02-14	2013-05-26 14:49:45.738	1
-103	1	Gladys	Hamilton	gladys.hamilton@sakilacustomer.org	107	t	2006-02-14	2013-05-26 14:49:45.738	1
-104	1	Rita	Graham	rita.graham@sakilacustomer.org	108	t	2006-02-14	2013-05-26 14:49:45.738	1
-105	1	Dawn	Sullivan	dawn.sullivan@sakilacustomer.org	109	t	2006-02-14	2013-05-26 14:49:45.738	1
-106	1	Connie	Wallace	connie.wallace@sakilacustomer.org	110	t	2006-02-14	2013-05-26 14:49:45.738	1
-107	1	Florence	Woods	florence.woods@sakilacustomer.org	111	t	2006-02-14	2013-05-26 14:49:45.738	1
-108	1	Tracy	Cole	tracy.cole@sakilacustomer.org	112	t	2006-02-14	2013-05-26 14:49:45.738	1
-109	2	Edna	West	edna.west@sakilacustomer.org	113	t	2006-02-14	2013-05-26 14:49:45.738	1
-110	2	Tiffany	Jordan	tiffany.jordan@sakilacustomer.org	114	t	2006-02-14	2013-05-26 14:49:45.738	1
-111	1	Carmen	Owens	carmen.owens@sakilacustomer.org	115	t	2006-02-14	2013-05-26 14:49:45.738	1
-112	2	Rosa	Reynolds	rosa.reynolds@sakilacustomer.org	116	t	2006-02-14	2013-05-26 14:49:45.738	1
-113	2	Cindy	Fisher	cindy.fisher@sakilacustomer.org	117	t	2006-02-14	2013-05-26 14:49:45.738	1
-114	2	Grace	Ellis	grace.ellis@sakilacustomer.org	118	t	2006-02-14	2013-05-26 14:49:45.738	1
-115	1	Wendy	Harrison	wendy.harrison@sakilacustomer.org	119	t	2006-02-14	2013-05-26 14:49:45.738	1
-116	1	Victoria	Gibson	victoria.gibson@sakilacustomer.org	120	t	2006-02-14	2013-05-26 14:49:45.738	1
-117	1	Edith	Mcdonald	edith.mcdonald@sakilacustomer.org	121	t	2006-02-14	2013-05-26 14:49:45.738	1
-118	1	Kim	Cruz	kim.cruz@sakilacustomer.org	122	t	2006-02-14	2013-05-26 14:49:45.738	1
-119	1	Sherry	Marshall	sherry.marshall@sakilacustomer.org	123	t	2006-02-14	2013-05-26 14:49:45.738	1
-120	2	Sylvia	Ortiz	sylvia.ortiz@sakilacustomer.org	124	t	2006-02-14	2013-05-26 14:49:45.738	1
-121	1	Josephine	Gomez	josephine.gomez@sakilacustomer.org	125	t	2006-02-14	2013-05-26 14:49:45.738	1
-122	1	Thelma	Murray	thelma.murray@sakilacustomer.org	126	t	2006-02-14	2013-05-26 14:49:45.738	1
-123	2	Shannon	Freeman	shannon.freeman@sakilacustomer.org	127	t	2006-02-14	2013-05-26 14:49:45.738	1
-124	1	Sheila	Wells	sheila.wells@sakilacustomer.org	128	t	2006-02-14	2013-05-26 14:49:45.738	0
-125	1	Ethel	Webb	ethel.webb@sakilacustomer.org	129	t	2006-02-14	2013-05-26 14:49:45.738	1
-126	1	Ellen	Simpson	ellen.simpson@sakilacustomer.org	130	t	2006-02-14	2013-05-26 14:49:45.738	1
-127	2	Elaine	Stevens	elaine.stevens@sakilacustomer.org	131	t	2006-02-14	2013-05-26 14:49:45.738	1
-128	1	Marjorie	Tucker	marjorie.tucker@sakilacustomer.org	132	t	2006-02-14	2013-05-26 14:49:45.738	1
-129	1	Carrie	Porter	carrie.porter@sakilacustomer.org	133	t	2006-02-14	2013-05-26 14:49:45.738	1
-130	1	Charlotte	Hunter	charlotte.hunter@sakilacustomer.org	134	t	2006-02-14	2013-05-26 14:49:45.738	1
-131	2	Monica	Hicks	monica.hicks@sakilacustomer.org	135	t	2006-02-14	2013-05-26 14:49:45.738	1
-132	2	Esther	Crawford	esther.crawford@sakilacustomer.org	136	t	2006-02-14	2013-05-26 14:49:45.738	1
-133	1	Pauline	Henry	pauline.henry@sakilacustomer.org	137	t	2006-02-14	2013-05-26 14:49:45.738	1
-134	1	Emma	Boyd	emma.boyd@sakilacustomer.org	138	t	2006-02-14	2013-05-26 14:49:45.738	1
-135	2	Juanita	Mason	juanita.mason@sakilacustomer.org	139	t	2006-02-14	2013-05-26 14:49:45.738	1
-136	2	Anita	Morales	anita.morales@sakilacustomer.org	140	t	2006-02-14	2013-05-26 14:49:45.738	1
-137	2	Rhonda	Kennedy	rhonda.kennedy@sakilacustomer.org	141	t	2006-02-14	2013-05-26 14:49:45.738	1
-138	1	Hazel	Warren	hazel.warren@sakilacustomer.org	142	t	2006-02-14	2013-05-26 14:49:45.738	1
-139	1	Amber	Dixon	amber.dixon@sakilacustomer.org	143	t	2006-02-14	2013-05-26 14:49:45.738	1
-140	1	Eva	Ramos	eva.ramos@sakilacustomer.org	144	t	2006-02-14	2013-05-26 14:49:45.738	1
-141	1	Debbie	Reyes	debbie.reyes@sakilacustomer.org	145	t	2006-02-14	2013-05-26 14:49:45.738	1
-142	1	April	Burns	april.burns@sakilacustomer.org	146	t	2006-02-14	2013-05-26 14:49:45.738	1
-143	1	Leslie	Gordon	leslie.gordon@sakilacustomer.org	147	t	2006-02-14	2013-05-26 14:49:45.738	1
-144	1	Clara	Shaw	clara.shaw@sakilacustomer.org	148	t	2006-02-14	2013-05-26 14:49:45.738	1
-145	1	Lucille	Holmes	lucille.holmes@sakilacustomer.org	149	t	2006-02-14	2013-05-26 14:49:45.738	1
-146	1	Jamie	Rice	jamie.rice@sakilacustomer.org	150	t	2006-02-14	2013-05-26 14:49:45.738	1
-147	2	Joanne	Robertson	joanne.robertson@sakilacustomer.org	151	t	2006-02-14	2013-05-26 14:49:45.738	1
-148	1	Eleanor	Hunt	eleanor.hunt@sakilacustomer.org	152	t	2006-02-14	2013-05-26 14:49:45.738	1
-149	1	Valerie	Black	valerie.black@sakilacustomer.org	153	t	2006-02-14	2013-05-26 14:49:45.738	1
-150	2	Danielle	Daniels	danielle.daniels@sakilacustomer.org	154	t	2006-02-14	2013-05-26 14:49:45.738	1
-151	2	Megan	Palmer	megan.palmer@sakilacustomer.org	155	t	2006-02-14	2013-05-26 14:49:45.738	1
-152	1	Alicia	Mills	alicia.mills@sakilacustomer.org	156	t	2006-02-14	2013-05-26 14:49:45.738	1
-153	2	Suzanne	Nichols	suzanne.nichols@sakilacustomer.org	157	t	2006-02-14	2013-05-26 14:49:45.738	1
-154	2	Michele	Grant	michele.grant@sakilacustomer.org	158	t	2006-02-14	2013-05-26 14:49:45.738	1
-155	1	Gail	Knight	gail.knight@sakilacustomer.org	159	t	2006-02-14	2013-05-26 14:49:45.738	1
-156	1	Bertha	Ferguson	bertha.ferguson@sakilacustomer.org	160	t	2006-02-14	2013-05-26 14:49:45.738	1
-157	2	Darlene	Rose	darlene.rose@sakilacustomer.org	161	t	2006-02-14	2013-05-26 14:49:45.738	1
-158	1	Veronica	Stone	veronica.stone@sakilacustomer.org	162	t	2006-02-14	2013-05-26 14:49:45.738	1
-159	1	Jill	Hawkins	jill.hawkins@sakilacustomer.org	163	t	2006-02-14	2013-05-26 14:49:45.738	1
-160	2	Erin	Dunn	erin.dunn@sakilacustomer.org	164	t	2006-02-14	2013-05-26 14:49:45.738	1
-161	1	Geraldine	Perkins	geraldine.perkins@sakilacustomer.org	165	t	2006-02-14	2013-05-26 14:49:45.738	1
-162	2	Lauren	Hudson	lauren.hudson@sakilacustomer.org	166	t	2006-02-14	2013-05-26 14:49:45.738	1
-163	1	Cathy	Spencer	cathy.spencer@sakilacustomer.org	167	t	2006-02-14	2013-05-26 14:49:45.738	1
-164	2	Joann	Gardner	joann.gardner@sakilacustomer.org	168	t	2006-02-14	2013-05-26 14:49:45.738	1
-165	2	Lorraine	Stephens	lorraine.stephens@sakilacustomer.org	169	t	2006-02-14	2013-05-26 14:49:45.738	1
-166	1	Lynn	Payne	lynn.payne@sakilacustomer.org	170	t	2006-02-14	2013-05-26 14:49:45.738	1
-167	2	Sally	Pierce	sally.pierce@sakilacustomer.org	171	t	2006-02-14	2013-05-26 14:49:45.738	1
-168	1	Regina	Berry	regina.berry@sakilacustomer.org	172	t	2006-02-14	2013-05-26 14:49:45.738	1
-169	2	Erica	Matthews	erica.matthews@sakilacustomer.org	173	t	2006-02-14	2013-05-26 14:49:45.738	0
-170	1	Beatrice	Arnold	beatrice.arnold@sakilacustomer.org	174	t	2006-02-14	2013-05-26 14:49:45.738	1
-171	2	Dolores	Wagner	dolores.wagner@sakilacustomer.org	175	t	2006-02-14	2013-05-26 14:49:45.738	1
-172	1	Bernice	Willis	bernice.willis@sakilacustomer.org	176	t	2006-02-14	2013-05-26 14:49:45.738	1
-173	1	Audrey	Ray	audrey.ray@sakilacustomer.org	177	t	2006-02-14	2013-05-26 14:49:45.738	1
-174	2	Yvonne	Watkins	yvonne.watkins@sakilacustomer.org	178	t	2006-02-14	2013-05-26 14:49:45.738	1
-175	1	Annette	Olson	annette.olson@sakilacustomer.org	179	t	2006-02-14	2013-05-26 14:49:45.738	1
-176	1	June	Carroll	june.carroll@sakilacustomer.org	180	t	2006-02-14	2013-05-26 14:49:45.738	1
-177	2	Samantha	Duncan	samantha.duncan@sakilacustomer.org	181	t	2006-02-14	2013-05-26 14:49:45.738	1
-178	2	Marion	Snyder	marion.snyder@sakilacustomer.org	182	t	2006-02-14	2013-05-26 14:49:45.738	1
-179	1	Dana	Hart	dana.hart@sakilacustomer.org	183	t	2006-02-14	2013-05-26 14:49:45.738	1
-180	2	Stacy	Cunningham	stacy.cunningham@sakilacustomer.org	184	t	2006-02-14	2013-05-26 14:49:45.738	1
-181	2	Ana	Bradley	ana.bradley@sakilacustomer.org	185	t	2006-02-14	2013-05-26 14:49:45.738	1
-182	1	Renee	Lane	renee.lane@sakilacustomer.org	186	t	2006-02-14	2013-05-26 14:49:45.738	1
-183	2	Ida	Andrews	ida.andrews@sakilacustomer.org	187	t	2006-02-14	2013-05-26 14:49:45.738	1
-184	1	Vivian	Ruiz	vivian.ruiz@sakilacustomer.org	188	t	2006-02-14	2013-05-26 14:49:45.738	1
-185	1	Roberta	Harper	roberta.harper@sakilacustomer.org	189	t	2006-02-14	2013-05-26 14:49:45.738	1
-186	2	Holly	Fox	holly.fox@sakilacustomer.org	190	t	2006-02-14	2013-05-26 14:49:45.738	1
-187	2	Brittany	Riley	brittany.riley@sakilacustomer.org	191	t	2006-02-14	2013-05-26 14:49:45.738	1
-188	1	Melanie	Armstrong	melanie.armstrong@sakilacustomer.org	192	t	2006-02-14	2013-05-26 14:49:45.738	1
-189	1	Loretta	Carpenter	loretta.carpenter@sakilacustomer.org	193	t	2006-02-14	2013-05-26 14:49:45.738	1
-190	2	Yolanda	Weaver	yolanda.weaver@sakilacustomer.org	194	t	2006-02-14	2013-05-26 14:49:45.738	1
-191	1	Jeanette	Greene	jeanette.greene@sakilacustomer.org	195	t	2006-02-14	2013-05-26 14:49:45.738	1
-192	1	Laurie	Lawrence	laurie.lawrence@sakilacustomer.org	196	t	2006-02-14	2013-05-26 14:49:45.738	1
-193	2	Katie	Elliott	katie.elliott@sakilacustomer.org	197	t	2006-02-14	2013-05-26 14:49:45.738	1
-194	2	Kristen	Chavez	kristen.chavez@sakilacustomer.org	198	t	2006-02-14	2013-05-26 14:49:45.738	1
-195	1	Vanessa	Sims	vanessa.sims@sakilacustomer.org	199	t	2006-02-14	2013-05-26 14:49:45.738	1
-196	1	Alma	Austin	alma.austin@sakilacustomer.org	200	t	2006-02-14	2013-05-26 14:49:45.738	1
-197	2	Sue	Peters	sue.peters@sakilacustomer.org	201	t	2006-02-14	2013-05-26 14:49:45.738	1
-198	2	Elsie	Kelley	elsie.kelley@sakilacustomer.org	202	t	2006-02-14	2013-05-26 14:49:45.738	1
-199	2	Beth	Franklin	beth.franklin@sakilacustomer.org	203	t	2006-02-14	2013-05-26 14:49:45.738	1
-200	2	Jeanne	Lawson	jeanne.lawson@sakilacustomer.org	204	t	2006-02-14	2013-05-26 14:49:45.738	1
-201	1	Vicki	Fields	vicki.fields@sakilacustomer.org	205	t	2006-02-14	2013-05-26 14:49:45.738	1
-202	2	Carla	Gutierrez	carla.gutierrez@sakilacustomer.org	206	t	2006-02-14	2013-05-26 14:49:45.738	1
-203	1	Tara	Ryan	tara.ryan@sakilacustomer.org	207	t	2006-02-14	2013-05-26 14:49:45.738	1
-204	1	Rosemary	Schmidt	rosemary.schmidt@sakilacustomer.org	208	t	2006-02-14	2013-05-26 14:49:45.738	1
-205	2	Eileen	Carr	eileen.carr@sakilacustomer.org	209	t	2006-02-14	2013-05-26 14:49:45.738	1
-206	1	Terri	Vasquez	terri.vasquez@sakilacustomer.org	210	t	2006-02-14	2013-05-26 14:49:45.738	1
-207	1	Gertrude	Castillo	gertrude.castillo@sakilacustomer.org	211	t	2006-02-14	2013-05-26 14:49:45.738	1
-208	1	Lucy	Wheeler	lucy.wheeler@sakilacustomer.org	212	t	2006-02-14	2013-05-26 14:49:45.738	1
-209	2	Tonya	Chapman	tonya.chapman@sakilacustomer.org	213	t	2006-02-14	2013-05-26 14:49:45.738	1
-210	2	Ella	Oliver	ella.oliver@sakilacustomer.org	214	t	2006-02-14	2013-05-26 14:49:45.738	1
-211	1	Stacey	Montgomery	stacey.montgomery@sakilacustomer.org	215	t	2006-02-14	2013-05-26 14:49:45.738	1
-212	2	Wilma	Richards	wilma.richards@sakilacustomer.org	216	t	2006-02-14	2013-05-26 14:49:45.738	1
-213	1	Gina	Williamson	gina.williamson@sakilacustomer.org	217	t	2006-02-14	2013-05-26 14:49:45.738	1
-214	1	Kristin	Johnston	kristin.johnston@sakilacustomer.org	218	t	2006-02-14	2013-05-26 14:49:45.738	1
-215	2	Jessie	Banks	jessie.banks@sakilacustomer.org	219	t	2006-02-14	2013-05-26 14:49:45.738	1
-216	1	Natalie	Meyer	natalie.meyer@sakilacustomer.org	220	t	2006-02-14	2013-05-26 14:49:45.738	1
-217	2	Agnes	Bishop	agnes.bishop@sakilacustomer.org	221	t	2006-02-14	2013-05-26 14:49:45.738	1
-218	1	Vera	Mccoy	vera.mccoy@sakilacustomer.org	222	t	2006-02-14	2013-05-26 14:49:45.738	1
-219	2	Willie	Howell	willie.howell@sakilacustomer.org	223	t	2006-02-14	2013-05-26 14:49:45.738	1
-220	2	Charlene	Alvarez	charlene.alvarez@sakilacustomer.org	224	t	2006-02-14	2013-05-26 14:49:45.738	1
-221	1	Bessie	Morrison	bessie.morrison@sakilacustomer.org	225	t	2006-02-14	2013-05-26 14:49:45.738	1
-222	2	Delores	Hansen	delores.hansen@sakilacustomer.org	226	t	2006-02-14	2013-05-26 14:49:45.738	1
-223	1	Melinda	Fernandez	melinda.fernandez@sakilacustomer.org	227	t	2006-02-14	2013-05-26 14:49:45.738	1
-224	2	Pearl	Garza	pearl.garza@sakilacustomer.org	228	t	2006-02-14	2013-05-26 14:49:45.738	1
-225	1	Arlene	Harvey	arlene.harvey@sakilacustomer.org	229	t	2006-02-14	2013-05-26 14:49:45.738	1
-226	2	Maureen	Little	maureen.little@sakilacustomer.org	230	t	2006-02-14	2013-05-26 14:49:45.738	1
-227	1	Colleen	Burton	colleen.burton@sakilacustomer.org	231	t	2006-02-14	2013-05-26 14:49:45.738	1
-228	2	Allison	Stanley	allison.stanley@sakilacustomer.org	232	t	2006-02-14	2013-05-26 14:49:45.738	1
-229	1	Tamara	Nguyen	tamara.nguyen@sakilacustomer.org	233	t	2006-02-14	2013-05-26 14:49:45.738	1
-230	2	Joy	George	joy.george@sakilacustomer.org	234	t	2006-02-14	2013-05-26 14:49:45.738	1
-231	1	Georgia	Jacobs	georgia.jacobs@sakilacustomer.org	235	t	2006-02-14	2013-05-26 14:49:45.738	1
-232	2	Constance	Reid	constance.reid@sakilacustomer.org	236	t	2006-02-14	2013-05-26 14:49:45.738	1
-233	2	Lillie	Kim	lillie.kim@sakilacustomer.org	237	t	2006-02-14	2013-05-26 14:49:45.738	1
-234	1	Claudia	Fuller	claudia.fuller@sakilacustomer.org	238	t	2006-02-14	2013-05-26 14:49:45.738	1
-235	1	Jackie	Lynch	jackie.lynch@sakilacustomer.org	239	t	2006-02-14	2013-05-26 14:49:45.738	1
-236	1	Marcia	Dean	marcia.dean@sakilacustomer.org	240	t	2006-02-14	2013-05-26 14:49:45.738	1
-237	1	Tanya	Gilbert	tanya.gilbert@sakilacustomer.org	241	t	2006-02-14	2013-05-26 14:49:45.738	1
-238	1	Nellie	Garrett	nellie.garrett@sakilacustomer.org	242	t	2006-02-14	2013-05-26 14:49:45.738	1
-239	2	Minnie	Romero	minnie.romero@sakilacustomer.org	243	t	2006-02-14	2013-05-26 14:49:45.738	1
-240	1	Marlene	Welch	marlene.welch@sakilacustomer.org	244	t	2006-02-14	2013-05-26 14:49:45.738	1
-241	2	Heidi	Larson	heidi.larson@sakilacustomer.org	245	t	2006-02-14	2013-05-26 14:49:45.738	0
-242	1	Glenda	Frazier	glenda.frazier@sakilacustomer.org	246	t	2006-02-14	2013-05-26 14:49:45.738	1
-243	1	Lydia	Burke	lydia.burke@sakilacustomer.org	247	t	2006-02-14	2013-05-26 14:49:45.738	1
-244	2	Viola	Hanson	viola.hanson@sakilacustomer.org	248	t	2006-02-14	2013-05-26 14:49:45.738	1
-245	1	Courtney	Day	courtney.day@sakilacustomer.org	249	t	2006-02-14	2013-05-26 14:49:45.738	1
-246	1	Marian	Mendoza	marian.mendoza@sakilacustomer.org	250	t	2006-02-14	2013-05-26 14:49:45.738	1
-247	1	Stella	Moreno	stella.moreno@sakilacustomer.org	251	t	2006-02-14	2013-05-26 14:49:45.738	1
-248	1	Caroline	Bowman	caroline.bowman@sakilacustomer.org	252	t	2006-02-14	2013-05-26 14:49:45.738	1
-249	2	Dora	Medina	dora.medina@sakilacustomer.org	253	t	2006-02-14	2013-05-26 14:49:45.738	1
-250	2	Jo	Fowler	jo.fowler@sakilacustomer.org	254	t	2006-02-14	2013-05-26 14:49:45.738	1
-251	2	Vickie	Brewer	vickie.brewer@sakilacustomer.org	255	t	2006-02-14	2013-05-26 14:49:45.738	1
-252	2	Mattie	Hoffman	mattie.hoffman@sakilacustomer.org	256	t	2006-02-14	2013-05-26 14:49:45.738	1
-253	1	Terry	Carlson	terry.carlson@sakilacustomer.org	258	t	2006-02-14	2013-05-26 14:49:45.738	1
-254	2	Maxine	Silva	maxine.silva@sakilacustomer.org	259	t	2006-02-14	2013-05-26 14:49:45.738	1
-255	2	Irma	Pearson	irma.pearson@sakilacustomer.org	260	t	2006-02-14	2013-05-26 14:49:45.738	1
-256	2	Mabel	Holland	mabel.holland@sakilacustomer.org	261	t	2006-02-14	2013-05-26 14:49:45.738	1
-257	2	Marsha	Douglas	marsha.douglas@sakilacustomer.org	262	t	2006-02-14	2013-05-26 14:49:45.738	1
-258	1	Myrtle	Fleming	myrtle.fleming@sakilacustomer.org	263	t	2006-02-14	2013-05-26 14:49:45.738	1
-259	2	Lena	Jensen	lena.jensen@sakilacustomer.org	264	t	2006-02-14	2013-05-26 14:49:45.738	1
-260	1	Christy	Vargas	christy.vargas@sakilacustomer.org	265	t	2006-02-14	2013-05-26 14:49:45.738	1
-261	1	Deanna	Byrd	deanna.byrd@sakilacustomer.org	266	t	2006-02-14	2013-05-26 14:49:45.738	1
-262	2	Patsy	Davidson	patsy.davidson@sakilacustomer.org	267	t	2006-02-14	2013-05-26 14:49:45.738	1
-263	1	Hilda	Hopkins	hilda.hopkins@sakilacustomer.org	268	t	2006-02-14	2013-05-26 14:49:45.738	1
-264	1	Gwendolyn	May	gwendolyn.may@sakilacustomer.org	269	t	2006-02-14	2013-05-26 14:49:45.738	1
-265	2	Jennie	Terry	jennie.terry@sakilacustomer.org	270	t	2006-02-14	2013-05-26 14:49:45.738	1
-266	2	Nora	Herrera	nora.herrera@sakilacustomer.org	271	t	2006-02-14	2013-05-26 14:49:45.738	1
-267	1	Margie	Wade	margie.wade@sakilacustomer.org	272	t	2006-02-14	2013-05-26 14:49:45.738	1
-268	1	Nina	Soto	nina.soto@sakilacustomer.org	273	t	2006-02-14	2013-05-26 14:49:45.738	1
-269	1	Cassandra	Walters	cassandra.walters@sakilacustomer.org	274	t	2006-02-14	2013-05-26 14:49:45.738	1
-270	1	Leah	Curtis	leah.curtis@sakilacustomer.org	275	t	2006-02-14	2013-05-26 14:49:45.738	1
-271	1	Penny	Neal	penny.neal@sakilacustomer.org	276	t	2006-02-14	2013-05-26 14:49:45.738	0
-272	1	Kay	Caldwell	kay.caldwell@sakilacustomer.org	277	t	2006-02-14	2013-05-26 14:49:45.738	1
-273	2	Priscilla	Lowe	priscilla.lowe@sakilacustomer.org	278	t	2006-02-14	2013-05-26 14:49:45.738	1
-274	1	Naomi	Jennings	naomi.jennings@sakilacustomer.org	279	t	2006-02-14	2013-05-26 14:49:45.738	1
-275	2	Carole	Barnett	carole.barnett@sakilacustomer.org	280	t	2006-02-14	2013-05-26 14:49:45.738	1
-276	1	Brandy	Graves	brandy.graves@sakilacustomer.org	281	t	2006-02-14	2013-05-26 14:49:45.738	1
-277	2	Olga	Jimenez	olga.jimenez@sakilacustomer.org	282	t	2006-02-14	2013-05-26 14:49:45.738	1
-278	2	Billie	Horton	billie.horton@sakilacustomer.org	283	t	2006-02-14	2013-05-26 14:49:45.738	1
-279	2	Dianne	Shelton	dianne.shelton@sakilacustomer.org	284	t	2006-02-14	2013-05-26 14:49:45.738	1
-280	2	Tracey	Barrett	tracey.barrett@sakilacustomer.org	285	t	2006-02-14	2013-05-26 14:49:45.738	1
-281	2	Leona	Obrien	leona.obrien@sakilacustomer.org	286	t	2006-02-14	2013-05-26 14:49:45.738	1
-282	2	Jenny	Castro	jenny.castro@sakilacustomer.org	287	t	2006-02-14	2013-05-26 14:49:45.738	1
-283	1	Felicia	Sutton	felicia.sutton@sakilacustomer.org	288	t	2006-02-14	2013-05-26 14:49:45.738	1
-284	1	Sonia	Gregory	sonia.gregory@sakilacustomer.org	289	t	2006-02-14	2013-05-26 14:49:45.738	1
-285	1	Miriam	Mckinney	miriam.mckinney@sakilacustomer.org	290	t	2006-02-14	2013-05-26 14:49:45.738	1
-286	1	Velma	Lucas	velma.lucas@sakilacustomer.org	291	t	2006-02-14	2013-05-26 14:49:45.738	1
-287	2	Becky	Miles	becky.miles@sakilacustomer.org	292	t	2006-02-14	2013-05-26 14:49:45.738	1
-288	1	Bobbie	Craig	bobbie.craig@sakilacustomer.org	293	t	2006-02-14	2013-05-26 14:49:45.738	1
-289	1	Violet	Rodriquez	violet.rodriquez@sakilacustomer.org	294	t	2006-02-14	2013-05-26 14:49:45.738	1
-290	1	Kristina	Chambers	kristina.chambers@sakilacustomer.org	295	t	2006-02-14	2013-05-26 14:49:45.738	1
-291	1	Toni	Holt	toni.holt@sakilacustomer.org	296	t	2006-02-14	2013-05-26 14:49:45.738	1
-292	2	Misty	Lambert	misty.lambert@sakilacustomer.org	297	t	2006-02-14	2013-05-26 14:49:45.738	1
-293	2	Mae	Fletcher	mae.fletcher@sakilacustomer.org	298	t	2006-02-14	2013-05-26 14:49:45.738	1
-294	2	Shelly	Watts	shelly.watts@sakilacustomer.org	299	t	2006-02-14	2013-05-26 14:49:45.738	1
-295	1	Daisy	Bates	daisy.bates@sakilacustomer.org	300	t	2006-02-14	2013-05-26 14:49:45.738	1
-296	2	Ramona	Hale	ramona.hale@sakilacustomer.org	301	t	2006-02-14	2013-05-26 14:49:45.738	1
-297	1	Sherri	Rhodes	sherri.rhodes@sakilacustomer.org	302	t	2006-02-14	2013-05-26 14:49:45.738	1
-298	1	Erika	Pena	erika.pena@sakilacustomer.org	303	t	2006-02-14	2013-05-26 14:49:45.738	1
-299	2	James	Gannon	james.gannon@sakilacustomer.org	304	t	2006-02-14	2013-05-26 14:49:45.738	1
-300	1	John	Farnsworth	john.farnsworth@sakilacustomer.org	305	t	2006-02-14	2013-05-26 14:49:45.738	1
-301	2	Robert	Baughman	robert.baughman@sakilacustomer.org	306	t	2006-02-14	2013-05-26 14:49:45.738	1
-302	1	Michael	Silverman	michael.silverman@sakilacustomer.org	307	t	2006-02-14	2013-05-26 14:49:45.738	1
-303	2	William	Satterfield	william.satterfield@sakilacustomer.org	308	t	2006-02-14	2013-05-26 14:49:45.738	1
-304	2	David	Royal	david.royal@sakilacustomer.org	309	t	2006-02-14	2013-05-26 14:49:45.738	1
-305	1	Richard	Mccrary	richard.mccrary@sakilacustomer.org	310	t	2006-02-14	2013-05-26 14:49:45.738	1
-306	1	Charles	Kowalski	charles.kowalski@sakilacustomer.org	311	t	2006-02-14	2013-05-26 14:49:45.738	1
-307	2	Joseph	Joy	joseph.joy@sakilacustomer.org	312	t	2006-02-14	2013-05-26 14:49:45.738	1
-308	1	Thomas	Grigsby	thomas.grigsby@sakilacustomer.org	313	t	2006-02-14	2013-05-26 14:49:45.738	1
-309	1	Christopher	Greco	christopher.greco@sakilacustomer.org	314	t	2006-02-14	2013-05-26 14:49:45.738	1
-310	2	Daniel	Cabral	daniel.cabral@sakilacustomer.org	315	t	2006-02-14	2013-05-26 14:49:45.738	1
-311	2	Paul	Trout	paul.trout@sakilacustomer.org	316	t	2006-02-14	2013-05-26 14:49:45.738	1
-312	2	Mark	Rinehart	mark.rinehart@sakilacustomer.org	317	t	2006-02-14	2013-05-26 14:49:45.738	1
-313	2	Donald	Mahon	donald.mahon@sakilacustomer.org	318	t	2006-02-14	2013-05-26 14:49:45.738	1
-314	1	George	Linton	george.linton@sakilacustomer.org	319	t	2006-02-14	2013-05-26 14:49:45.738	1
-315	2	Kenneth	Gooden	kenneth.gooden@sakilacustomer.org	320	t	2006-02-14	2013-05-26 14:49:45.738	0
-316	1	Steven	Curley	steven.curley@sakilacustomer.org	321	t	2006-02-14	2013-05-26 14:49:45.738	1
-317	2	Edward	Baugh	edward.baugh@sakilacustomer.org	322	t	2006-02-14	2013-05-26 14:49:45.738	1
-318	1	Brian	Wyman	brian.wyman@sakilacustomer.org	323	t	2006-02-14	2013-05-26 14:49:45.738	1
-319	2	Ronald	Weiner	ronald.weiner@sakilacustomer.org	324	t	2006-02-14	2013-05-26 14:49:45.738	1
-320	2	Anthony	Schwab	anthony.schwab@sakilacustomer.org	325	t	2006-02-14	2013-05-26 14:49:45.738	1
-321	1	Kevin	Schuler	kevin.schuler@sakilacustomer.org	326	t	2006-02-14	2013-05-26 14:49:45.738	1
-322	1	Jason	Morrissey	jason.morrissey@sakilacustomer.org	327	t	2006-02-14	2013-05-26 14:49:45.738	1
-323	2	Matthew	Mahan	matthew.mahan@sakilacustomer.org	328	t	2006-02-14	2013-05-26 14:49:45.738	1
-324	2	Gary	Coy	gary.coy@sakilacustomer.org	329	t	2006-02-14	2013-05-26 14:49:45.738	1
-325	1	Timothy	Bunn	timothy.bunn@sakilacustomer.org	330	t	2006-02-14	2013-05-26 14:49:45.738	1
-326	1	Jose	Andrew	jose.andrew@sakilacustomer.org	331	t	2006-02-14	2013-05-26 14:49:45.738	1
-327	2	Larry	Thrasher	larry.thrasher@sakilacustomer.org	332	t	2006-02-14	2013-05-26 14:49:45.738	1
-328	2	Jeffrey	Spear	jeffrey.spear@sakilacustomer.org	333	t	2006-02-14	2013-05-26 14:49:45.738	1
-329	2	Frank	Waggoner	frank.waggoner@sakilacustomer.org	334	t	2006-02-14	2013-05-26 14:49:45.738	1
-330	1	Scott	Shelley	scott.shelley@sakilacustomer.org	335	t	2006-02-14	2013-05-26 14:49:45.738	1
-331	1	Eric	Robert	eric.robert@sakilacustomer.org	336	t	2006-02-14	2013-05-26 14:49:45.738	1
-332	1	Stephen	Qualls	stephen.qualls@sakilacustomer.org	337	t	2006-02-14	2013-05-26 14:49:45.738	1
-333	2	Andrew	Purdy	andrew.purdy@sakilacustomer.org	338	t	2006-02-14	2013-05-26 14:49:45.738	1
-334	2	Raymond	Mcwhorter	raymond.mcwhorter@sakilacustomer.org	339	t	2006-02-14	2013-05-26 14:49:45.738	1
-335	1	Gregory	Mauldin	gregory.mauldin@sakilacustomer.org	340	t	2006-02-14	2013-05-26 14:49:45.738	1
-336	1	Joshua	Mark	joshua.mark@sakilacustomer.org	341	t	2006-02-14	2013-05-26 14:49:45.738	1
-337	1	Jerry	Jordon	jerry.jordon@sakilacustomer.org	342	t	2006-02-14	2013-05-26 14:49:45.738	1
-338	1	Dennis	Gilman	dennis.gilman@sakilacustomer.org	343	t	2006-02-14	2013-05-26 14:49:45.738	1
-339	2	Walter	Perryman	walter.perryman@sakilacustomer.org	344	t	2006-02-14	2013-05-26 14:49:45.738	1
-340	1	Patrick	Newsom	patrick.newsom@sakilacustomer.org	345	t	2006-02-14	2013-05-26 14:49:45.738	1
-341	1	Peter	Menard	peter.menard@sakilacustomer.org	346	t	2006-02-14	2013-05-26 14:49:45.738	1
-342	1	Harold	Martino	harold.martino@sakilacustomer.org	347	t	2006-02-14	2013-05-26 14:49:45.738	1
-343	1	Douglas	Graf	douglas.graf@sakilacustomer.org	348	t	2006-02-14	2013-05-26 14:49:45.738	1
-344	1	Henry	Billingsley	henry.billingsley@sakilacustomer.org	349	t	2006-02-14	2013-05-26 14:49:45.738	1
-345	1	Carl	Artis	carl.artis@sakilacustomer.org	350	t	2006-02-14	2013-05-26 14:49:45.738	1
-346	1	Arthur	Simpkins	arthur.simpkins@sakilacustomer.org	351	t	2006-02-14	2013-05-26 14:49:45.738	1
-347	2	Ryan	Salisbury	ryan.salisbury@sakilacustomer.org	352	t	2006-02-14	2013-05-26 14:49:45.738	1
-348	2	Roger	Quintanilla	roger.quintanilla@sakilacustomer.org	353	t	2006-02-14	2013-05-26 14:49:45.738	1
-349	2	Joe	Gilliland	joe.gilliland@sakilacustomer.org	354	t	2006-02-14	2013-05-26 14:49:45.738	1
-350	1	Juan	Fraley	juan.fraley@sakilacustomer.org	355	t	2006-02-14	2013-05-26 14:49:45.738	1
-351	1	Jack	Foust	jack.foust@sakilacustomer.org	356	t	2006-02-14	2013-05-26 14:49:45.738	1
-352	1	Albert	Crouse	albert.crouse@sakilacustomer.org	357	t	2006-02-14	2013-05-26 14:49:45.738	1
-353	1	Jonathan	Scarborough	jonathan.scarborough@sakilacustomer.org	358	t	2006-02-14	2013-05-26 14:49:45.738	1
-354	2	Justin	Ngo	justin.ngo@sakilacustomer.org	359	t	2006-02-14	2013-05-26 14:49:45.738	1
-355	2	Terry	Grissom	terry.grissom@sakilacustomer.org	360	t	2006-02-14	2013-05-26 14:49:45.738	1
-356	2	Gerald	Fultz	gerald.fultz@sakilacustomer.org	361	t	2006-02-14	2013-05-26 14:49:45.738	1
-357	1	Keith	Rico	keith.rico@sakilacustomer.org	362	t	2006-02-14	2013-05-26 14:49:45.738	1
-358	2	Samuel	Marlow	samuel.marlow@sakilacustomer.org	363	t	2006-02-14	2013-05-26 14:49:45.738	1
-359	2	Willie	Markham	willie.markham@sakilacustomer.org	364	t	2006-02-14	2013-05-26 14:49:45.738	1
-360	2	Ralph	Madrigal	ralph.madrigal@sakilacustomer.org	365	t	2006-02-14	2013-05-26 14:49:45.738	1
-361	2	Lawrence	Lawton	lawrence.lawton@sakilacustomer.org	366	t	2006-02-14	2013-05-26 14:49:45.738	1
-362	1	Nicholas	Barfield	nicholas.barfield@sakilacustomer.org	367	t	2006-02-14	2013-05-26 14:49:45.738	1
-363	2	Roy	Whiting	roy.whiting@sakilacustomer.org	368	t	2006-02-14	2013-05-26 14:49:45.738	1
-364	1	Benjamin	Varney	benjamin.varney@sakilacustomer.org	369	t	2006-02-14	2013-05-26 14:49:45.738	1
-365	2	Bruce	Schwarz	bruce.schwarz@sakilacustomer.org	370	t	2006-02-14	2013-05-26 14:49:45.738	1
-366	1	Brandon	Huey	brandon.huey@sakilacustomer.org	371	t	2006-02-14	2013-05-26 14:49:45.738	1
-367	1	Adam	Gooch	adam.gooch@sakilacustomer.org	372	t	2006-02-14	2013-05-26 14:49:45.738	1
-368	1	Harry	Arce	harry.arce@sakilacustomer.org	373	t	2006-02-14	2013-05-26 14:49:45.738	0
-369	2	Fred	Wheat	fred.wheat@sakilacustomer.org	374	t	2006-02-14	2013-05-26 14:49:45.738	1
-370	2	Wayne	Truong	wayne.truong@sakilacustomer.org	375	t	2006-02-14	2013-05-26 14:49:45.738	1
-371	1	Billy	Poulin	billy.poulin@sakilacustomer.org	376	t	2006-02-14	2013-05-26 14:49:45.738	1
-372	2	Steve	Mackenzie	steve.mackenzie@sakilacustomer.org	377	t	2006-02-14	2013-05-26 14:49:45.738	1
-373	1	Louis	Leone	louis.leone@sakilacustomer.org	378	t	2006-02-14	2013-05-26 14:49:45.738	1
-374	2	Jeremy	Hurtado	jeremy.hurtado@sakilacustomer.org	379	t	2006-02-14	2013-05-26 14:49:45.738	1
-375	2	Aaron	Selby	aaron.selby@sakilacustomer.org	380	t	2006-02-14	2013-05-26 14:49:45.738	1
-376	1	Randy	Gaither	randy.gaither@sakilacustomer.org	381	t	2006-02-14	2013-05-26 14:49:45.738	1
-377	1	Howard	Fortner	howard.fortner@sakilacustomer.org	382	t	2006-02-14	2013-05-26 14:49:45.738	1
-378	1	Eugene	Culpepper	eugene.culpepper@sakilacustomer.org	383	t	2006-02-14	2013-05-26 14:49:45.738	1
-379	1	Carlos	Coughlin	carlos.coughlin@sakilacustomer.org	384	t	2006-02-14	2013-05-26 14:49:45.738	1
-380	1	Russell	Brinson	russell.brinson@sakilacustomer.org	385	t	2006-02-14	2013-05-26 14:49:45.738	1
-381	2	Bobby	Boudreau	bobby.boudreau@sakilacustomer.org	386	t	2006-02-14	2013-05-26 14:49:45.738	1
-382	2	Victor	Barkley	victor.barkley@sakilacustomer.org	387	t	2006-02-14	2013-05-26 14:49:45.738	1
-383	1	Martin	Bales	martin.bales@sakilacustomer.org	388	t	2006-02-14	2013-05-26 14:49:45.738	1
-384	2	Ernest	Stepp	ernest.stepp@sakilacustomer.org	389	t	2006-02-14	2013-05-26 14:49:45.738	1
-385	1	Phillip	Holm	phillip.holm@sakilacustomer.org	390	t	2006-02-14	2013-05-26 14:49:45.738	1
-386	1	Todd	Tan	todd.tan@sakilacustomer.org	391	t	2006-02-14	2013-05-26 14:49:45.738	1
-387	2	Jesse	Schilling	jesse.schilling@sakilacustomer.org	392	t	2006-02-14	2013-05-26 14:49:45.738	1
-388	2	Craig	Morrell	craig.morrell@sakilacustomer.org	393	t	2006-02-14	2013-05-26 14:49:45.738	1
-389	1	Alan	Kahn	alan.kahn@sakilacustomer.org	394	t	2006-02-14	2013-05-26 14:49:45.738	1
-390	1	Shawn	Heaton	shawn.heaton@sakilacustomer.org	395	t	2006-02-14	2013-05-26 14:49:45.738	1
-391	1	Clarence	Gamez	clarence.gamez@sakilacustomer.org	396	t	2006-02-14	2013-05-26 14:49:45.738	1
-392	2	Sean	Douglass	sean.douglass@sakilacustomer.org	397	t	2006-02-14	2013-05-26 14:49:45.738	1
-393	1	Philip	Causey	philip.causey@sakilacustomer.org	398	t	2006-02-14	2013-05-26 14:49:45.738	1
-394	2	Chris	Brothers	chris.brothers@sakilacustomer.org	399	t	2006-02-14	2013-05-26 14:49:45.738	1
-395	2	Johnny	Turpin	johnny.turpin@sakilacustomer.org	400	t	2006-02-14	2013-05-26 14:49:45.738	1
-396	1	Earl	Shanks	earl.shanks@sakilacustomer.org	401	t	2006-02-14	2013-05-26 14:49:45.738	1
-397	1	Jimmy	Schrader	jimmy.schrader@sakilacustomer.org	402	t	2006-02-14	2013-05-26 14:49:45.738	1
-398	1	Antonio	Meek	antonio.meek@sakilacustomer.org	403	t	2006-02-14	2013-05-26 14:49:45.738	1
-399	1	Danny	Isom	danny.isom@sakilacustomer.org	404	t	2006-02-14	2013-05-26 14:49:45.738	1
-400	2	Bryan	Hardison	bryan.hardison@sakilacustomer.org	405	t	2006-02-14	2013-05-26 14:49:45.738	1
-401	2	Tony	Carranza	tony.carranza@sakilacustomer.org	406	t	2006-02-14	2013-05-26 14:49:45.738	1
-402	1	Luis	Yanez	luis.yanez@sakilacustomer.org	407	t	2006-02-14	2013-05-26 14:49:45.738	1
-403	1	Mike	Way	mike.way@sakilacustomer.org	408	t	2006-02-14	2013-05-26 14:49:45.738	1
-404	2	Stanley	Scroggins	stanley.scroggins@sakilacustomer.org	409	t	2006-02-14	2013-05-26 14:49:45.738	1
-405	1	Leonard	Schofield	leonard.schofield@sakilacustomer.org	410	t	2006-02-14	2013-05-26 14:49:45.738	1
-406	1	Nathan	Runyon	nathan.runyon@sakilacustomer.org	411	t	2006-02-14	2013-05-26 14:49:45.738	0
-407	1	Dale	Ratcliff	dale.ratcliff@sakilacustomer.org	412	t	2006-02-14	2013-05-26 14:49:45.738	1
-408	1	Manuel	Murrell	manuel.murrell@sakilacustomer.org	413	t	2006-02-14	2013-05-26 14:49:45.738	1
-409	2	Rodney	Moeller	rodney.moeller@sakilacustomer.org	414	t	2006-02-14	2013-05-26 14:49:45.738	1
-410	2	Curtis	Irby	curtis.irby@sakilacustomer.org	415	t	2006-02-14	2013-05-26 14:49:45.738	1
-411	1	Norman	Currier	norman.currier@sakilacustomer.org	416	t	2006-02-14	2013-05-26 14:49:45.738	1
-412	2	Allen	Butterfield	allen.butterfield@sakilacustomer.org	417	t	2006-02-14	2013-05-26 14:49:45.738	1
-413	2	Marvin	Yee	marvin.yee@sakilacustomer.org	418	t	2006-02-14	2013-05-26 14:49:45.738	1
-414	1	Vincent	Ralston	vincent.ralston@sakilacustomer.org	419	t	2006-02-14	2013-05-26 14:49:45.738	1
-415	1	Glenn	Pullen	glenn.pullen@sakilacustomer.org	420	t	2006-02-14	2013-05-26 14:49:45.738	1
-416	2	Jeffery	Pinson	jeffery.pinson@sakilacustomer.org	421	t	2006-02-14	2013-05-26 14:49:45.738	1
-417	1	Travis	Estep	travis.estep@sakilacustomer.org	422	t	2006-02-14	2013-05-26 14:49:45.738	1
-418	2	Jeff	East	jeff.east@sakilacustomer.org	423	t	2006-02-14	2013-05-26 14:49:45.738	1
-419	1	Chad	Carbone	chad.carbone@sakilacustomer.org	424	t	2006-02-14	2013-05-26 14:49:45.738	1
-420	1	Jacob	Lance	jacob.lance@sakilacustomer.org	425	t	2006-02-14	2013-05-26 14:49:45.738	1
-421	1	Lee	Hawks	lee.hawks@sakilacustomer.org	426	t	2006-02-14	2013-05-26 14:49:45.738	1
-422	1	Melvin	Ellington	melvin.ellington@sakilacustomer.org	427	t	2006-02-14	2013-05-26 14:49:45.738	1
-423	2	Alfred	Casillas	alfred.casillas@sakilacustomer.org	428	t	2006-02-14	2013-05-26 14:49:45.738	1
-424	2	Kyle	Spurlock	kyle.spurlock@sakilacustomer.org	429	t	2006-02-14	2013-05-26 14:49:45.738	1
-425	2	Francis	Sikes	francis.sikes@sakilacustomer.org	430	t	2006-02-14	2013-05-26 14:49:45.738	1
-426	1	Bradley	Motley	bradley.motley@sakilacustomer.org	431	t	2006-02-14	2013-05-26 14:49:45.738	1
-427	2	Jesus	Mccartney	jesus.mccartney@sakilacustomer.org	432	t	2006-02-14	2013-05-26 14:49:45.738	1
-428	2	Herbert	Kruger	herbert.kruger@sakilacustomer.org	433	t	2006-02-14	2013-05-26 14:49:45.738	1
-429	2	Frederick	Isbell	frederick.isbell@sakilacustomer.org	434	t	2006-02-14	2013-05-26 14:49:45.738	1
-430	1	Ray	Houle	ray.houle@sakilacustomer.org	435	t	2006-02-14	2013-05-26 14:49:45.738	1
-431	2	Joel	Francisco	joel.francisco@sakilacustomer.org	436	t	2006-02-14	2013-05-26 14:49:45.738	1
-432	1	Edwin	Burk	edwin.burk@sakilacustomer.org	437	t	2006-02-14	2013-05-26 14:49:45.738	1
-433	1	Don	Bone	don.bone@sakilacustomer.org	438	t	2006-02-14	2013-05-26 14:49:45.738	1
-434	1	Eddie	Tomlin	eddie.tomlin@sakilacustomer.org	439	t	2006-02-14	2013-05-26 14:49:45.738	1
-435	2	Ricky	Shelby	ricky.shelby@sakilacustomer.org	440	t	2006-02-14	2013-05-26 14:49:45.738	1
-436	1	Troy	Quigley	troy.quigley@sakilacustomer.org	441	t	2006-02-14	2013-05-26 14:49:45.738	1
-437	2	Randall	Neumann	randall.neumann@sakilacustomer.org	442	t	2006-02-14	2013-05-26 14:49:45.738	1
-438	1	Barry	Lovelace	barry.lovelace@sakilacustomer.org	443	t	2006-02-14	2013-05-26 14:49:45.738	1
-439	2	Alexander	Fennell	alexander.fennell@sakilacustomer.org	444	t	2006-02-14	2013-05-26 14:49:45.738	1
-440	1	Bernard	Colby	bernard.colby@sakilacustomer.org	445	t	2006-02-14	2013-05-26 14:49:45.738	1
-441	1	Mario	Cheatham	mario.cheatham@sakilacustomer.org	446	t	2006-02-14	2013-05-26 14:49:45.738	1
-442	1	Leroy	Bustamante	leroy.bustamante@sakilacustomer.org	447	t	2006-02-14	2013-05-26 14:49:45.738	1
-443	2	Francisco	Skidmore	francisco.skidmore@sakilacustomer.org	448	t	2006-02-14	2013-05-26 14:49:45.738	1
-444	2	Marcus	Hidalgo	marcus.hidalgo@sakilacustomer.org	449	t	2006-02-14	2013-05-26 14:49:45.738	1
-445	1	Micheal	Forman	micheal.forman@sakilacustomer.org	450	t	2006-02-14	2013-05-26 14:49:45.738	1
-446	2	Theodore	Culp	theodore.culp@sakilacustomer.org	451	t	2006-02-14	2013-05-26 14:49:45.738	0
-447	1	Clifford	Bowens	clifford.bowens@sakilacustomer.org	452	t	2006-02-14	2013-05-26 14:49:45.738	1
-448	1	Miguel	Betancourt	miguel.betancourt@sakilacustomer.org	453	t	2006-02-14	2013-05-26 14:49:45.738	1
-449	2	Oscar	Aquino	oscar.aquino@sakilacustomer.org	454	t	2006-02-14	2013-05-26 14:49:45.738	1
-450	1	Jay	Robb	jay.robb@sakilacustomer.org	455	t	2006-02-14	2013-05-26 14:49:45.738	1
-451	1	Jim	Rea	jim.rea@sakilacustomer.org	456	t	2006-02-14	2013-05-26 14:49:45.738	1
-452	1	Tom	Milner	tom.milner@sakilacustomer.org	457	t	2006-02-14	2013-05-26 14:49:45.738	1
-453	1	Calvin	Martel	calvin.martel@sakilacustomer.org	458	t	2006-02-14	2013-05-26 14:49:45.738	1
-454	2	Alex	Gresham	alex.gresham@sakilacustomer.org	459	t	2006-02-14	2013-05-26 14:49:45.738	1
-455	2	Jon	Wiles	jon.wiles@sakilacustomer.org	460	t	2006-02-14	2013-05-26 14:49:45.738	1
-456	2	Ronnie	Ricketts	ronnie.ricketts@sakilacustomer.org	461	t	2006-02-14	2013-05-26 14:49:45.738	1
-457	2	Bill	Gavin	bill.gavin@sakilacustomer.org	462	t	2006-02-14	2013-05-26 14:49:45.738	1
-458	1	Lloyd	Dowd	lloyd.dowd@sakilacustomer.org	463	t	2006-02-14	2013-05-26 14:49:45.738	1
-459	1	Tommy	Collazo	tommy.collazo@sakilacustomer.org	464	t	2006-02-14	2013-05-26 14:49:45.738	1
-460	1	Leon	Bostic	leon.bostic@sakilacustomer.org	465	t	2006-02-14	2013-05-26 14:49:45.738	1
-461	1	Derek	Blakely	derek.blakely@sakilacustomer.org	466	t	2006-02-14	2013-05-26 14:49:45.738	1
-462	2	Warren	Sherrod	warren.sherrod@sakilacustomer.org	467	t	2006-02-14	2013-05-26 14:49:45.738	1
-463	2	Darrell	Power	darrell.power@sakilacustomer.org	468	t	2006-02-14	2013-05-26 14:49:45.738	1
-464	1	Jerome	Kenyon	jerome.kenyon@sakilacustomer.org	469	t	2006-02-14	2013-05-26 14:49:45.738	1
-465	1	Floyd	Gandy	floyd.gandy@sakilacustomer.org	470	t	2006-02-14	2013-05-26 14:49:45.738	1
-466	1	Leo	Ebert	leo.ebert@sakilacustomer.org	471	t	2006-02-14	2013-05-26 14:49:45.738	1
-467	2	Alvin	Deloach	alvin.deloach@sakilacustomer.org	472	t	2006-02-14	2013-05-26 14:49:45.738	1
-468	1	Tim	Cary	tim.cary@sakilacustomer.org	473	t	2006-02-14	2013-05-26 14:49:45.738	1
-469	2	Wesley	Bull	wesley.bull@sakilacustomer.org	474	t	2006-02-14	2013-05-26 14:49:45.738	1
-470	1	Gordon	Allard	gordon.allard@sakilacustomer.org	475	t	2006-02-14	2013-05-26 14:49:45.738	1
-471	1	Dean	Sauer	dean.sauer@sakilacustomer.org	476	t	2006-02-14	2013-05-26 14:49:45.738	1
-472	1	Greg	Robins	greg.robins@sakilacustomer.org	477	t	2006-02-14	2013-05-26 14:49:45.738	1
-473	2	Jorge	Olivares	jorge.olivares@sakilacustomer.org	478	t	2006-02-14	2013-05-26 14:49:45.738	1
-474	2	Dustin	Gillette	dustin.gillette@sakilacustomer.org	479	t	2006-02-14	2013-05-26 14:49:45.738	1
-475	2	Pedro	Chestnut	pedro.chestnut@sakilacustomer.org	480	t	2006-02-14	2013-05-26 14:49:45.738	1
-476	1	Derrick	Bourque	derrick.bourque@sakilacustomer.org	481	t	2006-02-14	2013-05-26 14:49:45.738	1
-477	1	Dan	Paine	dan.paine@sakilacustomer.org	482	t	2006-02-14	2013-05-26 14:49:45.738	1
-478	1	Lewis	Lyman	lewis.lyman@sakilacustomer.org	483	t	2006-02-14	2013-05-26 14:49:45.738	1
-479	1	Zachary	Hite	zachary.hite@sakilacustomer.org	484	t	2006-02-14	2013-05-26 14:49:45.738	1
-480	1	Corey	Hauser	corey.hauser@sakilacustomer.org	485	t	2006-02-14	2013-05-26 14:49:45.738	1
-481	1	Herman	Devore	herman.devore@sakilacustomer.org	486	t	2006-02-14	2013-05-26 14:49:45.738	1
-482	1	Maurice	Crawley	maurice.crawley@sakilacustomer.org	487	t	2006-02-14	2013-05-26 14:49:45.738	0
-483	2	Vernon	Chapa	vernon.chapa@sakilacustomer.org	488	t	2006-02-14	2013-05-26 14:49:45.738	1
-484	1	Roberto	Vu	roberto.vu@sakilacustomer.org	489	t	2006-02-14	2013-05-26 14:49:45.738	1
-485	1	Clyde	Tobias	clyde.tobias@sakilacustomer.org	490	t	2006-02-14	2013-05-26 14:49:45.738	1
-486	1	Glen	Talbert	glen.talbert@sakilacustomer.org	491	t	2006-02-14	2013-05-26 14:49:45.738	1
-487	2	Hector	Poindexter	hector.poindexter@sakilacustomer.org	492	t	2006-02-14	2013-05-26 14:49:45.738	1
-488	2	Shane	Millard	shane.millard@sakilacustomer.org	493	t	2006-02-14	2013-05-26 14:49:45.738	1
-489	1	Ricardo	Meador	ricardo.meador@sakilacustomer.org	494	t	2006-02-14	2013-05-26 14:49:45.738	1
-490	1	Sam	Mcduffie	sam.mcduffie@sakilacustomer.org	495	t	2006-02-14	2013-05-26 14:49:45.738	1
-491	2	Rick	Mattox	rick.mattox@sakilacustomer.org	496	t	2006-02-14	2013-05-26 14:49:45.738	1
-492	2	Lester	Kraus	lester.kraus@sakilacustomer.org	497	t	2006-02-14	2013-05-26 14:49:45.738	1
-493	1	Brent	Harkins	brent.harkins@sakilacustomer.org	498	t	2006-02-14	2013-05-26 14:49:45.738	1
-494	2	Ramon	Choate	ramon.choate@sakilacustomer.org	499	t	2006-02-14	2013-05-26 14:49:45.738	1
-495	2	Charlie	Bess	charlie.bess@sakilacustomer.org	500	t	2006-02-14	2013-05-26 14:49:45.738	1
-496	2	Tyler	Wren	tyler.wren@sakilacustomer.org	501	t	2006-02-14	2013-05-26 14:49:45.738	1
-497	2	Gilbert	Sledge	gilbert.sledge@sakilacustomer.org	502	t	2006-02-14	2013-05-26 14:49:45.738	1
-498	1	Gene	Sanborn	gene.sanborn@sakilacustomer.org	503	t	2006-02-14	2013-05-26 14:49:45.738	1
-499	2	Marc	Outlaw	marc.outlaw@sakilacustomer.org	504	t	2006-02-14	2013-05-26 14:49:45.738	1
-500	1	Reginald	Kinder	reginald.kinder@sakilacustomer.org	505	t	2006-02-14	2013-05-26 14:49:45.738	1
-501	1	Ruben	Geary	ruben.geary@sakilacustomer.org	506	t	2006-02-14	2013-05-26 14:49:45.738	1
-502	1	Brett	Cornwell	brett.cornwell@sakilacustomer.org	507	t	2006-02-14	2013-05-26 14:49:45.738	1
-503	1	Angel	Barclay	angel.barclay@sakilacustomer.org	508	t	2006-02-14	2013-05-26 14:49:45.738	1
-504	1	Nathaniel	Adam	nathaniel.adam@sakilacustomer.org	509	t	2006-02-14	2013-05-26 14:49:45.738	1
-505	1	Rafael	Abney	rafael.abney@sakilacustomer.org	510	t	2006-02-14	2013-05-26 14:49:45.738	1
-506	2	Leslie	Seward	leslie.seward@sakilacustomer.org	511	t	2006-02-14	2013-05-26 14:49:45.738	1
-507	2	Edgar	Rhoads	edgar.rhoads@sakilacustomer.org	512	t	2006-02-14	2013-05-26 14:49:45.738	1
-508	2	Milton	Howland	milton.howland@sakilacustomer.org	513	t	2006-02-14	2013-05-26 14:49:45.738	1
-509	1	Raul	Fortier	raul.fortier@sakilacustomer.org	514	t	2006-02-14	2013-05-26 14:49:45.738	1
-510	2	Ben	Easter	ben.easter@sakilacustomer.org	515	t	2006-02-14	2013-05-26 14:49:45.738	0
-511	1	Chester	Benner	chester.benner@sakilacustomer.org	516	t	2006-02-14	2013-05-26 14:49:45.738	1
-512	1	Cecil	Vines	cecil.vines@sakilacustomer.org	517	t	2006-02-14	2013-05-26 14:49:45.738	1
-513	2	Duane	Tubbs	duane.tubbs@sakilacustomer.org	519	t	2006-02-14	2013-05-26 14:49:45.738	1
-514	2	Franklin	Troutman	franklin.troutman@sakilacustomer.org	520	t	2006-02-14	2013-05-26 14:49:45.738	1
-515	1	Andre	Rapp	andre.rapp@sakilacustomer.org	521	t	2006-02-14	2013-05-26 14:49:45.738	1
-516	2	Elmer	Noe	elmer.noe@sakilacustomer.org	522	t	2006-02-14	2013-05-26 14:49:45.738	1
-517	2	Brad	Mccurdy	brad.mccurdy@sakilacustomer.org	523	t	2006-02-14	2013-05-26 14:49:45.738	1
-518	1	Gabriel	Harder	gabriel.harder@sakilacustomer.org	524	t	2006-02-14	2013-05-26 14:49:45.738	1
-519	2	Ron	Deluca	ron.deluca@sakilacustomer.org	525	t	2006-02-14	2013-05-26 14:49:45.738	1
-520	2	Mitchell	Westmoreland	mitchell.westmoreland@sakilacustomer.org	526	t	2006-02-14	2013-05-26 14:49:45.738	1
-521	2	Roland	South	roland.south@sakilacustomer.org	527	t	2006-02-14	2013-05-26 14:49:45.738	1
-522	2	Arnold	Havens	arnold.havens@sakilacustomer.org	528	t	2006-02-14	2013-05-26 14:49:45.738	1
-523	1	Harvey	Guajardo	harvey.guajardo@sakilacustomer.org	529	t	2006-02-14	2013-05-26 14:49:45.738	1
-525	2	Adrian	Clary	adrian.clary@sakilacustomer.org	531	t	2006-02-14	2013-05-26 14:49:45.738	1
-526	2	Karl	Seal	karl.seal@sakilacustomer.org	532	t	2006-02-14	2013-05-26 14:49:45.738	1
-527	1	Cory	Meehan	cory.meehan@sakilacustomer.org	533	t	2006-02-14	2013-05-26 14:49:45.738	1
-528	1	Claude	Herzog	claude.herzog@sakilacustomer.org	534	t	2006-02-14	2013-05-26 14:49:45.738	1
-529	2	Erik	Guillen	erik.guillen@sakilacustomer.org	535	t	2006-02-14	2013-05-26 14:49:45.738	1
-530	2	Darryl	Ashcraft	darryl.ashcraft@sakilacustomer.org	536	t	2006-02-14	2013-05-26 14:49:45.738	1
-531	2	Jamie	Waugh	jamie.waugh@sakilacustomer.org	537	t	2006-02-14	2013-05-26 14:49:45.738	1
-532	2	Neil	Renner	neil.renner@sakilacustomer.org	538	t	2006-02-14	2013-05-26 14:49:45.738	1
-533	1	Jessie	Milam	jessie.milam@sakilacustomer.org	539	t	2006-02-14	2013-05-26 14:49:45.738	1
-534	1	Christian	Jung	christian.jung@sakilacustomer.org	540	t	2006-02-14	2013-05-26 14:49:45.738	0
-535	1	Javier	Elrod	javier.elrod@sakilacustomer.org	541	t	2006-02-14	2013-05-26 14:49:45.738	1
-536	2	Fernando	Churchill	fernando.churchill@sakilacustomer.org	542	t	2006-02-14	2013-05-26 14:49:45.738	1
-537	2	Clinton	Buford	clinton.buford@sakilacustomer.org	543	t	2006-02-14	2013-05-26 14:49:45.738	1
-538	2	Ted	Breaux	ted.breaux@sakilacustomer.org	544	t	2006-02-14	2013-05-26 14:49:45.738	1
-539	1	Mathew	Bolin	mathew.bolin@sakilacustomer.org	545	t	2006-02-14	2013-05-26 14:49:45.738	1
-540	1	Tyrone	Asher	tyrone.asher@sakilacustomer.org	546	t	2006-02-14	2013-05-26 14:49:45.738	1
-541	2	Darren	Windham	darren.windham@sakilacustomer.org	547	t	2006-02-14	2013-05-26 14:49:45.738	1
-542	2	Lonnie	Tirado	lonnie.tirado@sakilacustomer.org	548	t	2006-02-14	2013-05-26 14:49:45.738	1
-543	1	Lance	Pemberton	lance.pemberton@sakilacustomer.org	549	t	2006-02-14	2013-05-26 14:49:45.738	1
-544	2	Cody	Nolen	cody.nolen@sakilacustomer.org	550	t	2006-02-14	2013-05-26 14:49:45.738	1
-545	2	Julio	Noland	julio.noland@sakilacustomer.org	551	t	2006-02-14	2013-05-26 14:49:45.738	1
-546	1	Kelly	Knott	kelly.knott@sakilacustomer.org	552	t	2006-02-14	2013-05-26 14:49:45.738	1
-547	1	Kurt	Emmons	kurt.emmons@sakilacustomer.org	553	t	2006-02-14	2013-05-26 14:49:45.738	1
-548	1	Allan	Cornish	allan.cornish@sakilacustomer.org	554	t	2006-02-14	2013-05-26 14:49:45.738	1
-549	1	Nelson	Christenson	nelson.christenson@sakilacustomer.org	555	t	2006-02-14	2013-05-26 14:49:45.738	1
-550	2	Guy	Brownlee	guy.brownlee@sakilacustomer.org	556	t	2006-02-14	2013-05-26 14:49:45.738	1
-551	2	Clayton	Barbee	clayton.barbee@sakilacustomer.org	557	t	2006-02-14	2013-05-26 14:49:45.738	1
-552	2	Hugh	Waldrop	hugh.waldrop@sakilacustomer.org	558	t	2006-02-14	2013-05-26 14:49:45.738	1
-553	1	Max	Pitt	max.pitt@sakilacustomer.org	559	t	2006-02-14	2013-05-26 14:49:45.738	1
-554	1	Dwayne	Olvera	dwayne.olvera@sakilacustomer.org	560	t	2006-02-14	2013-05-26 14:49:45.738	1
-555	1	Dwight	Lombardi	dwight.lombardi@sakilacustomer.org	561	t	2006-02-14	2013-05-26 14:49:45.738	1
-556	2	Armando	Gruber	armando.gruber@sakilacustomer.org	562	t	2006-02-14	2013-05-26 14:49:45.738	1
-557	1	Felix	Gaffney	felix.gaffney@sakilacustomer.org	563	t	2006-02-14	2013-05-26 14:49:45.738	1
-558	1	Jimmie	Eggleston	jimmie.eggleston@sakilacustomer.org	564	t	2006-02-14	2013-05-26 14:49:45.738	0
-559	2	Everett	Banda	everett.banda@sakilacustomer.org	565	t	2006-02-14	2013-05-26 14:49:45.738	1
-560	1	Jordan	Archuleta	jordan.archuleta@sakilacustomer.org	566	t	2006-02-14	2013-05-26 14:49:45.738	1
-561	2	Ian	Still	ian.still@sakilacustomer.org	567	t	2006-02-14	2013-05-26 14:49:45.738	1
-562	1	Wallace	Slone	wallace.slone@sakilacustomer.org	568	t	2006-02-14	2013-05-26 14:49:45.738	1
-563	2	Ken	Prewitt	ken.prewitt@sakilacustomer.org	569	t	2006-02-14	2013-05-26 14:49:45.738	1
-564	2	Bob	Pfeiffer	bob.pfeiffer@sakilacustomer.org	570	t	2006-02-14	2013-05-26 14:49:45.738	1
-565	2	Jaime	Nettles	jaime.nettles@sakilacustomer.org	571	t	2006-02-14	2013-05-26 14:49:45.738	1
-566	1	Casey	Mena	casey.mena@sakilacustomer.org	572	t	2006-02-14	2013-05-26 14:49:45.738	1
-567	2	Alfredo	Mcadams	alfredo.mcadams@sakilacustomer.org	573	t	2006-02-14	2013-05-26 14:49:45.738	1
-568	2	Alberto	Henning	alberto.henning@sakilacustomer.org	574	t	2006-02-14	2013-05-26 14:49:45.738	1
-569	2	Dave	Gardiner	dave.gardiner@sakilacustomer.org	575	t	2006-02-14	2013-05-26 14:49:45.738	1
-570	2	Ivan	Cromwell	ivan.cromwell@sakilacustomer.org	576	t	2006-02-14	2013-05-26 14:49:45.738	1
-571	2	Johnnie	Chisholm	johnnie.chisholm@sakilacustomer.org	577	t	2006-02-14	2013-05-26 14:49:45.738	1
-572	1	Sidney	Burleson	sidney.burleson@sakilacustomer.org	578	t	2006-02-14	2013-05-26 14:49:45.738	1
-573	1	Byron	Box	byron.box@sakilacustomer.org	579	t	2006-02-14	2013-05-26 14:49:45.738	1
-574	2	Julian	Vest	julian.vest@sakilacustomer.org	580	t	2006-02-14	2013-05-26 14:49:45.738	1
-575	2	Isaac	Oglesby	isaac.oglesby@sakilacustomer.org	581	t	2006-02-14	2013-05-26 14:49:45.738	1
-576	2	Morris	Mccarter	morris.mccarter@sakilacustomer.org	582	t	2006-02-14	2013-05-26 14:49:45.738	1
-577	2	Clifton	Malcolm	clifton.malcolm@sakilacustomer.org	583	t	2006-02-14	2013-05-26 14:49:45.738	1
-578	2	Willard	Lumpkin	willard.lumpkin@sakilacustomer.org	584	t	2006-02-14	2013-05-26 14:49:45.738	1
-579	2	Daryl	Larue	daryl.larue@sakilacustomer.org	585	t	2006-02-14	2013-05-26 14:49:45.738	1
-580	1	Ross	Grey	ross.grey@sakilacustomer.org	586	t	2006-02-14	2013-05-26 14:49:45.738	1
-581	1	Virgil	Wofford	virgil.wofford@sakilacustomer.org	587	t	2006-02-14	2013-05-26 14:49:45.738	1
-582	2	Andy	Vanhorn	andy.vanhorn@sakilacustomer.org	588	t	2006-02-14	2013-05-26 14:49:45.738	1
-583	1	Marshall	Thorn	marshall.thorn@sakilacustomer.org	589	t	2006-02-14	2013-05-26 14:49:45.738	1
-584	2	Salvador	Teel	salvador.teel@sakilacustomer.org	590	t	2006-02-14	2013-05-26 14:49:45.738	1
-585	1	Perry	Swafford	perry.swafford@sakilacustomer.org	591	t	2006-02-14	2013-05-26 14:49:45.738	1
-586	1	Kirk	Stclair	kirk.stclair@sakilacustomer.org	592	t	2006-02-14	2013-05-26 14:49:45.738	1
-587	1	Sergio	Stanfield	sergio.stanfield@sakilacustomer.org	593	t	2006-02-14	2013-05-26 14:49:45.738	1
-588	1	Marion	Ocampo	marion.ocampo@sakilacustomer.org	594	t	2006-02-14	2013-05-26 14:49:45.738	1
-589	1	Tracy	Herrmann	tracy.herrmann@sakilacustomer.org	595	t	2006-02-14	2013-05-26 14:49:45.738	1
-590	2	Seth	Hannon	seth.hannon@sakilacustomer.org	596	t	2006-02-14	2013-05-26 14:49:45.738	1
-591	1	Kent	Arsenault	kent.arsenault@sakilacustomer.org	597	t	2006-02-14	2013-05-26 14:49:45.738	1
-592	1	Terrance	Roush	terrance.roush@sakilacustomer.org	598	t	2006-02-14	2013-05-26 14:49:45.738	0
-593	2	Rene	Mcalister	rene.mcalister@sakilacustomer.org	599	t	2006-02-14	2013-05-26 14:49:45.738	1
-594	1	Eduardo	Hiatt	eduardo.hiatt@sakilacustomer.org	600	t	2006-02-14	2013-05-26 14:49:45.738	1
-595	1	Terrence	Gunderson	terrence.gunderson@sakilacustomer.org	601	t	2006-02-14	2013-05-26 14:49:45.738	1
-596	1	Enrique	Forsythe	enrique.forsythe@sakilacustomer.org	602	t	2006-02-14	2013-05-26 14:49:45.738	1
-597	1	Freddie	Duggan	freddie.duggan@sakilacustomer.org	603	t	2006-02-14	2013-05-26 14:49:45.738	1
-598	1	Wade	Delvalle	wade.delvalle@sakilacustomer.org	604	t	2006-02-14	2013-05-26 14:49:45.738	1
-599	2	Austin	Cintron	austin.cintron@sakilacustomer.org	605	t	2006-02-14	2013-05-26 14:49:45.738	1
+ALTER TABLE customer DISABLE TRIGGER ALL;
+
+COPY customer (customer_id, store_id, first_name, last_name, email, address_id, activebool, create_date, last_update, active) FROM stdin;
+1	1	MARY	SMITH	MARY.SMITH@sakilacustomer.org	5	t	2006-02-14	2006-02-15 09:57:20	1
+2	1	PATRICIA	JOHNSON	PATRICIA.JOHNSON@sakilacustomer.org	6	t	2006-02-14	2006-02-15 09:57:20	1
+3	1	LINDA	WILLIAMS	LINDA.WILLIAMS@sakilacustomer.org	7	t	2006-02-14	2006-02-15 09:57:20	1
+4	2	BARBARA	JONES	BARBARA.JONES@sakilacustomer.org	8	t	2006-02-14	2006-02-15 09:57:20	1
+5	1	ELIZABETH	BROWN	ELIZABETH.BROWN@sakilacustomer.org	9	t	2006-02-14	2006-02-15 09:57:20	1
+6	2	JENNIFER	DAVIS	JENNIFER.DAVIS@sakilacustomer.org	10	t	2006-02-14	2006-02-15 09:57:20	1
+7	1	MARIA	MILLER	MARIA.MILLER@sakilacustomer.org	11	t	2006-02-14	2006-02-15 09:57:20	1
+8	2	SUSAN	WILSON	SUSAN.WILSON@sakilacustomer.org	12	t	2006-02-14	2006-02-15 09:57:20	1
+9	2	MARGARET	MOORE	MARGARET.MOORE@sakilacustomer.org	13	t	2006-02-14	2006-02-15 09:57:20	1
+10	1	DOROTHY	TAYLOR	DOROTHY.TAYLOR@sakilacustomer.org	14	t	2006-02-14	2006-02-15 09:57:20	1
+11	2	LISA	ANDERSON	LISA.ANDERSON@sakilacustomer.org	15	t	2006-02-14	2006-02-15 09:57:20	1
+12	1	NANCY	THOMAS	NANCY.THOMAS@sakilacustomer.org	16	t	2006-02-14	2006-02-15 09:57:20	1
+13	2	KAREN	JACKSON	KAREN.JACKSON@sakilacustomer.org	17	t	2006-02-14	2006-02-15 09:57:20	1
+14	2	BETTY	WHITE	BETTY.WHITE@sakilacustomer.org	18	t	2006-02-14	2006-02-15 09:57:20	1
+15	1	HELEN	HARRIS	HELEN.HARRIS@sakilacustomer.org	19	t	2006-02-14	2006-02-15 09:57:20	1
+16	2	SANDRA	MARTIN	SANDRA.MARTIN@sakilacustomer.org	20	t	2006-02-14	2006-02-15 09:57:20	0
+17	1	DONNA	THOMPSON	DONNA.THOMPSON@sakilacustomer.org	21	t	2006-02-14	2006-02-15 09:57:20	1
+18	2	CAROL	GARCIA	CAROL.GARCIA@sakilacustomer.org	22	t	2006-02-14	2006-02-15 09:57:20	1
+19	1	RUTH	MARTINEZ	RUTH.MARTINEZ@sakilacustomer.org	23	t	2006-02-14	2006-02-15 09:57:20	1
+20	2	SHARON	ROBINSON	SHARON.ROBINSON@sakilacustomer.org	24	t	2006-02-14	2006-02-15 09:57:20	1
+21	1	MICHELLE	CLARK	MICHELLE.CLARK@sakilacustomer.org	25	t	2006-02-14	2006-02-15 09:57:20	1
+22	1	LAURA	RODRIGUEZ	LAURA.RODRIGUEZ@sakilacustomer.org	26	t	2006-02-14	2006-02-15 09:57:20	1
+23	2	SARAH	LEWIS	SARAH.LEWIS@sakilacustomer.org	27	t	2006-02-14	2006-02-15 09:57:20	1
+24	2	KIMBERLY	LEE	KIMBERLY.LEE@sakilacustomer.org	28	t	2006-02-14	2006-02-15 09:57:20	1
+25	1	DEBORAH	WALKER	DEBORAH.WALKER@sakilacustomer.org	29	t	2006-02-14	2006-02-15 09:57:20	1
+26	2	JESSICA	HALL	JESSICA.HALL@sakilacustomer.org	30	t	2006-02-14	2006-02-15 09:57:20	1
+27	2	SHIRLEY	ALLEN	SHIRLEY.ALLEN@sakilacustomer.org	31	t	2006-02-14	2006-02-15 09:57:20	1
+28	1	CYNTHIA	YOUNG	CYNTHIA.YOUNG@sakilacustomer.org	32	t	2006-02-14	2006-02-15 09:57:20	1
+29	2	ANGELA	HERNANDEZ	ANGELA.HERNANDEZ@sakilacustomer.org	33	t	2006-02-14	2006-02-15 09:57:20	1
+30	1	MELISSA	KING	MELISSA.KING@sakilacustomer.org	34	t	2006-02-14	2006-02-15 09:57:20	1
+31	2	BRENDA	WRIGHT	BRENDA.WRIGHT@sakilacustomer.org	35	t	2006-02-14	2006-02-15 09:57:20	1
+32	1	AMY	LOPEZ	AMY.LOPEZ@sakilacustomer.org	36	t	2006-02-14	2006-02-15 09:57:20	1
+33	2	ANNA	HILL	ANNA.HILL@sakilacustomer.org	37	t	2006-02-14	2006-02-15 09:57:20	1
+34	2	REBECCA	SCOTT	REBECCA.SCOTT@sakilacustomer.org	38	t	2006-02-14	2006-02-15 09:57:20	1
+35	2	VIRGINIA	GREEN	VIRGINIA.GREEN@sakilacustomer.org	39	t	2006-02-14	2006-02-15 09:57:20	1
+36	2	KATHLEEN	ADAMS	KATHLEEN.ADAMS@sakilacustomer.org	40	t	2006-02-14	2006-02-15 09:57:20	1
+37	1	PAMELA	BAKER	PAMELA.BAKER@sakilacustomer.org	41	t	2006-02-14	2006-02-15 09:57:20	1
+38	1	MARTHA	GONZALEZ	MARTHA.GONZALEZ@sakilacustomer.org	42	t	2006-02-14	2006-02-15 09:57:20	1
+39	1	DEBRA	NELSON	DEBRA.NELSON@sakilacustomer.org	43	t	2006-02-14	2006-02-15 09:57:20	1
+40	2	AMANDA	CARTER	AMANDA.CARTER@sakilacustomer.org	44	t	2006-02-14	2006-02-15 09:57:20	1
+41	1	STEPHANIE	MITCHELL	STEPHANIE.MITCHELL@sakilacustomer.org	45	t	2006-02-14	2006-02-15 09:57:20	1
+42	2	CAROLYN	PEREZ	CAROLYN.PEREZ@sakilacustomer.org	46	t	2006-02-14	2006-02-15 09:57:20	1
+43	2	CHRISTINE	ROBERTS	CHRISTINE.ROBERTS@sakilacustomer.org	47	t	2006-02-14	2006-02-15 09:57:20	1
+44	1	MARIE	TURNER	MARIE.TURNER@sakilacustomer.org	48	t	2006-02-14	2006-02-15 09:57:20	1
+45	1	JANET	PHILLIPS	JANET.PHILLIPS@sakilacustomer.org	49	t	2006-02-14	2006-02-15 09:57:20	1
+46	2	CATHERINE	CAMPBELL	CATHERINE.CAMPBELL@sakilacustomer.org	50	t	2006-02-14	2006-02-15 09:57:20	1
+47	1	FRANCES	PARKER	FRANCES.PARKER@sakilacustomer.org	51	t	2006-02-14	2006-02-15 09:57:20	1
+48	1	ANN	EVANS	ANN.EVANS@sakilacustomer.org	52	t	2006-02-14	2006-02-15 09:57:20	1
+49	2	JOYCE	EDWARDS	JOYCE.EDWARDS@sakilacustomer.org	53	t	2006-02-14	2006-02-15 09:57:20	1
+50	1	DIANE	COLLINS	DIANE.COLLINS@sakilacustomer.org	54	t	2006-02-14	2006-02-15 09:57:20	1
+51	1	ALICE	STEWART	ALICE.STEWART@sakilacustomer.org	55	t	2006-02-14	2006-02-15 09:57:20	1
+52	1	JULIE	SANCHEZ	JULIE.SANCHEZ@sakilacustomer.org	56	t	2006-02-14	2006-02-15 09:57:20	1
+53	1	HEATHER	MORRIS	HEATHER.MORRIS@sakilacustomer.org	57	t	2006-02-14	2006-02-15 09:57:20	1
+54	1	TERESA	ROGERS	TERESA.ROGERS@sakilacustomer.org	58	t	2006-02-14	2006-02-15 09:57:20	1
+55	2	DORIS	REED	DORIS.REED@sakilacustomer.org	59	t	2006-02-14	2006-02-15 09:57:20	1
+56	1	GLORIA	COOK	GLORIA.COOK@sakilacustomer.org	60	t	2006-02-14	2006-02-15 09:57:20	1
+57	2	EVELYN	MORGAN	EVELYN.MORGAN@sakilacustomer.org	61	t	2006-02-14	2006-02-15 09:57:20	1
+58	1	JEAN	BELL	JEAN.BELL@sakilacustomer.org	62	t	2006-02-14	2006-02-15 09:57:20	1
+59	1	CHERYL	MURPHY	CHERYL.MURPHY@sakilacustomer.org	63	t	2006-02-14	2006-02-15 09:57:20	1
+60	1	MILDRED	BAILEY	MILDRED.BAILEY@sakilacustomer.org	64	t	2006-02-14	2006-02-15 09:57:20	1
+61	2	KATHERINE	RIVERA	KATHERINE.RIVERA@sakilacustomer.org	65	t	2006-02-14	2006-02-15 09:57:20	1
+62	1	JOAN	COOPER	JOAN.COOPER@sakilacustomer.org	66	t	2006-02-14	2006-02-15 09:57:20	1
+63	1	ASHLEY	RICHARDSON	ASHLEY.RICHARDSON@sakilacustomer.org	67	t	2006-02-14	2006-02-15 09:57:20	1
+64	2	JUDITH	COX	JUDITH.COX@sakilacustomer.org	68	t	2006-02-14	2006-02-15 09:57:20	0
+65	2	ROSE	HOWARD	ROSE.HOWARD@sakilacustomer.org	69	t	2006-02-14	2006-02-15 09:57:20	1
+66	2	JANICE	WARD	JANICE.WARD@sakilacustomer.org	70	t	2006-02-14	2006-02-15 09:57:20	1
+67	1	KELLY	TORRES	KELLY.TORRES@sakilacustomer.org	71	t	2006-02-14	2006-02-15 09:57:20	1
+68	1	NICOLE	PETERSON	NICOLE.PETERSON@sakilacustomer.org	72	t	2006-02-14	2006-02-15 09:57:20	1
+69	2	JUDY	GRAY	JUDY.GRAY@sakilacustomer.org	73	t	2006-02-14	2006-02-15 09:57:20	1
+70	2	CHRISTINA	RAMIREZ	CHRISTINA.RAMIREZ@sakilacustomer.org	74	t	2006-02-14	2006-02-15 09:57:20	1
+71	1	KATHY	JAMES	KATHY.JAMES@sakilacustomer.org	75	t	2006-02-14	2006-02-15 09:57:20	1
+72	2	THERESA	WATSON	THERESA.WATSON@sakilacustomer.org	76	t	2006-02-14	2006-02-15 09:57:20	1
+73	2	BEVERLY	BROOKS	BEVERLY.BROOKS@sakilacustomer.org	77	t	2006-02-14	2006-02-15 09:57:20	1
+74	1	DENISE	KELLY	DENISE.KELLY@sakilacustomer.org	78	t	2006-02-14	2006-02-15 09:57:20	1
+75	2	TAMMY	SANDERS	TAMMY.SANDERS@sakilacustomer.org	79	t	2006-02-14	2006-02-15 09:57:20	1
+76	2	IRENE	PRICE	IRENE.PRICE@sakilacustomer.org	80	t	2006-02-14	2006-02-15 09:57:20	1
+77	2	JANE	BENNETT	JANE.BENNETT@sakilacustomer.org	81	t	2006-02-14	2006-02-15 09:57:20	1
+78	1	LORI	WOOD	LORI.WOOD@sakilacustomer.org	82	t	2006-02-14	2006-02-15 09:57:20	1
+79	1	RACHEL	BARNES	RACHEL.BARNES@sakilacustomer.org	83	t	2006-02-14	2006-02-15 09:57:20	1
+80	1	MARILYN	ROSS	MARILYN.ROSS@sakilacustomer.org	84	t	2006-02-14	2006-02-15 09:57:20	1
+81	1	ANDREA	HENDERSON	ANDREA.HENDERSON@sakilacustomer.org	85	t	2006-02-14	2006-02-15 09:57:20	1
+82	1	KATHRYN	COLEMAN	KATHRYN.COLEMAN@sakilacustomer.org	86	t	2006-02-14	2006-02-15 09:57:20	1
+83	1	LOUISE	JENKINS	LOUISE.JENKINS@sakilacustomer.org	87	t	2006-02-14	2006-02-15 09:57:20	1
+84	2	SARA	PERRY	SARA.PERRY@sakilacustomer.org	88	t	2006-02-14	2006-02-15 09:57:20	1
+85	2	ANNE	POWELL	ANNE.POWELL@sakilacustomer.org	89	t	2006-02-14	2006-02-15 09:57:20	1
+86	2	JACQUELINE	LONG	JACQUELINE.LONG@sakilacustomer.org	90	t	2006-02-14	2006-02-15 09:57:20	1
+87	1	WANDA	PATTERSON	WANDA.PATTERSON@sakilacustomer.org	91	t	2006-02-14	2006-02-15 09:57:20	1
+88	2	BONNIE	HUGHES	BONNIE.HUGHES@sakilacustomer.org	92	t	2006-02-14	2006-02-15 09:57:20	1
+89	1	JULIA	FLORES	JULIA.FLORES@sakilacustomer.org	93	t	2006-02-14	2006-02-15 09:57:20	1
+90	2	RUBY	WASHINGTON	RUBY.WASHINGTON@sakilacustomer.org	94	t	2006-02-14	2006-02-15 09:57:20	1
+91	2	LOIS	BUTLER	LOIS.BUTLER@sakilacustomer.org	95	t	2006-02-14	2006-02-15 09:57:20	1
+92	2	TINA	SIMMONS	TINA.SIMMONS@sakilacustomer.org	96	t	2006-02-14	2006-02-15 09:57:20	1
+93	1	PHYLLIS	FOSTER	PHYLLIS.FOSTER@sakilacustomer.org	97	t	2006-02-14	2006-02-15 09:57:20	1
+94	1	NORMA	GONZALES	NORMA.GONZALES@sakilacustomer.org	98	t	2006-02-14	2006-02-15 09:57:20	1
+95	2	PAULA	BRYANT	PAULA.BRYANT@sakilacustomer.org	99	t	2006-02-14	2006-02-15 09:57:20	1
+96	1	DIANA	ALEXANDER	DIANA.ALEXANDER@sakilacustomer.org	100	t	2006-02-14	2006-02-15 09:57:20	1
+97	2	ANNIE	RUSSELL	ANNIE.RUSSELL@sakilacustomer.org	101	t	2006-02-14	2006-02-15 09:57:20	1
+98	1	LILLIAN	GRIFFIN	LILLIAN.GRIFFIN@sakilacustomer.org	102	t	2006-02-14	2006-02-15 09:57:20	1
+99	2	EMILY	DIAZ	EMILY.DIAZ@sakilacustomer.org	103	t	2006-02-14	2006-02-15 09:57:20	1
+100	1	ROBIN	HAYES	ROBIN.HAYES@sakilacustomer.org	104	t	2006-02-14	2006-02-15 09:57:20	1
+101	1	PEGGY	MYERS	PEGGY.MYERS@sakilacustomer.org	105	t	2006-02-14	2006-02-15 09:57:20	1
+102	1	CRYSTAL	FORD	CRYSTAL.FORD@sakilacustomer.org	106	t	2006-02-14	2006-02-15 09:57:20	1
+103	1	GLADYS	HAMILTON	GLADYS.HAMILTON@sakilacustomer.org	107	t	2006-02-14	2006-02-15 09:57:20	1
+104	1	RITA	GRAHAM	RITA.GRAHAM@sakilacustomer.org	108	t	2006-02-14	2006-02-15 09:57:20	1
+105	1	DAWN	SULLIVAN	DAWN.SULLIVAN@sakilacustomer.org	109	t	2006-02-14	2006-02-15 09:57:20	1
+106	1	CONNIE	WALLACE	CONNIE.WALLACE@sakilacustomer.org	110	t	2006-02-14	2006-02-15 09:57:20	1
+107	1	FLORENCE	WOODS	FLORENCE.WOODS@sakilacustomer.org	111	t	2006-02-14	2006-02-15 09:57:20	1
+108	1	TRACY	COLE	TRACY.COLE@sakilacustomer.org	112	t	2006-02-14	2006-02-15 09:57:20	1
+109	2	EDNA	WEST	EDNA.WEST@sakilacustomer.org	113	t	2006-02-14	2006-02-15 09:57:20	1
+110	2	TIFFANY	JORDAN	TIFFANY.JORDAN@sakilacustomer.org	114	t	2006-02-14	2006-02-15 09:57:20	1
+111	1	CARMEN	OWENS	CARMEN.OWENS@sakilacustomer.org	115	t	2006-02-14	2006-02-15 09:57:20	1
+112	2	ROSA	REYNOLDS	ROSA.REYNOLDS@sakilacustomer.org	116	t	2006-02-14	2006-02-15 09:57:20	1
+113	2	CINDY	FISHER	CINDY.FISHER@sakilacustomer.org	117	t	2006-02-14	2006-02-15 09:57:20	1
+114	2	GRACE	ELLIS	GRACE.ELLIS@sakilacustomer.org	118	t	2006-02-14	2006-02-15 09:57:20	1
+115	1	WENDY	HARRISON	WENDY.HARRISON@sakilacustomer.org	119	t	2006-02-14	2006-02-15 09:57:20	1
+116	1	VICTORIA	GIBSON	VICTORIA.GIBSON@sakilacustomer.org	120	t	2006-02-14	2006-02-15 09:57:20	1
+117	1	EDITH	MCDONALD	EDITH.MCDONALD@sakilacustomer.org	121	t	2006-02-14	2006-02-15 09:57:20	1
+118	1	KIM	CRUZ	KIM.CRUZ@sakilacustomer.org	122	t	2006-02-14	2006-02-15 09:57:20	1
+119	1	SHERRY	MARSHALL	SHERRY.MARSHALL@sakilacustomer.org	123	t	2006-02-14	2006-02-15 09:57:20	1
+120	2	SYLVIA	ORTIZ	SYLVIA.ORTIZ@sakilacustomer.org	124	t	2006-02-14	2006-02-15 09:57:20	1
+121	1	JOSEPHINE	GOMEZ	JOSEPHINE.GOMEZ@sakilacustomer.org	125	t	2006-02-14	2006-02-15 09:57:20	1
+122	1	THELMA	MURRAY	THELMA.MURRAY@sakilacustomer.org	126	t	2006-02-14	2006-02-15 09:57:20	1
+123	2	SHANNON	FREEMAN	SHANNON.FREEMAN@sakilacustomer.org	127	t	2006-02-14	2006-02-15 09:57:20	1
+124	1	SHEILA	WELLS	SHEILA.WELLS@sakilacustomer.org	128	t	2006-02-14	2006-02-15 09:57:20	0
+125	1	ETHEL	WEBB	ETHEL.WEBB@sakilacustomer.org	129	t	2006-02-14	2006-02-15 09:57:20	1
+126	1	ELLEN	SIMPSON	ELLEN.SIMPSON@sakilacustomer.org	130	t	2006-02-14	2006-02-15 09:57:20	1
+127	2	ELAINE	STEVENS	ELAINE.STEVENS@sakilacustomer.org	131	t	2006-02-14	2006-02-15 09:57:20	1
+128	1	MARJORIE	TUCKER	MARJORIE.TUCKER@sakilacustomer.org	132	t	2006-02-14	2006-02-15 09:57:20	1
+129	1	CARRIE	PORTER	CARRIE.PORTER@sakilacustomer.org	133	t	2006-02-14	2006-02-15 09:57:20	1
+130	1	CHARLOTTE	HUNTER	CHARLOTTE.HUNTER@sakilacustomer.org	134	t	2006-02-14	2006-02-15 09:57:20	1
+131	2	MONICA	HICKS	MONICA.HICKS@sakilacustomer.org	135	t	2006-02-14	2006-02-15 09:57:20	1
+132	2	ESTHER	CRAWFORD	ESTHER.CRAWFORD@sakilacustomer.org	136	t	2006-02-14	2006-02-15 09:57:20	1
+133	1	PAULINE	HENRY	PAULINE.HENRY@sakilacustomer.org	137	t	2006-02-14	2006-02-15 09:57:20	1
+134	1	EMMA	BOYD	EMMA.BOYD@sakilacustomer.org	138	t	2006-02-14	2006-02-15 09:57:20	1
+135	2	JUANITA	MASON	JUANITA.MASON@sakilacustomer.org	139	t	2006-02-14	2006-02-15 09:57:20	1
+136	2	ANITA	MORALES	ANITA.MORALES@sakilacustomer.org	140	t	2006-02-14	2006-02-15 09:57:20	1
+137	2	RHONDA	KENNEDY	RHONDA.KENNEDY@sakilacustomer.org	141	t	2006-02-14	2006-02-15 09:57:20	1
+138	1	HAZEL	WARREN	HAZEL.WARREN@sakilacustomer.org	142	t	2006-02-14	2006-02-15 09:57:20	1
+139	1	AMBER	DIXON	AMBER.DIXON@sakilacustomer.org	143	t	2006-02-14	2006-02-15 09:57:20	1
+140	1	EVA	RAMOS	EVA.RAMOS@sakilacustomer.org	144	t	2006-02-14	2006-02-15 09:57:20	1
+141	1	DEBBIE	REYES	DEBBIE.REYES@sakilacustomer.org	145	t	2006-02-14	2006-02-15 09:57:20	1
+142	1	APRIL	BURNS	APRIL.BURNS@sakilacustomer.org	146	t	2006-02-14	2006-02-15 09:57:20	1
+143	1	LESLIE	GORDON	LESLIE.GORDON@sakilacustomer.org	147	t	2006-02-14	2006-02-15 09:57:20	1
+144	1	CLARA	SHAW	CLARA.SHAW@sakilacustomer.org	148	t	2006-02-14	2006-02-15 09:57:20	1
+145	1	LUCILLE	HOLMES	LUCILLE.HOLMES@sakilacustomer.org	149	t	2006-02-14	2006-02-15 09:57:20	1
+146	1	JAMIE	RICE	JAMIE.RICE@sakilacustomer.org	150	t	2006-02-14	2006-02-15 09:57:20	1
+147	2	JOANNE	ROBERTSON	JOANNE.ROBERTSON@sakilacustomer.org	151	t	2006-02-14	2006-02-15 09:57:20	1
+148	1	ELEANOR	HUNT	ELEANOR.HUNT@sakilacustomer.org	152	t	2006-02-14	2006-02-15 09:57:20	1
+149	1	VALERIE	BLACK	VALERIE.BLACK@sakilacustomer.org	153	t	2006-02-14	2006-02-15 09:57:20	1
+150	2	DANIELLE	DANIELS	DANIELLE.DANIELS@sakilacustomer.org	154	t	2006-02-14	2006-02-15 09:57:20	1
+151	2	MEGAN	PALMER	MEGAN.PALMER@sakilacustomer.org	155	t	2006-02-14	2006-02-15 09:57:20	1
+152	1	ALICIA	MILLS	ALICIA.MILLS@sakilacustomer.org	156	t	2006-02-14	2006-02-15 09:57:20	1
+153	2	SUZANNE	NICHOLS	SUZANNE.NICHOLS@sakilacustomer.org	157	t	2006-02-14	2006-02-15 09:57:20	1
+154	2	MICHELE	GRANT	MICHELE.GRANT@sakilacustomer.org	158	t	2006-02-14	2006-02-15 09:57:20	1
+155	1	GAIL	KNIGHT	GAIL.KNIGHT@sakilacustomer.org	159	t	2006-02-14	2006-02-15 09:57:20	1
+156	1	BERTHA	FERGUSON	BERTHA.FERGUSON@sakilacustomer.org	160	t	2006-02-14	2006-02-15 09:57:20	1
+157	2	DARLENE	ROSE	DARLENE.ROSE@sakilacustomer.org	161	t	2006-02-14	2006-02-15 09:57:20	1
+158	1	VERONICA	STONE	VERONICA.STONE@sakilacustomer.org	162	t	2006-02-14	2006-02-15 09:57:20	1
+159	1	JILL	HAWKINS	JILL.HAWKINS@sakilacustomer.org	163	t	2006-02-14	2006-02-15 09:57:20	1
+160	2	ERIN	DUNN	ERIN.DUNN@sakilacustomer.org	164	t	2006-02-14	2006-02-15 09:57:20	1
+161	1	GERALDINE	PERKINS	GERALDINE.PERKINS@sakilacustomer.org	165	t	2006-02-14	2006-02-15 09:57:20	1
+162	2	LAUREN	HUDSON	LAUREN.HUDSON@sakilacustomer.org	166	t	2006-02-14	2006-02-15 09:57:20	1
+163	1	CATHY	SPENCER	CATHY.SPENCER@sakilacustomer.org	167	t	2006-02-14	2006-02-15 09:57:20	1
+164	2	JOANN	GARDNER	JOANN.GARDNER@sakilacustomer.org	168	t	2006-02-14	2006-02-15 09:57:20	1
+165	2	LORRAINE	STEPHENS	LORRAINE.STEPHENS@sakilacustomer.org	169	t	2006-02-14	2006-02-15 09:57:20	1
+166	1	LYNN	PAYNE	LYNN.PAYNE@sakilacustomer.org	170	t	2006-02-14	2006-02-15 09:57:20	1
+167	2	SALLY	PIERCE	SALLY.PIERCE@sakilacustomer.org	171	t	2006-02-14	2006-02-15 09:57:20	1
+168	1	REGINA	BERRY	REGINA.BERRY@sakilacustomer.org	172	t	2006-02-14	2006-02-15 09:57:20	1
+169	2	ERICA	MATTHEWS	ERICA.MATTHEWS@sakilacustomer.org	173	t	2006-02-14	2006-02-15 09:57:20	0
+170	1	BEATRICE	ARNOLD	BEATRICE.ARNOLD@sakilacustomer.org	174	t	2006-02-14	2006-02-15 09:57:20	1
+171	2	DOLORES	WAGNER	DOLORES.WAGNER@sakilacustomer.org	175	t	2006-02-14	2006-02-15 09:57:20	1
+172	1	BERNICE	WILLIS	BERNICE.WILLIS@sakilacustomer.org	176	t	2006-02-14	2006-02-15 09:57:20	1
+173	1	AUDREY	RAY	AUDREY.RAY@sakilacustomer.org	177	t	2006-02-14	2006-02-15 09:57:20	1
+174	2	YVONNE	WATKINS	YVONNE.WATKINS@sakilacustomer.org	178	t	2006-02-14	2006-02-15 09:57:20	1
+175	1	ANNETTE	OLSON	ANNETTE.OLSON@sakilacustomer.org	179	t	2006-02-14	2006-02-15 09:57:20	1
+176	1	JUNE	CARROLL	JUNE.CARROLL@sakilacustomer.org	180	t	2006-02-14	2006-02-15 09:57:20	1
+177	2	SAMANTHA	DUNCAN	SAMANTHA.DUNCAN@sakilacustomer.org	181	t	2006-02-14	2006-02-15 09:57:20	1
+178	2	MARION	SNYDER	MARION.SNYDER@sakilacustomer.org	182	t	2006-02-14	2006-02-15 09:57:20	1
+179	1	DANA	HART	DANA.HART@sakilacustomer.org	183	t	2006-02-14	2006-02-15 09:57:20	1
+180	2	STACY	CUNNINGHAM	STACY.CUNNINGHAM@sakilacustomer.org	184	t	2006-02-14	2006-02-15 09:57:20	1
+181	2	ANA	BRADLEY	ANA.BRADLEY@sakilacustomer.org	185	t	2006-02-14	2006-02-15 09:57:20	1
+182	1	RENEE	LANE	RENEE.LANE@sakilacustomer.org	186	t	2006-02-14	2006-02-15 09:57:20	1
+183	2	IDA	ANDREWS	IDA.ANDREWS@sakilacustomer.org	187	t	2006-02-14	2006-02-15 09:57:20	1
+184	1	VIVIAN	RUIZ	VIVIAN.RUIZ@sakilacustomer.org	188	t	2006-02-14	2006-02-15 09:57:20	1
+185	1	ROBERTA	HARPER	ROBERTA.HARPER@sakilacustomer.org	189	t	2006-02-14	2006-02-15 09:57:20	1
+186	2	HOLLY	FOX	HOLLY.FOX@sakilacustomer.org	190	t	2006-02-14	2006-02-15 09:57:20	1
+187	2	BRITTANY	RILEY	BRITTANY.RILEY@sakilacustomer.org	191	t	2006-02-14	2006-02-15 09:57:20	1
+188	1	MELANIE	ARMSTRONG	MELANIE.ARMSTRONG@sakilacustomer.org	192	t	2006-02-14	2006-02-15 09:57:20	1
+189	1	LORETTA	CARPENTER	LORETTA.CARPENTER@sakilacustomer.org	193	t	2006-02-14	2006-02-15 09:57:20	1
+190	2	YOLANDA	WEAVER	YOLANDA.WEAVER@sakilacustomer.org	194	t	2006-02-14	2006-02-15 09:57:20	1
+191	1	JEANETTE	GREENE	JEANETTE.GREENE@sakilacustomer.org	195	t	2006-02-14	2006-02-15 09:57:20	1
+192	1	LAURIE	LAWRENCE	LAURIE.LAWRENCE@sakilacustomer.org	196	t	2006-02-14	2006-02-15 09:57:20	1
+193	2	KATIE	ELLIOTT	KATIE.ELLIOTT@sakilacustomer.org	197	t	2006-02-14	2006-02-15 09:57:20	1
+194	2	KRISTEN	CHAVEZ	KRISTEN.CHAVEZ@sakilacustomer.org	198	t	2006-02-14	2006-02-15 09:57:20	1
+195	1	VANESSA	SIMS	VANESSA.SIMS@sakilacustomer.org	199	t	2006-02-14	2006-02-15 09:57:20	1
+196	1	ALMA	AUSTIN	ALMA.AUSTIN@sakilacustomer.org	200	t	2006-02-14	2006-02-15 09:57:20	1
+197	2	SUE	PETERS	SUE.PETERS@sakilacustomer.org	201	t	2006-02-14	2006-02-15 09:57:20	1
+198	2	ELSIE	KELLEY	ELSIE.KELLEY@sakilacustomer.org	202	t	2006-02-14	2006-02-15 09:57:20	1
+199	2	BETH	FRANKLIN	BETH.FRANKLIN@sakilacustomer.org	203	t	2006-02-14	2006-02-15 09:57:20	1
+200	2	JEANNE	LAWSON	JEANNE.LAWSON@sakilacustomer.org	204	t	2006-02-14	2006-02-15 09:57:20	1
+201	1	VICKI	FIELDS	VICKI.FIELDS@sakilacustomer.org	205	t	2006-02-14	2006-02-15 09:57:20	1
+202	2	CARLA	GUTIERREZ	CARLA.GUTIERREZ@sakilacustomer.org	206	t	2006-02-14	2006-02-15 09:57:20	1
+203	1	TARA	RYAN	TARA.RYAN@sakilacustomer.org	207	t	2006-02-14	2006-02-15 09:57:20	1
+204	1	ROSEMARY	SCHMIDT	ROSEMARY.SCHMIDT@sakilacustomer.org	208	t	2006-02-14	2006-02-15 09:57:20	1
+205	2	EILEEN	CARR	EILEEN.CARR@sakilacustomer.org	209	t	2006-02-14	2006-02-15 09:57:20	1
+206	1	TERRI	VASQUEZ	TERRI.VASQUEZ@sakilacustomer.org	210	t	2006-02-14	2006-02-15 09:57:20	1
+207	1	GERTRUDE	CASTILLO	GERTRUDE.CASTILLO@sakilacustomer.org	211	t	2006-02-14	2006-02-15 09:57:20	1
+208	1	LUCY	WHEELER	LUCY.WHEELER@sakilacustomer.org	212	t	2006-02-14	2006-02-15 09:57:20	1
+209	2	TONYA	CHAPMAN	TONYA.CHAPMAN@sakilacustomer.org	213	t	2006-02-14	2006-02-15 09:57:20	1
+210	2	ELLA	OLIVER	ELLA.OLIVER@sakilacustomer.org	214	t	2006-02-14	2006-02-15 09:57:20	1
+211	1	STACEY	MONTGOMERY	STACEY.MONTGOMERY@sakilacustomer.org	215	t	2006-02-14	2006-02-15 09:57:20	1
+212	2	WILMA	RICHARDS	WILMA.RICHARDS@sakilacustomer.org	216	t	2006-02-14	2006-02-15 09:57:20	1
+213	1	GINA	WILLIAMSON	GINA.WILLIAMSON@sakilacustomer.org	217	t	2006-02-14	2006-02-15 09:57:20	1
+214	1	KRISTIN	JOHNSTON	KRISTIN.JOHNSTON@sakilacustomer.org	218	t	2006-02-14	2006-02-15 09:57:20	1
+215	2	JESSIE	BANKS	JESSIE.BANKS@sakilacustomer.org	219	t	2006-02-14	2006-02-15 09:57:20	1
+216	1	NATALIE	MEYER	NATALIE.MEYER@sakilacustomer.org	220	t	2006-02-14	2006-02-15 09:57:20	1
+217	2	AGNES	BISHOP	AGNES.BISHOP@sakilacustomer.org	221	t	2006-02-14	2006-02-15 09:57:20	1
+218	1	VERA	MCCOY	VERA.MCCOY@sakilacustomer.org	222	t	2006-02-14	2006-02-15 09:57:20	1
+219	2	WILLIE	HOWELL	WILLIE.HOWELL@sakilacustomer.org	223	t	2006-02-14	2006-02-15 09:57:20	1
+220	2	CHARLENE	ALVAREZ	CHARLENE.ALVAREZ@sakilacustomer.org	224	t	2006-02-14	2006-02-15 09:57:20	1
+221	1	BESSIE	MORRISON	BESSIE.MORRISON@sakilacustomer.org	225	t	2006-02-14	2006-02-15 09:57:20	1
+222	2	DELORES	HANSEN	DELORES.HANSEN@sakilacustomer.org	226	t	2006-02-14	2006-02-15 09:57:20	1
+223	1	MELINDA	FERNANDEZ	MELINDA.FERNANDEZ@sakilacustomer.org	227	t	2006-02-14	2006-02-15 09:57:20	1
+224	2	PEARL	GARZA	PEARL.GARZA@sakilacustomer.org	228	t	2006-02-14	2006-02-15 09:57:20	1
+225	1	ARLENE	HARVEY	ARLENE.HARVEY@sakilacustomer.org	229	t	2006-02-14	2006-02-15 09:57:20	1
+226	2	MAUREEN	LITTLE	MAUREEN.LITTLE@sakilacustomer.org	230	t	2006-02-14	2006-02-15 09:57:20	1
+227	1	COLLEEN	BURTON	COLLEEN.BURTON@sakilacustomer.org	231	t	2006-02-14	2006-02-15 09:57:20	1
+228	2	ALLISON	STANLEY	ALLISON.STANLEY@sakilacustomer.org	232	t	2006-02-14	2006-02-15 09:57:20	1
+229	1	TAMARA	NGUYEN	TAMARA.NGUYEN@sakilacustomer.org	233	t	2006-02-14	2006-02-15 09:57:20	1
+230	2	JOY	GEORGE	JOY.GEORGE@sakilacustomer.org	234	t	2006-02-14	2006-02-15 09:57:20	1
+231	1	GEORGIA	JACOBS	GEORGIA.JACOBS@sakilacustomer.org	235	t	2006-02-14	2006-02-15 09:57:20	1
+232	2	CONSTANCE	REID	CONSTANCE.REID@sakilacustomer.org	236	t	2006-02-14	2006-02-15 09:57:20	1
+233	2	LILLIE	KIM	LILLIE.KIM@sakilacustomer.org	237	t	2006-02-14	2006-02-15 09:57:20	1
+234	1	CLAUDIA	FULLER	CLAUDIA.FULLER@sakilacustomer.org	238	t	2006-02-14	2006-02-15 09:57:20	1
+235	1	JACKIE	LYNCH	JACKIE.LYNCH@sakilacustomer.org	239	t	2006-02-14	2006-02-15 09:57:20	1
+236	1	MARCIA	DEAN	MARCIA.DEAN@sakilacustomer.org	240	t	2006-02-14	2006-02-15 09:57:20	1
+237	1	TANYA	GILBERT	TANYA.GILBERT@sakilacustomer.org	241	t	2006-02-14	2006-02-15 09:57:20	1
+238	1	NELLIE	GARRETT	NELLIE.GARRETT@sakilacustomer.org	242	t	2006-02-14	2006-02-15 09:57:20	1
+239	2	MINNIE	ROMERO	MINNIE.ROMERO@sakilacustomer.org	243	t	2006-02-14	2006-02-15 09:57:20	1
+240	1	MARLENE	WELCH	MARLENE.WELCH@sakilacustomer.org	244	t	2006-02-14	2006-02-15 09:57:20	1
+241	2	HEIDI	LARSON	HEIDI.LARSON@sakilacustomer.org	245	t	2006-02-14	2006-02-15 09:57:20	0
+242	1	GLENDA	FRAZIER	GLENDA.FRAZIER@sakilacustomer.org	246	t	2006-02-14	2006-02-15 09:57:20	1
+243	1	LYDIA	BURKE	LYDIA.BURKE@sakilacustomer.org	247	t	2006-02-14	2006-02-15 09:57:20	1
+244	2	VIOLA	HANSON	VIOLA.HANSON@sakilacustomer.org	248	t	2006-02-14	2006-02-15 09:57:20	1
+245	1	COURTNEY	DAY	COURTNEY.DAY@sakilacustomer.org	249	t	2006-02-14	2006-02-15 09:57:20	1
+246	1	MARIAN	MENDOZA	MARIAN.MENDOZA@sakilacustomer.org	250	t	2006-02-14	2006-02-15 09:57:20	1
+247	1	STELLA	MORENO	STELLA.MORENO@sakilacustomer.org	251	t	2006-02-14	2006-02-15 09:57:20	1
+248	1	CAROLINE	BOWMAN	CAROLINE.BOWMAN@sakilacustomer.org	252	t	2006-02-14	2006-02-15 09:57:20	1
+249	2	DORA	MEDINA	DORA.MEDINA@sakilacustomer.org	253	t	2006-02-14	2006-02-15 09:57:20	1
+250	2	JO	FOWLER	JO.FOWLER@sakilacustomer.org	254	t	2006-02-14	2006-02-15 09:57:20	1
+251	2	VICKIE	BREWER	VICKIE.BREWER@sakilacustomer.org	255	t	2006-02-14	2006-02-15 09:57:20	1
+252	2	MATTIE	HOFFMAN	MATTIE.HOFFMAN@sakilacustomer.org	256	t	2006-02-14	2006-02-15 09:57:20	1
+253	1	TERRY	CARLSON	TERRY.CARLSON@sakilacustomer.org	258	t	2006-02-14	2006-02-15 09:57:20	1
+254	2	MAXINE	SILVA	MAXINE.SILVA@sakilacustomer.org	259	t	2006-02-14	2006-02-15 09:57:20	1
+255	2	IRMA	PEARSON	IRMA.PEARSON@sakilacustomer.org	260	t	2006-02-14	2006-02-15 09:57:20	1
+256	2	MABEL	HOLLAND	MABEL.HOLLAND@sakilacustomer.org	261	t	2006-02-14	2006-02-15 09:57:20	1
+257	2	MARSHA	DOUGLAS	MARSHA.DOUGLAS@sakilacustomer.org	262	t	2006-02-14	2006-02-15 09:57:20	1
+258	1	MYRTLE	FLEMING	MYRTLE.FLEMING@sakilacustomer.org	263	t	2006-02-14	2006-02-15 09:57:20	1
+259	2	LENA	JENSEN	LENA.JENSEN@sakilacustomer.org	264	t	2006-02-14	2006-02-15 09:57:20	1
+260	1	CHRISTY	VARGAS	CHRISTY.VARGAS@sakilacustomer.org	265	t	2006-02-14	2006-02-15 09:57:20	1
+261	1	DEANNA	BYRD	DEANNA.BYRD@sakilacustomer.org	266	t	2006-02-14	2006-02-15 09:57:20	1
+262	2	PATSY	DAVIDSON	PATSY.DAVIDSON@sakilacustomer.org	267	t	2006-02-14	2006-02-15 09:57:20	1
+263	1	HILDA	HOPKINS	HILDA.HOPKINS@sakilacustomer.org	268	t	2006-02-14	2006-02-15 09:57:20	1
+264	1	GWENDOLYN	MAY	GWENDOLYN.MAY@sakilacustomer.org	269	t	2006-02-14	2006-02-15 09:57:20	1
+265	2	JENNIE	TERRY	JENNIE.TERRY@sakilacustomer.org	270	t	2006-02-14	2006-02-15 09:57:20	1
+266	2	NORA	HERRERA	NORA.HERRERA@sakilacustomer.org	271	t	2006-02-14	2006-02-15 09:57:20	1
+267	1	MARGIE	WADE	MARGIE.WADE@sakilacustomer.org	272	t	2006-02-14	2006-02-15 09:57:20	1
+268	1	NINA	SOTO	NINA.SOTO@sakilacustomer.org	273	t	2006-02-14	2006-02-15 09:57:20	1
+269	1	CASSANDRA	WALTERS	CASSANDRA.WALTERS@sakilacustomer.org	274	t	2006-02-14	2006-02-15 09:57:20	1
+270	1	LEAH	CURTIS	LEAH.CURTIS@sakilacustomer.org	275	t	2006-02-14	2006-02-15 09:57:20	1
+271	1	PENNY	NEAL	PENNY.NEAL@sakilacustomer.org	276	t	2006-02-14	2006-02-15 09:57:20	0
+272	1	KAY	CALDWELL	KAY.CALDWELL@sakilacustomer.org	277	t	2006-02-14	2006-02-15 09:57:20	1
+273	2	PRISCILLA	LOWE	PRISCILLA.LOWE@sakilacustomer.org	278	t	2006-02-14	2006-02-15 09:57:20	1
+274	1	NAOMI	JENNINGS	NAOMI.JENNINGS@sakilacustomer.org	279	t	2006-02-14	2006-02-15 09:57:20	1
+275	2	CAROLE	BARNETT	CAROLE.BARNETT@sakilacustomer.org	280	t	2006-02-14	2006-02-15 09:57:20	1
+276	1	BRANDY	GRAVES	BRANDY.GRAVES@sakilacustomer.org	281	t	2006-02-14	2006-02-15 09:57:20	1
+277	2	OLGA	JIMENEZ	OLGA.JIMENEZ@sakilacustomer.org	282	t	2006-02-14	2006-02-15 09:57:20	1
+278	2	BILLIE	HORTON	BILLIE.HORTON@sakilacustomer.org	283	t	2006-02-14	2006-02-15 09:57:20	1
+279	2	DIANNE	SHELTON	DIANNE.SHELTON@sakilacustomer.org	284	t	2006-02-14	2006-02-15 09:57:20	1
+280	2	TRACEY	BARRETT	TRACEY.BARRETT@sakilacustomer.org	285	t	2006-02-14	2006-02-15 09:57:20	1
+281	2	LEONA	OBRIEN	LEONA.OBRIEN@sakilacustomer.org	286	t	2006-02-14	2006-02-15 09:57:20	1
+282	2	JENNY	CASTRO	JENNY.CASTRO@sakilacustomer.org	287	t	2006-02-14	2006-02-15 09:57:20	1
+283	1	FELICIA	SUTTON	FELICIA.SUTTON@sakilacustomer.org	288	t	2006-02-14	2006-02-15 09:57:20	1
+284	1	SONIA	GREGORY	SONIA.GREGORY@sakilacustomer.org	289	t	2006-02-14	2006-02-15 09:57:20	1
+285	1	MIRIAM	MCKINNEY	MIRIAM.MCKINNEY@sakilacustomer.org	290	t	2006-02-14	2006-02-15 09:57:20	1
+286	1	VELMA	LUCAS	VELMA.LUCAS@sakilacustomer.org	291	t	2006-02-14	2006-02-15 09:57:20	1
+287	2	BECKY	MILES	BECKY.MILES@sakilacustomer.org	292	t	2006-02-14	2006-02-15 09:57:20	1
+288	1	BOBBIE	CRAIG	BOBBIE.CRAIG@sakilacustomer.org	293	t	2006-02-14	2006-02-15 09:57:20	1
+289	1	VIOLET	RODRIQUEZ	VIOLET.RODRIQUEZ@sakilacustomer.org	294	t	2006-02-14	2006-02-15 09:57:20	1
+290	1	KRISTINA	CHAMBERS	KRISTINA.CHAMBERS@sakilacustomer.org	295	t	2006-02-14	2006-02-15 09:57:20	1
+291	1	TONI	HOLT	TONI.HOLT@sakilacustomer.org	296	t	2006-02-14	2006-02-15 09:57:20	1
+292	2	MISTY	LAMBERT	MISTY.LAMBERT@sakilacustomer.org	297	t	2006-02-14	2006-02-15 09:57:20	1
+293	2	MAE	FLETCHER	MAE.FLETCHER@sakilacustomer.org	298	t	2006-02-14	2006-02-15 09:57:20	1
+294	2	SHELLY	WATTS	SHELLY.WATTS@sakilacustomer.org	299	t	2006-02-14	2006-02-15 09:57:20	1
+295	1	DAISY	BATES	DAISY.BATES@sakilacustomer.org	300	t	2006-02-14	2006-02-15 09:57:20	1
+296	2	RAMONA	HALE	RAMONA.HALE@sakilacustomer.org	301	t	2006-02-14	2006-02-15 09:57:20	1
+297	1	SHERRI	RHODES	SHERRI.RHODES@sakilacustomer.org	302	t	2006-02-14	2006-02-15 09:57:20	1
+298	1	ERIKA	PENA	ERIKA.PENA@sakilacustomer.org	303	t	2006-02-14	2006-02-15 09:57:20	1
+299	2	JAMES	GANNON	JAMES.GANNON@sakilacustomer.org	304	t	2006-02-14	2006-02-15 09:57:20	1
+300	1	JOHN	FARNSWORTH	JOHN.FARNSWORTH@sakilacustomer.org	305	t	2006-02-14	2006-02-15 09:57:20	1
+301	2	ROBERT	BAUGHMAN	ROBERT.BAUGHMAN@sakilacustomer.org	306	t	2006-02-14	2006-02-15 09:57:20	1
+302	1	MICHAEL	SILVERMAN	MICHAEL.SILVERMAN@sakilacustomer.org	307	t	2006-02-14	2006-02-15 09:57:20	1
+303	2	WILLIAM	SATTERFIELD	WILLIAM.SATTERFIELD@sakilacustomer.org	308	t	2006-02-14	2006-02-15 09:57:20	1
+304	2	DAVID	ROYAL	DAVID.ROYAL@sakilacustomer.org	309	t	2006-02-14	2006-02-15 09:57:20	1
+305	1	RICHARD	MCCRARY	RICHARD.MCCRARY@sakilacustomer.org	310	t	2006-02-14	2006-02-15 09:57:20	1
+306	1	CHARLES	KOWALSKI	CHARLES.KOWALSKI@sakilacustomer.org	311	t	2006-02-14	2006-02-15 09:57:20	1
+307	2	JOSEPH	JOY	JOSEPH.JOY@sakilacustomer.org	312	t	2006-02-14	2006-02-15 09:57:20	1
+308	1	THOMAS	GRIGSBY	THOMAS.GRIGSBY@sakilacustomer.org	313	t	2006-02-14	2006-02-15 09:57:20	1
+309	1	CHRISTOPHER	GRECO	CHRISTOPHER.GRECO@sakilacustomer.org	314	t	2006-02-14	2006-02-15 09:57:20	1
+310	2	DANIEL	CABRAL	DANIEL.CABRAL@sakilacustomer.org	315	t	2006-02-14	2006-02-15 09:57:20	1
+311	2	PAUL	TROUT	PAUL.TROUT@sakilacustomer.org	316	t	2006-02-14	2006-02-15 09:57:20	1
+312	2	MARK	RINEHART	MARK.RINEHART@sakilacustomer.org	317	t	2006-02-14	2006-02-15 09:57:20	1
+313	2	DONALD	MAHON	DONALD.MAHON@sakilacustomer.org	318	t	2006-02-14	2006-02-15 09:57:20	1
+314	1	GEORGE	LINTON	GEORGE.LINTON@sakilacustomer.org	319	t	2006-02-14	2006-02-15 09:57:20	1
+315	2	KENNETH	GOODEN	KENNETH.GOODEN@sakilacustomer.org	320	t	2006-02-14	2006-02-15 09:57:20	0
+316	1	STEVEN	CURLEY	STEVEN.CURLEY@sakilacustomer.org	321	t	2006-02-14	2006-02-15 09:57:20	1
+317	2	EDWARD	BAUGH	EDWARD.BAUGH@sakilacustomer.org	322	t	2006-02-14	2006-02-15 09:57:20	1
+318	1	BRIAN	WYMAN	BRIAN.WYMAN@sakilacustomer.org	323	t	2006-02-14	2006-02-15 09:57:20	1
+319	2	RONALD	WEINER	RONALD.WEINER@sakilacustomer.org	324	t	2006-02-14	2006-02-15 09:57:20	1
+320	2	ANTHONY	SCHWAB	ANTHONY.SCHWAB@sakilacustomer.org	325	t	2006-02-14	2006-02-15 09:57:20	1
+321	1	KEVIN	SCHULER	KEVIN.SCHULER@sakilacustomer.org	326	t	2006-02-14	2006-02-15 09:57:20	1
+322	1	JASON	MORRISSEY	JASON.MORRISSEY@sakilacustomer.org	327	t	2006-02-14	2006-02-15 09:57:20	1
+323	2	MATTHEW	MAHAN	MATTHEW.MAHAN@sakilacustomer.org	328	t	2006-02-14	2006-02-15 09:57:20	1
+324	2	GARY	COY	GARY.COY@sakilacustomer.org	329	t	2006-02-14	2006-02-15 09:57:20	1
+325	1	TIMOTHY	BUNN	TIMOTHY.BUNN@sakilacustomer.org	330	t	2006-02-14	2006-02-15 09:57:20	1
+326	1	JOSE	ANDREW	JOSE.ANDREW@sakilacustomer.org	331	t	2006-02-14	2006-02-15 09:57:20	1
+327	2	LARRY	THRASHER	LARRY.THRASHER@sakilacustomer.org	332	t	2006-02-14	2006-02-15 09:57:20	1
+328	2	JEFFREY	SPEAR	JEFFREY.SPEAR@sakilacustomer.org	333	t	2006-02-14	2006-02-15 09:57:20	1
+329	2	FRANK	WAGGONER	FRANK.WAGGONER@sakilacustomer.org	334	t	2006-02-14	2006-02-15 09:57:20	1
+330	1	SCOTT	SHELLEY	SCOTT.SHELLEY@sakilacustomer.org	335	t	2006-02-14	2006-02-15 09:57:20	1
+331	1	ERIC	ROBERT	ERIC.ROBERT@sakilacustomer.org	336	t	2006-02-14	2006-02-15 09:57:20	1
+332	1	STEPHEN	QUALLS	STEPHEN.QUALLS@sakilacustomer.org	337	t	2006-02-14	2006-02-15 09:57:20	1
+333	2	ANDREW	PURDY	ANDREW.PURDY@sakilacustomer.org	338	t	2006-02-14	2006-02-15 09:57:20	1
+334	2	RAYMOND	MCWHORTER	RAYMOND.MCWHORTER@sakilacustomer.org	339	t	2006-02-14	2006-02-15 09:57:20	1
+335	1	GREGORY	MAULDIN	GREGORY.MAULDIN@sakilacustomer.org	340	t	2006-02-14	2006-02-15 09:57:20	1
+336	1	JOSHUA	MARK	JOSHUA.MARK@sakilacustomer.org	341	t	2006-02-14	2006-02-15 09:57:20	1
+337	1	JERRY	JORDON	JERRY.JORDON@sakilacustomer.org	342	t	2006-02-14	2006-02-15 09:57:20	1
+338	1	DENNIS	GILMAN	DENNIS.GILMAN@sakilacustomer.org	343	t	2006-02-14	2006-02-15 09:57:20	1
+339	2	WALTER	PERRYMAN	WALTER.PERRYMAN@sakilacustomer.org	344	t	2006-02-14	2006-02-15 09:57:20	1
+340	1	PATRICK	NEWSOM	PATRICK.NEWSOM@sakilacustomer.org	345	t	2006-02-14	2006-02-15 09:57:20	1
+341	1	PETER	MENARD	PETER.MENARD@sakilacustomer.org	346	t	2006-02-14	2006-02-15 09:57:20	1
+342	1	HAROLD	MARTINO	HAROLD.MARTINO@sakilacustomer.org	347	t	2006-02-14	2006-02-15 09:57:20	1
+343	1	DOUGLAS	GRAF	DOUGLAS.GRAF@sakilacustomer.org	348	t	2006-02-14	2006-02-15 09:57:20	1
+344	1	HENRY	BILLINGSLEY	HENRY.BILLINGSLEY@sakilacustomer.org	349	t	2006-02-14	2006-02-15 09:57:20	1
+345	1	CARL	ARTIS	CARL.ARTIS@sakilacustomer.org	350	t	2006-02-14	2006-02-15 09:57:20	1
+346	1	ARTHUR	SIMPKINS	ARTHUR.SIMPKINS@sakilacustomer.org	351	t	2006-02-14	2006-02-15 09:57:20	1
+347	2	RYAN	SALISBURY	RYAN.SALISBURY@sakilacustomer.org	352	t	2006-02-14	2006-02-15 09:57:20	1
+348	2	ROGER	QUINTANILLA	ROGER.QUINTANILLA@sakilacustomer.org	353	t	2006-02-14	2006-02-15 09:57:20	1
+349	2	JOE	GILLILAND	JOE.GILLILAND@sakilacustomer.org	354	t	2006-02-14	2006-02-15 09:57:20	1
+350	1	JUAN	FRALEY	JUAN.FRALEY@sakilacustomer.org	355	t	2006-02-14	2006-02-15 09:57:20	1
+351	1	JACK	FOUST	JACK.FOUST@sakilacustomer.org	356	t	2006-02-14	2006-02-15 09:57:20	1
+352	1	ALBERT	CROUSE	ALBERT.CROUSE@sakilacustomer.org	357	t	2006-02-14	2006-02-15 09:57:20	1
+353	1	JONATHAN	SCARBOROUGH	JONATHAN.SCARBOROUGH@sakilacustomer.org	358	t	2006-02-14	2006-02-15 09:57:20	1
+354	2	JUSTIN	NGO	JUSTIN.NGO@sakilacustomer.org	359	t	2006-02-14	2006-02-15 09:57:20	1
+355	2	TERRY	GRISSOM	TERRY.GRISSOM@sakilacustomer.org	360	t	2006-02-14	2006-02-15 09:57:20	1
+356	2	GERALD	FULTZ	GERALD.FULTZ@sakilacustomer.org	361	t	2006-02-14	2006-02-15 09:57:20	1
+357	1	KEITH	RICO	KEITH.RICO@sakilacustomer.org	362	t	2006-02-14	2006-02-15 09:57:20	1
+358	2	SAMUEL	MARLOW	SAMUEL.MARLOW@sakilacustomer.org	363	t	2006-02-14	2006-02-15 09:57:20	1
+359	2	WILLIE	MARKHAM	WILLIE.MARKHAM@sakilacustomer.org	364	t	2006-02-14	2006-02-15 09:57:20	1
+360	2	RALPH	MADRIGAL	RALPH.MADRIGAL@sakilacustomer.org	365	t	2006-02-14	2006-02-15 09:57:20	1
+361	2	LAWRENCE	LAWTON	LAWRENCE.LAWTON@sakilacustomer.org	366	t	2006-02-14	2006-02-15 09:57:20	1
+362	1	NICHOLAS	BARFIELD	NICHOLAS.BARFIELD@sakilacustomer.org	367	t	2006-02-14	2006-02-15 09:57:20	1
+363	2	ROY	WHITING	ROY.WHITING@sakilacustomer.org	368	t	2006-02-14	2006-02-15 09:57:20	1
+364	1	BENJAMIN	VARNEY	BENJAMIN.VARNEY@sakilacustomer.org	369	t	2006-02-14	2006-02-15 09:57:20	1
+365	2	BRUCE	SCHWARZ	BRUCE.SCHWARZ@sakilacustomer.org	370	t	2006-02-14	2006-02-15 09:57:20	1
+366	1	BRANDON	HUEY	BRANDON.HUEY@sakilacustomer.org	371	t	2006-02-14	2006-02-15 09:57:20	1
+367	1	ADAM	GOOCH	ADAM.GOOCH@sakilacustomer.org	372	t	2006-02-14	2006-02-15 09:57:20	1
+368	1	HARRY	ARCE	HARRY.ARCE@sakilacustomer.org	373	t	2006-02-14	2006-02-15 09:57:20	0
+369	2	FRED	WHEAT	FRED.WHEAT@sakilacustomer.org	374	t	2006-02-14	2006-02-15 09:57:20	1
+370	2	WAYNE	TRUONG	WAYNE.TRUONG@sakilacustomer.org	375	t	2006-02-14	2006-02-15 09:57:20	1
+371	1	BILLY	POULIN	BILLY.POULIN@sakilacustomer.org	376	t	2006-02-14	2006-02-15 09:57:20	1
+372	2	STEVE	MACKENZIE	STEVE.MACKENZIE@sakilacustomer.org	377	t	2006-02-14	2006-02-15 09:57:20	1
+373	1	LOUIS	LEONE	LOUIS.LEONE@sakilacustomer.org	378	t	2006-02-14	2006-02-15 09:57:20	1
+374	2	JEREMY	HURTADO	JEREMY.HURTADO@sakilacustomer.org	379	t	2006-02-14	2006-02-15 09:57:20	1
+375	2	AARON	SELBY	AARON.SELBY@sakilacustomer.org	380	t	2006-02-14	2006-02-15 09:57:20	1
+376	1	RANDY	GAITHER	RANDY.GAITHER@sakilacustomer.org	381	t	2006-02-14	2006-02-15 09:57:20	1
+377	1	HOWARD	FORTNER	HOWARD.FORTNER@sakilacustomer.org	382	t	2006-02-14	2006-02-15 09:57:20	1
+378	1	EUGENE	CULPEPPER	EUGENE.CULPEPPER@sakilacustomer.org	383	t	2006-02-14	2006-02-15 09:57:20	1
+379	1	CARLOS	COUGHLIN	CARLOS.COUGHLIN@sakilacustomer.org	384	t	2006-02-14	2006-02-15 09:57:20	1
+380	1	RUSSELL	BRINSON	RUSSELL.BRINSON@sakilacustomer.org	385	t	2006-02-14	2006-02-15 09:57:20	1
+381	2	BOBBY	BOUDREAU	BOBBY.BOUDREAU@sakilacustomer.org	386	t	2006-02-14	2006-02-15 09:57:20	1
+382	2	VICTOR	BARKLEY	VICTOR.BARKLEY@sakilacustomer.org	387	t	2006-02-14	2006-02-15 09:57:20	1
+383	1	MARTIN	BALES	MARTIN.BALES@sakilacustomer.org	388	t	2006-02-14	2006-02-15 09:57:20	1
+384	2	ERNEST	STEPP	ERNEST.STEPP@sakilacustomer.org	389	t	2006-02-14	2006-02-15 09:57:20	1
+385	1	PHILLIP	HOLM	PHILLIP.HOLM@sakilacustomer.org	390	t	2006-02-14	2006-02-15 09:57:20	1
+386	1	TODD	TAN	TODD.TAN@sakilacustomer.org	391	t	2006-02-14	2006-02-15 09:57:20	1
+387	2	JESSE	SCHILLING	JESSE.SCHILLING@sakilacustomer.org	392	t	2006-02-14	2006-02-15 09:57:20	1
+388	2	CRAIG	MORRELL	CRAIG.MORRELL@sakilacustomer.org	393	t	2006-02-14	2006-02-15 09:57:20	1
+389	1	ALAN	KAHN	ALAN.KAHN@sakilacustomer.org	394	t	2006-02-14	2006-02-15 09:57:20	1
+390	1	SHAWN	HEATON	SHAWN.HEATON@sakilacustomer.org	395	t	2006-02-14	2006-02-15 09:57:20	1
+391	1	CLARENCE	GAMEZ	CLARENCE.GAMEZ@sakilacustomer.org	396	t	2006-02-14	2006-02-15 09:57:20	1
+392	2	SEAN	DOUGLASS	SEAN.DOUGLASS@sakilacustomer.org	397	t	2006-02-14	2006-02-15 09:57:20	1
+393	1	PHILIP	CAUSEY	PHILIP.CAUSEY@sakilacustomer.org	398	t	2006-02-14	2006-02-15 09:57:20	1
+394	2	CHRIS	BROTHERS	CHRIS.BROTHERS@sakilacustomer.org	399	t	2006-02-14	2006-02-15 09:57:20	1
+395	2	JOHNNY	TURPIN	JOHNNY.TURPIN@sakilacustomer.org	400	t	2006-02-14	2006-02-15 09:57:20	1
+396	1	EARL	SHANKS	EARL.SHANKS@sakilacustomer.org	401	t	2006-02-14	2006-02-15 09:57:20	1
+397	1	JIMMY	SCHRADER	JIMMY.SCHRADER@sakilacustomer.org	402	t	2006-02-14	2006-02-15 09:57:20	1
+398	1	ANTONIO	MEEK	ANTONIO.MEEK@sakilacustomer.org	403	t	2006-02-14	2006-02-15 09:57:20	1
+399	1	DANNY	ISOM	DANNY.ISOM@sakilacustomer.org	404	t	2006-02-14	2006-02-15 09:57:20	1
+400	2	BRYAN	HARDISON	BRYAN.HARDISON@sakilacustomer.org	405	t	2006-02-14	2006-02-15 09:57:20	1
+401	2	TONY	CARRANZA	TONY.CARRANZA@sakilacustomer.org	406	t	2006-02-14	2006-02-15 09:57:20	1
+402	1	LUIS	YANEZ	LUIS.YANEZ@sakilacustomer.org	407	t	2006-02-14	2006-02-15 09:57:20	1
+403	1	MIKE	WAY	MIKE.WAY@sakilacustomer.org	408	t	2006-02-14	2006-02-15 09:57:20	1
+404	2	STANLEY	SCROGGINS	STANLEY.SCROGGINS@sakilacustomer.org	409	t	2006-02-14	2006-02-15 09:57:20	1
+405	1	LEONARD	SCHOFIELD	LEONARD.SCHOFIELD@sakilacustomer.org	410	t	2006-02-14	2006-02-15 09:57:20	1
+406	1	NATHAN	RUNYON	NATHAN.RUNYON@sakilacustomer.org	411	t	2006-02-14	2006-02-15 09:57:20	0
+407	1	DALE	RATCLIFF	DALE.RATCLIFF@sakilacustomer.org	412	t	2006-02-14	2006-02-15 09:57:20	1
+408	1	MANUEL	MURRELL	MANUEL.MURRELL@sakilacustomer.org	413	t	2006-02-14	2006-02-15 09:57:20	1
+409	2	RODNEY	MOELLER	RODNEY.MOELLER@sakilacustomer.org	414	t	2006-02-14	2006-02-15 09:57:20	1
+410	2	CURTIS	IRBY	CURTIS.IRBY@sakilacustomer.org	415	t	2006-02-14	2006-02-15 09:57:20	1
+411	1	NORMAN	CURRIER	NORMAN.CURRIER@sakilacustomer.org	416	t	2006-02-14	2006-02-15 09:57:20	1
+412	2	ALLEN	BUTTERFIELD	ALLEN.BUTTERFIELD@sakilacustomer.org	417	t	2006-02-14	2006-02-15 09:57:20	1
+413	2	MARVIN	YEE	MARVIN.YEE@sakilacustomer.org	418	t	2006-02-14	2006-02-15 09:57:20	1
+414	1	VINCENT	RALSTON	VINCENT.RALSTON@sakilacustomer.org	419	t	2006-02-14	2006-02-15 09:57:20	1
+415	1	GLENN	PULLEN	GLENN.PULLEN@sakilacustomer.org	420	t	2006-02-14	2006-02-15 09:57:20	1
+416	2	JEFFERY	PINSON	JEFFERY.PINSON@sakilacustomer.org	421	t	2006-02-14	2006-02-15 09:57:20	1
+417	1	TRAVIS	ESTEP	TRAVIS.ESTEP@sakilacustomer.org	422	t	2006-02-14	2006-02-15 09:57:20	1
+418	2	JEFF	EAST	JEFF.EAST@sakilacustomer.org	423	t	2006-02-14	2006-02-15 09:57:20	1
+419	1	CHAD	CARBONE	CHAD.CARBONE@sakilacustomer.org	424	t	2006-02-14	2006-02-15 09:57:20	1
+420	1	JACOB	LANCE	JACOB.LANCE@sakilacustomer.org	425	t	2006-02-14	2006-02-15 09:57:20	1
+421	1	LEE	HAWKS	LEE.HAWKS@sakilacustomer.org	426	t	2006-02-14	2006-02-15 09:57:20	1
+422	1	MELVIN	ELLINGTON	MELVIN.ELLINGTON@sakilacustomer.org	427	t	2006-02-14	2006-02-15 09:57:20	1
+423	2	ALFRED	CASILLAS	ALFRED.CASILLAS@sakilacustomer.org	428	t	2006-02-14	2006-02-15 09:57:20	1
+424	2	KYLE	SPURLOCK	KYLE.SPURLOCK@sakilacustomer.org	429	t	2006-02-14	2006-02-15 09:57:20	1
+425	2	FRANCIS	SIKES	FRANCIS.SIKES@sakilacustomer.org	430	t	2006-02-14	2006-02-15 09:57:20	1
+426	1	BRADLEY	MOTLEY	BRADLEY.MOTLEY@sakilacustomer.org	431	t	2006-02-14	2006-02-15 09:57:20	1
+427	2	JESUS	MCCARTNEY	JESUS.MCCARTNEY@sakilacustomer.org	432	t	2006-02-14	2006-02-15 09:57:20	1
+428	2	HERBERT	KRUGER	HERBERT.KRUGER@sakilacustomer.org	433	t	2006-02-14	2006-02-15 09:57:20	1
+429	2	FREDERICK	ISBELL	FREDERICK.ISBELL@sakilacustomer.org	434	t	2006-02-14	2006-02-15 09:57:20	1
+430	1	RAY	HOULE	RAY.HOULE@sakilacustomer.org	435	t	2006-02-14	2006-02-15 09:57:20	1
+431	2	JOEL	FRANCISCO	JOEL.FRANCISCO@sakilacustomer.org	436	t	2006-02-14	2006-02-15 09:57:20	1
+432	1	EDWIN	BURK	EDWIN.BURK@sakilacustomer.org	437	t	2006-02-14	2006-02-15 09:57:20	1
+433	1	DON	BONE	DON.BONE@sakilacustomer.org	438	t	2006-02-14	2006-02-15 09:57:20	1
+434	1	EDDIE	TOMLIN	EDDIE.TOMLIN@sakilacustomer.org	439	t	2006-02-14	2006-02-15 09:57:20	1
+435	2	RICKY	SHELBY	RICKY.SHELBY@sakilacustomer.org	440	t	2006-02-14	2006-02-15 09:57:20	1
+436	1	TROY	QUIGLEY	TROY.QUIGLEY@sakilacustomer.org	441	t	2006-02-14	2006-02-15 09:57:20	1
+437	2	RANDALL	NEUMANN	RANDALL.NEUMANN@sakilacustomer.org	442	t	2006-02-14	2006-02-15 09:57:20	1
+438	1	BARRY	LOVELACE	BARRY.LOVELACE@sakilacustomer.org	443	t	2006-02-14	2006-02-15 09:57:20	1
+439	2	ALEXANDER	FENNELL	ALEXANDER.FENNELL@sakilacustomer.org	444	t	2006-02-14	2006-02-15 09:57:20	1
+440	1	BERNARD	COLBY	BERNARD.COLBY@sakilacustomer.org	445	t	2006-02-14	2006-02-15 09:57:20	1
+441	1	MARIO	CHEATHAM	MARIO.CHEATHAM@sakilacustomer.org	446	t	2006-02-14	2006-02-15 09:57:20	1
+442	1	LEROY	BUSTAMANTE	LEROY.BUSTAMANTE@sakilacustomer.org	447	t	2006-02-14	2006-02-15 09:57:20	1
+443	2	FRANCISCO	SKIDMORE	FRANCISCO.SKIDMORE@sakilacustomer.org	448	t	2006-02-14	2006-02-15 09:57:20	1
+444	2	MARCUS	HIDALGO	MARCUS.HIDALGO@sakilacustomer.org	449	t	2006-02-14	2006-02-15 09:57:20	1
+445	1	MICHEAL	FORMAN	MICHEAL.FORMAN@sakilacustomer.org	450	t	2006-02-14	2006-02-15 09:57:20	1
+446	2	THEODORE	CULP	THEODORE.CULP@sakilacustomer.org	451	t	2006-02-14	2006-02-15 09:57:20	0
+447	1	CLIFFORD	BOWENS	CLIFFORD.BOWENS@sakilacustomer.org	452	t	2006-02-14	2006-02-15 09:57:20	1
+448	1	MIGUEL	BETANCOURT	MIGUEL.BETANCOURT@sakilacustomer.org	453	t	2006-02-14	2006-02-15 09:57:20	1
+449	2	OSCAR	AQUINO	OSCAR.AQUINO@sakilacustomer.org	454	t	2006-02-14	2006-02-15 09:57:20	1
+450	1	JAY	ROBB	JAY.ROBB@sakilacustomer.org	455	t	2006-02-14	2006-02-15 09:57:20	1
+451	1	JIM	REA	JIM.REA@sakilacustomer.org	456	t	2006-02-14	2006-02-15 09:57:20	1
+452	1	TOM	MILNER	TOM.MILNER@sakilacustomer.org	457	t	2006-02-14	2006-02-15 09:57:20	1
+453	1	CALVIN	MARTEL	CALVIN.MARTEL@sakilacustomer.org	458	t	2006-02-14	2006-02-15 09:57:20	1
+454	2	ALEX	GRESHAM	ALEX.GRESHAM@sakilacustomer.org	459	t	2006-02-14	2006-02-15 09:57:20	1
+455	2	JON	WILES	JON.WILES@sakilacustomer.org	460	t	2006-02-14	2006-02-15 09:57:20	1
+456	2	RONNIE	RICKETTS	RONNIE.RICKETTS@sakilacustomer.org	461	t	2006-02-14	2006-02-15 09:57:20	1
+457	2	BILL	GAVIN	BILL.GAVIN@sakilacustomer.org	462	t	2006-02-14	2006-02-15 09:57:20	1
+458	1	LLOYD	DOWD	LLOYD.DOWD@sakilacustomer.org	463	t	2006-02-14	2006-02-15 09:57:20	1
+459	1	TOMMY	COLLAZO	TOMMY.COLLAZO@sakilacustomer.org	464	t	2006-02-14	2006-02-15 09:57:20	1
+460	1	LEON	BOSTIC	LEON.BOSTIC@sakilacustomer.org	465	t	2006-02-14	2006-02-15 09:57:20	1
+461	1	DEREK	BLAKELY	DEREK.BLAKELY@sakilacustomer.org	466	t	2006-02-14	2006-02-15 09:57:20	1
+462	2	WARREN	SHERROD	WARREN.SHERROD@sakilacustomer.org	467	t	2006-02-14	2006-02-15 09:57:20	1
+463	2	DARRELL	POWER	DARRELL.POWER@sakilacustomer.org	468	t	2006-02-14	2006-02-15 09:57:20	1
+464	1	JEROME	KENYON	JEROME.KENYON@sakilacustomer.org	469	t	2006-02-14	2006-02-15 09:57:20	1
+465	1	FLOYD	GANDY	FLOYD.GANDY@sakilacustomer.org	470	t	2006-02-14	2006-02-15 09:57:20	1
+466	1	LEO	EBERT	LEO.EBERT@sakilacustomer.org	471	t	2006-02-14	2006-02-15 09:57:20	1
+467	2	ALVIN	DELOACH	ALVIN.DELOACH@sakilacustomer.org	472	t	2006-02-14	2006-02-15 09:57:20	1
+468	1	TIM	CARY	TIM.CARY@sakilacustomer.org	473	t	2006-02-14	2006-02-15 09:57:20	1
+469	2	WESLEY	BULL	WESLEY.BULL@sakilacustomer.org	474	t	2006-02-14	2006-02-15 09:57:20	1
+470	1	GORDON	ALLARD	GORDON.ALLARD@sakilacustomer.org	475	t	2006-02-14	2006-02-15 09:57:20	1
+471	1	DEAN	SAUER	DEAN.SAUER@sakilacustomer.org	476	t	2006-02-14	2006-02-15 09:57:20	1
+472	1	GREG	ROBINS	GREG.ROBINS@sakilacustomer.org	477	t	2006-02-14	2006-02-15 09:57:20	1
+473	2	JORGE	OLIVARES	JORGE.OLIVARES@sakilacustomer.org	478	t	2006-02-14	2006-02-15 09:57:20	1
+474	2	DUSTIN	GILLETTE	DUSTIN.GILLETTE@sakilacustomer.org	479	t	2006-02-14	2006-02-15 09:57:20	1
+475	2	PEDRO	CHESTNUT	PEDRO.CHESTNUT@sakilacustomer.org	480	t	2006-02-14	2006-02-15 09:57:20	1
+476	1	DERRICK	BOURQUE	DERRICK.BOURQUE@sakilacustomer.org	481	t	2006-02-14	2006-02-15 09:57:20	1
+477	1	DAN	PAINE	DAN.PAINE@sakilacustomer.org	482	t	2006-02-14	2006-02-15 09:57:20	1
+478	1	LEWIS	LYMAN	LEWIS.LYMAN@sakilacustomer.org	483	t	2006-02-14	2006-02-15 09:57:20	1
+479	1	ZACHARY	HITE	ZACHARY.HITE@sakilacustomer.org	484	t	2006-02-14	2006-02-15 09:57:20	1
+480	1	COREY	HAUSER	COREY.HAUSER@sakilacustomer.org	485	t	2006-02-14	2006-02-15 09:57:20	1
+481	1	HERMAN	DEVORE	HERMAN.DEVORE@sakilacustomer.org	486	t	2006-02-14	2006-02-15 09:57:20	1
+482	1	MAURICE	CRAWLEY	MAURICE.CRAWLEY@sakilacustomer.org	487	t	2006-02-14	2006-02-15 09:57:20	0
+483	2	VERNON	CHAPA	VERNON.CHAPA@sakilacustomer.org	488	t	2006-02-14	2006-02-15 09:57:20	1
+484	1	ROBERTO	VU	ROBERTO.VU@sakilacustomer.org	489	t	2006-02-14	2006-02-15 09:57:20	1
+485	1	CLYDE	TOBIAS	CLYDE.TOBIAS@sakilacustomer.org	490	t	2006-02-14	2006-02-15 09:57:20	1
+486	1	GLEN	TALBERT	GLEN.TALBERT@sakilacustomer.org	491	t	2006-02-14	2006-02-15 09:57:20	1
+487	2	HECTOR	POINDEXTER	HECTOR.POINDEXTER@sakilacustomer.org	492	t	2006-02-14	2006-02-15 09:57:20	1
+488	2	SHANE	MILLARD	SHANE.MILLARD@sakilacustomer.org	493	t	2006-02-14	2006-02-15 09:57:20	1
+489	1	RICARDO	MEADOR	RICARDO.MEADOR@sakilacustomer.org	494	t	2006-02-14	2006-02-15 09:57:20	1
+490	1	SAM	MCDUFFIE	SAM.MCDUFFIE@sakilacustomer.org	495	t	2006-02-14	2006-02-15 09:57:20	1
+491	2	RICK	MATTOX	RICK.MATTOX@sakilacustomer.org	496	t	2006-02-14	2006-02-15 09:57:20	1
+492	2	LESTER	KRAUS	LESTER.KRAUS@sakilacustomer.org	497	t	2006-02-14	2006-02-15 09:57:20	1
+493	1	BRENT	HARKINS	BRENT.HARKINS@sakilacustomer.org	498	t	2006-02-14	2006-02-15 09:57:20	1
+494	2	RAMON	CHOATE	RAMON.CHOATE@sakilacustomer.org	499	t	2006-02-14	2006-02-15 09:57:20	1
+495	2	CHARLIE	BESS	CHARLIE.BESS@sakilacustomer.org	500	t	2006-02-14	2006-02-15 09:57:20	1
+496	2	TYLER	WREN	TYLER.WREN@sakilacustomer.org	501	t	2006-02-14	2006-02-15 09:57:20	1
+497	2	GILBERT	SLEDGE	GILBERT.SLEDGE@sakilacustomer.org	502	t	2006-02-14	2006-02-15 09:57:20	1
+498	1	GENE	SANBORN	GENE.SANBORN@sakilacustomer.org	503	t	2006-02-14	2006-02-15 09:57:20	1
+499	2	MARC	OUTLAW	MARC.OUTLAW@sakilacustomer.org	504	t	2006-02-14	2006-02-15 09:57:20	1
+500	1	REGINALD	KINDER	REGINALD.KINDER@sakilacustomer.org	505	t	2006-02-14	2006-02-15 09:57:20	1
+501	1	RUBEN	GEARY	RUBEN.GEARY@sakilacustomer.org	506	t	2006-02-14	2006-02-15 09:57:20	1
+502	1	BRETT	CORNWELL	BRETT.CORNWELL@sakilacustomer.org	507	t	2006-02-14	2006-02-15 09:57:20	1
+503	1	ANGEL	BARCLAY	ANGEL.BARCLAY@sakilacustomer.org	508	t	2006-02-14	2006-02-15 09:57:20	1
+504	1	NATHANIEL	ADAM	NATHANIEL.ADAM@sakilacustomer.org	509	t	2006-02-14	2006-02-15 09:57:20	1
+505	1	RAFAEL	ABNEY	RAFAEL.ABNEY@sakilacustomer.org	510	t	2006-02-14	2006-02-15 09:57:20	1
+506	2	LESLIE	SEWARD	LESLIE.SEWARD@sakilacustomer.org	511	t	2006-02-14	2006-02-15 09:57:20	1
+507	2	EDGAR	RHOADS	EDGAR.RHOADS@sakilacustomer.org	512	t	2006-02-14	2006-02-15 09:57:20	1
+508	2	MILTON	HOWLAND	MILTON.HOWLAND@sakilacustomer.org	513	t	2006-02-14	2006-02-15 09:57:20	1
+509	1	RAUL	FORTIER	RAUL.FORTIER@sakilacustomer.org	514	t	2006-02-14	2006-02-15 09:57:20	1
+510	2	BEN	EASTER	BEN.EASTER@sakilacustomer.org	515	t	2006-02-14	2006-02-15 09:57:20	0
+511	1	CHESTER	BENNER	CHESTER.BENNER@sakilacustomer.org	516	t	2006-02-14	2006-02-15 09:57:20	1
+512	1	CECIL	VINES	CECIL.VINES@sakilacustomer.org	517	t	2006-02-14	2006-02-15 09:57:20	1
+513	2	DUANE	TUBBS	DUANE.TUBBS@sakilacustomer.org	519	t	2006-02-14	2006-02-15 09:57:20	1
+514	2	FRANKLIN	TROUTMAN	FRANKLIN.TROUTMAN@sakilacustomer.org	520	t	2006-02-14	2006-02-15 09:57:20	1
+515	1	ANDRE	RAPP	ANDRE.RAPP@sakilacustomer.org	521	t	2006-02-14	2006-02-15 09:57:20	1
+516	2	ELMER	NOE	ELMER.NOE@sakilacustomer.org	522	t	2006-02-14	2006-02-15 09:57:20	1
+517	2	BRAD	MCCURDY	BRAD.MCCURDY@sakilacustomer.org	523	t	2006-02-14	2006-02-15 09:57:20	1
+518	1	GABRIEL	HARDER	GABRIEL.HARDER@sakilacustomer.org	524	t	2006-02-14	2006-02-15 09:57:20	1
+519	2	RON	DELUCA	RON.DELUCA@sakilacustomer.org	525	t	2006-02-14	2006-02-15 09:57:20	1
+520	2	MITCHELL	WESTMORELAND	MITCHELL.WESTMORELAND@sakilacustomer.org	526	t	2006-02-14	2006-02-15 09:57:20	1
+521	2	ROLAND	SOUTH	ROLAND.SOUTH@sakilacustomer.org	527	t	2006-02-14	2006-02-15 09:57:20	1
+522	2	ARNOLD	HAVENS	ARNOLD.HAVENS@sakilacustomer.org	528	t	2006-02-14	2006-02-15 09:57:20	1
+523	1	HARVEY	GUAJARDO	HARVEY.GUAJARDO@sakilacustomer.org	529	t	2006-02-14	2006-02-15 09:57:20	1
+524	1	JARED	ELY	JARED.ELY@sakilacustomer.org	530	t	2006-02-14	2006-02-15 09:57:20	1
+525	2	ADRIAN	CLARY	ADRIAN.CLARY@sakilacustomer.org	531	t	2006-02-14	2006-02-15 09:57:20	1
+526	2	KARL	SEAL	KARL.SEAL@sakilacustomer.org	532	t	2006-02-14	2006-02-15 09:57:20	1
+527	1	CORY	MEEHAN	CORY.MEEHAN@sakilacustomer.org	533	t	2006-02-14	2006-02-15 09:57:20	1
+528	1	CLAUDE	HERZOG	CLAUDE.HERZOG@sakilacustomer.org	534	t	2006-02-14	2006-02-15 09:57:20	1
+529	2	ERIK	GUILLEN	ERIK.GUILLEN@sakilacustomer.org	535	t	2006-02-14	2006-02-15 09:57:20	1
+530	2	DARRYL	ASHCRAFT	DARRYL.ASHCRAFT@sakilacustomer.org	536	t	2006-02-14	2006-02-15 09:57:20	1
+531	2	JAMIE	WAUGH	JAMIE.WAUGH@sakilacustomer.org	537	t	2006-02-14	2006-02-15 09:57:20	1
+532	2	NEIL	RENNER	NEIL.RENNER@sakilacustomer.org	538	t	2006-02-14	2006-02-15 09:57:20	1
+533	1	JESSIE	MILAM	JESSIE.MILAM@sakilacustomer.org	539	t	2006-02-14	2006-02-15 09:57:20	1
+534	1	CHRISTIAN	JUNG	CHRISTIAN.JUNG@sakilacustomer.org	540	t	2006-02-14	2006-02-15 09:57:20	0
+535	1	JAVIER	ELROD	JAVIER.ELROD@sakilacustomer.org	541	t	2006-02-14	2006-02-15 09:57:20	1
+536	2	FERNANDO	CHURCHILL	FERNANDO.CHURCHILL@sakilacustomer.org	542	t	2006-02-14	2006-02-15 09:57:20	1
+537	2	CLINTON	BUFORD	CLINTON.BUFORD@sakilacustomer.org	543	t	2006-02-14	2006-02-15 09:57:20	1
+538	2	TED	BREAUX	TED.BREAUX@sakilacustomer.org	544	t	2006-02-14	2006-02-15 09:57:20	1
+539	1	MATHEW	BOLIN	MATHEW.BOLIN@sakilacustomer.org	545	t	2006-02-14	2006-02-15 09:57:20	1
+540	1	TYRONE	ASHER	TYRONE.ASHER@sakilacustomer.org	546	t	2006-02-14	2006-02-15 09:57:20	1
+541	2	DARREN	WINDHAM	DARREN.WINDHAM@sakilacustomer.org	547	t	2006-02-14	2006-02-15 09:57:20	1
+542	2	LONNIE	TIRADO	LONNIE.TIRADO@sakilacustomer.org	548	t	2006-02-14	2006-02-15 09:57:20	1
+543	1	LANCE	PEMBERTON	LANCE.PEMBERTON@sakilacustomer.org	549	t	2006-02-14	2006-02-15 09:57:20	1
+544	2	CODY	NOLEN	CODY.NOLEN@sakilacustomer.org	550	t	2006-02-14	2006-02-15 09:57:20	1
+545	2	JULIO	NOLAND	JULIO.NOLAND@sakilacustomer.org	551	t	2006-02-14	2006-02-15 09:57:20	1
+546	1	KELLY	KNOTT	KELLY.KNOTT@sakilacustomer.org	552	t	2006-02-14	2006-02-15 09:57:20	1
+547	1	KURT	EMMONS	KURT.EMMONS@sakilacustomer.org	553	t	2006-02-14	2006-02-15 09:57:20	1
+548	1	ALLAN	CORNISH	ALLAN.CORNISH@sakilacustomer.org	554	t	2006-02-14	2006-02-15 09:57:20	1
+549	1	NELSON	CHRISTENSON	NELSON.CHRISTENSON@sakilacustomer.org	555	t	2006-02-14	2006-02-15 09:57:20	1
+550	2	GUY	BROWNLEE	GUY.BROWNLEE@sakilacustomer.org	556	t	2006-02-14	2006-02-15 09:57:20	1
+551	2	CLAYTON	BARBEE	CLAYTON.BARBEE@sakilacustomer.org	557	t	2006-02-14	2006-02-15 09:57:20	1
+552	2	HUGH	WALDROP	HUGH.WALDROP@sakilacustomer.org	558	t	2006-02-14	2006-02-15 09:57:20	1
+553	1	MAX	PITT	MAX.PITT@sakilacustomer.org	559	t	2006-02-14	2006-02-15 09:57:20	1
+554	1	DWAYNE	OLVERA	DWAYNE.OLVERA@sakilacustomer.org	560	t	2006-02-14	2006-02-15 09:57:20	1
+555	1	DWIGHT	LOMBARDI	DWIGHT.LOMBARDI@sakilacustomer.org	561	t	2006-02-14	2006-02-15 09:57:20	1
+556	2	ARMANDO	GRUBER	ARMANDO.GRUBER@sakilacustomer.org	562	t	2006-02-14	2006-02-15 09:57:20	1
+557	1	FELIX	GAFFNEY	FELIX.GAFFNEY@sakilacustomer.org	563	t	2006-02-14	2006-02-15 09:57:20	1
+558	1	JIMMIE	EGGLESTON	JIMMIE.EGGLESTON@sakilacustomer.org	564	t	2006-02-14	2006-02-15 09:57:20	0
+559	2	EVERETT	BANDA	EVERETT.BANDA@sakilacustomer.org	565	t	2006-02-14	2006-02-15 09:57:20	1
+560	1	JORDAN	ARCHULETA	JORDAN.ARCHULETA@sakilacustomer.org	566	t	2006-02-14	2006-02-15 09:57:20	1
+561	2	IAN	STILL	IAN.STILL@sakilacustomer.org	567	t	2006-02-14	2006-02-15 09:57:20	1
+562	1	WALLACE	SLONE	WALLACE.SLONE@sakilacustomer.org	568	t	2006-02-14	2006-02-15 09:57:20	1
+563	2	KEN	PREWITT	KEN.PREWITT@sakilacustomer.org	569	t	2006-02-14	2006-02-15 09:57:20	1
+564	2	BOB	PFEIFFER	BOB.PFEIFFER@sakilacustomer.org	570	t	2006-02-14	2006-02-15 09:57:20	1
+565	2	JAIME	NETTLES	JAIME.NETTLES@sakilacustomer.org	571	t	2006-02-14	2006-02-15 09:57:20	1
+566	1	CASEY	MENA	CASEY.MENA@sakilacustomer.org	572	t	2006-02-14	2006-02-15 09:57:20	1
+567	2	ALFREDO	MCADAMS	ALFREDO.MCADAMS@sakilacustomer.org	573	t	2006-02-14	2006-02-15 09:57:20	1
+568	2	ALBERTO	HENNING	ALBERTO.HENNING@sakilacustomer.org	574	t	2006-02-14	2006-02-15 09:57:20	1
+569	2	DAVE	GARDINER	DAVE.GARDINER@sakilacustomer.org	575	t	2006-02-14	2006-02-15 09:57:20	1
+570	2	IVAN	CROMWELL	IVAN.CROMWELL@sakilacustomer.org	576	t	2006-02-14	2006-02-15 09:57:20	1
+571	2	JOHNNIE	CHISHOLM	JOHNNIE.CHISHOLM@sakilacustomer.org	577	t	2006-02-14	2006-02-15 09:57:20	1
+572	1	SIDNEY	BURLESON	SIDNEY.BURLESON@sakilacustomer.org	578	t	2006-02-14	2006-02-15 09:57:20	1
+573	1	BYRON	BOX	BYRON.BOX@sakilacustomer.org	579	t	2006-02-14	2006-02-15 09:57:20	1
+574	2	JULIAN	VEST	JULIAN.VEST@sakilacustomer.org	580	t	2006-02-14	2006-02-15 09:57:20	1
+575	2	ISAAC	OGLESBY	ISAAC.OGLESBY@sakilacustomer.org	581	t	2006-02-14	2006-02-15 09:57:20	1
+576	2	MORRIS	MCCARTER	MORRIS.MCCARTER@sakilacustomer.org	582	t	2006-02-14	2006-02-15 09:57:20	1
+577	2	CLIFTON	MALCOLM	CLIFTON.MALCOLM@sakilacustomer.org	583	t	2006-02-14	2006-02-15 09:57:20	1
+578	2	WILLARD	LUMPKIN	WILLARD.LUMPKIN@sakilacustomer.org	584	t	2006-02-14	2006-02-15 09:57:20	1
+579	2	DARYL	LARUE	DARYL.LARUE@sakilacustomer.org	585	t	2006-02-14	2006-02-15 09:57:20	1
+580	1	ROSS	GREY	ROSS.GREY@sakilacustomer.org	586	t	2006-02-14	2006-02-15 09:57:20	1
+581	1	VIRGIL	WOFFORD	VIRGIL.WOFFORD@sakilacustomer.org	587	t	2006-02-14	2006-02-15 09:57:20	1
+582	2	ANDY	VANHORN	ANDY.VANHORN@sakilacustomer.org	588	t	2006-02-14	2006-02-15 09:57:20	1
+583	1	MARSHALL	THORN	MARSHALL.THORN@sakilacustomer.org	589	t	2006-02-14	2006-02-15 09:57:20	1
+584	2	SALVADOR	TEEL	SALVADOR.TEEL@sakilacustomer.org	590	t	2006-02-14	2006-02-15 09:57:20	1
+585	1	PERRY	SWAFFORD	PERRY.SWAFFORD@sakilacustomer.org	591	t	2006-02-14	2006-02-15 09:57:20	1
+586	1	KIRK	STCLAIR	KIRK.STCLAIR@sakilacustomer.org	592	t	2006-02-14	2006-02-15 09:57:20	1
+587	1	SERGIO	STANFIELD	SERGIO.STANFIELD@sakilacustomer.org	593	t	2006-02-14	2006-02-15 09:57:20	1
+588	1	MARION	OCAMPO	MARION.OCAMPO@sakilacustomer.org	594	t	2006-02-14	2006-02-15 09:57:20	1
+589	1	TRACY	HERRMANN	TRACY.HERRMANN@sakilacustomer.org	595	t	2006-02-14	2006-02-15 09:57:20	1
+590	2	SETH	HANNON	SETH.HANNON@sakilacustomer.org	596	t	2006-02-14	2006-02-15 09:57:20	1
+591	1	KENT	ARSENAULT	KENT.ARSENAULT@sakilacustomer.org	597	t	2006-02-14	2006-02-15 09:57:20	1
+592	1	TERRANCE	ROUSH	TERRANCE.ROUSH@sakilacustomer.org	598	t	2006-02-14	2006-02-15 09:57:20	0
+593	2	RENE	MCALISTER	RENE.MCALISTER@sakilacustomer.org	599	t	2006-02-14	2006-02-15 09:57:20	1
+594	1	EDUARDO	HIATT	EDUARDO.HIATT@sakilacustomer.org	600	t	2006-02-14	2006-02-15 09:57:20	1
+595	1	TERRENCE	GUNDERSON	TERRENCE.GUNDERSON@sakilacustomer.org	601	t	2006-02-14	2006-02-15 09:57:20	1
+596	1	ENRIQUE	FORSYTHE	ENRIQUE.FORSYTHE@sakilacustomer.org	602	t	2006-02-14	2006-02-15 09:57:20	1
+597	1	FREDDIE	DUGGAN	FREDDIE.DUGGAN@sakilacustomer.org	603	t	2006-02-14	2006-02-15 09:57:20	1
+598	1	WADE	DELVALLE	WADE.DELVALLE@sakilacustomer.org	604	t	2006-02-14	2006-02-15 09:57:20	1
+599	2	AUSTIN	CINTRON	AUSTIN.CINTRON@sakilacustomer.org	605	t	2006-02-14	2006-02-15 09:57:20	1
 \.
 
 
+ALTER TABLE customer ENABLE TRIGGER ALL;
+
 --
--- Data for Name: film; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: film; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.film (film_id, title, description, release_year, language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features, fulltext) FROM stdin;
-133	Chamber Italian	A Fateful Reflection of a Moose And a Husband who must Overcome a Monkey in Nigeria	2006	1	7	4.99	117	14.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'chamber':1 'fate':4 'husband':11 'italian':2 'monkey':16 'moos':8 'must':13 'nigeria':18 'overcom':14 'reflect':5
-384	Grosse Wonderful	A Epic Drama of a Cat And a Explorer who must Redeem a Moose in Australia	2006	1	5	4.99	49	19.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'australia':18 'cat':8 'drama':5 'epic':4 'explor':11 'gross':1 'moos':16 'must':13 'redeem':14 'wonder':2
-8	Airport Pollock	A Epic Tale of a Moose And a Girl who must Confront a Monkey in Ancient India	2006	1	6	4.99	54	15.99	R	2013-05-26 14:50:58.951	{Trailers}	'airport':1 'ancient':18 'confront':14 'epic':4 'girl':11 'india':19 'monkey':16 'moos':8 'must':13 'pollock':2 'tale':5
-98	Bright Encounters	A Fateful Yarn of a Lumberjack And a Feminist who must Conquer a Student in A Jet Boat	2006	1	4	4.99	73	12.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'boat':20 'bright':1 'conquer':14 'encount':2 'fate':4 'feminist':11 'jet':19 'lumberjack':8 'must':13 'student':16 'yarn':5
-1	Academy Dinosaur	A Epic Drama of a Feminist And a Mad Scientist who must Battle a Teacher in The Canadian Rockies	2006	1	6	0.99	86	20.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'academi':1 'battl':15 'canadian':20 'dinosaur':2 'drama':5 'epic':4 'feminist':8 'mad':11 'must':14 'rocki':21 'scientist':12 'teacher':17
-2	Ace Goldfinger	A Astounding Epistle of a Database Administrator And a Explorer who must Find a Car in Ancient China	2006	1	3	4.99	48	12.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ace':1 'administr':9 'ancient':19 'astound':4 'car':17 'china':20 'databas':8 'epistl':5 'explor':12 'find':15 'goldfing':2 'must':14
-3	Adaptation Holes	A Astounding Reflection of a Lumberjack And a Car who must Sink a Lumberjack in A Baloon Factory	2006	1	7	2.99	50	18.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'adapt':1 'astound':4 'baloon':19 'car':11 'factori':20 'hole':2 'lumberjack':8,16 'must':13 'reflect':5 'sink':14
-4	Affair Prejudice	A Fanciful Documentary of a Frisbee And a Lumberjack who must Chase a Monkey in A Shark Tank	2006	1	5	2.99	117	26.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'affair':1 'chase':14 'documentari':5 'fanci':4 'frisbe':8 'lumberjack':11 'monkey':16 'must':13 'prejudic':2 'shark':19 'tank':20
-5	African Egg	A Fast-Paced Documentary of a Pastry Chef And a Dentist who must Pursue a Forensic Psychologist in The Gulf of Mexico	2006	1	6	2.99	130	22.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'african':1 'chef':11 'dentist':14 'documentari':7 'egg':2 'fast':5 'fast-pac':4 'forens':19 'gulf':23 'mexico':25 'must':16 'pace':6 'pastri':10 'psychologist':20 'pursu':17
-6	Agent Truman	A Intrepid Panorama of a Robot And a Boy who must Escape a Sumo Wrestler in Ancient China	2006	1	3	2.99	169	17.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'agent':1 'ancient':19 'boy':11 'china':20 'escap':14 'intrepid':4 'must':13 'panorama':5 'robot':8 'sumo':16 'truman':2 'wrestler':17
-7	Airplane Sierra	A Touching Saga of a Hunter And a Butler who must Discover a Butler in A Jet Boat	2006	1	6	4.99	62	28.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'airplan':1 'boat':20 'butler':11,16 'discov':14 'hunter':8 'jet':19 'must':13 'saga':5 'sierra':2 'touch':4
-9	Alabama Devil	A Thoughtful Panorama of a Database Administrator And a Mad Scientist who must Outgun a Mad Scientist in A Jet Boat	2006	1	3	2.99	114	21.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'administr':9 'alabama':1 'boat':23 'databas':8 'devil':2 'jet':22 'mad':12,18 'must':15 'outgun':16 'panorama':5 'scientist':13,19 'thought':4
-10	Aladdin Calendar	A Action-Packed Tale of a Man And a Lumberjack who must Reach a Feminist in Ancient China	2006	1	6	4.99	63	24.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'action':5 'action-pack':4 'aladdin':1 'ancient':20 'calendar':2 'china':21 'feminist':18 'lumberjack':13 'man':10 'must':15 'pack':6 'reach':16 'tale':7
-11	Alamo Videotape	A Boring Epistle of a Butler And a Cat who must Fight a Pastry Chef in A MySQL Convention	2006	1	6	0.99	126	16.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'alamo':1 'bore':4 'butler':8 'cat':11 'chef':17 'convent':21 'epistl':5 'fight':14 'must':13 'mysql':20 'pastri':16 'videotap':2
-12	Alaska Phantom	A Fanciful Saga of a Hunter And a Pastry Chef who must Vanquish a Boy in Australia	2006	1	6	0.99	136	22.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'alaska':1 'australia':19 'boy':17 'chef':12 'fanci':4 'hunter':8 'must':14 'pastri':11 'phantom':2 'saga':5 'vanquish':15
-213	Date Speed	A Touching Saga of a Composer And a Moose who must Discover a Dentist in A MySQL Convention	2006	1	4	0.99	104	19.99	R	2013-05-26 14:50:58.951	{Commentaries}	'compos':8 'convent':20 'date':1 'dentist':16 'discov':14 'moos':11 'must':13 'mysql':19 'saga':5 'speed':2 'touch':4
-13	Ali Forever	A Action-Packed Drama of a Dentist And a Crocodile who must Battle a Feminist in The Canadian Rockies	2006	1	4	4.99	150	21.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'action':5 'action-pack':4 'ali':1 'battl':16 'canadian':21 'crocodil':13 'dentist':10 'drama':7 'feminist':18 'forev':2 'must':15 'pack':6 'rocki':22
-14	Alice Fantasia	A Emotional Drama of a A Shark And a Database Administrator who must Vanquish a Pioneer in Soviet Georgia	2006	1	6	0.99	94	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'administr':13 'alic':1 'databas':12 'drama':5 'emot':4 'fantasia':2 'georgia':21 'must':15 'pioneer':18 'shark':9 'soviet':20 'vanquish':16
-15	Alien Center	A Brilliant Drama of a Cat And a Mad Scientist who must Battle a Feminist in A MySQL Convention	2006	1	5	2.99	46	10.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'alien':1 'battl':15 'brilliant':4 'cat':8 'center':2 'convent':21 'drama':5 'feminist':17 'mad':11 'must':14 'mysql':20 'scientist':12
-16	Alley Evolution	A Fast-Paced Drama of a Robot And a Composer who must Battle a Astronaut in New Orleans	2006	1	6	2.99	180	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'alley':1 'astronaut':18 'battl':16 'compos':13 'drama':7 'evolut':2 'fast':5 'fast-pac':4 'must':15 'new':20 'orlean':21 'pace':6 'robot':10
-17	Alone Trip	A Fast-Paced Character Study of a Composer And a Dog who must Outgun a Boat in An Abandoned Fun House	2006	1	3	0.99	82	14.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':22 'alon':1 'boat':19 'charact':7 'compos':11 'dog':14 'fast':5 'fast-pac':4 'fun':23 'hous':24 'must':16 'outgun':17 'pace':6 'studi':8 'trip':2
-18	Alter Victory	A Thoughtful Drama of a Composer And a Feminist who must Meet a Secret Agent in The Canadian Rockies	2006	1	6	0.99	57	27.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'agent':17 'alter':1 'canadian':20 'compos':8 'drama':5 'feminist':11 'meet':14 'must':13 'rocki':21 'secret':16 'thought':4 'victori':2
-19	Amadeus Holy	A Emotional Display of a Pioneer And a Technical Writer who must Battle a Man in A Baloon	2006	1	6	0.99	113	20.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'amadeus':1 'baloon':20 'battl':15 'display':5 'emot':4 'holi':2 'man':17 'must':14 'pioneer':8 'technic':11 'writer':12
-20	Amelie Hellfighters	A Boring Drama of a Woman And a Squirrel who must Conquer a Student in A Baloon	2006	1	4	4.99	79	23.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'ameli':1 'baloon':19 'bore':4 'conquer':14 'drama':5 'hellfight':2 'must':13 'squirrel':11 'student':16 'woman':8
-21	American Circus	A Insightful Drama of a Girl And a Astronaut who must Face a Database Administrator in A Shark Tank	2006	1	3	4.99	129	17.99	R	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'administr':17 'american':1 'astronaut':11 'circus':2 'databas':16 'drama':5 'face':14 'girl':8 'insight':4 'must':13 'shark':20 'tank':21
-22	Amistad Midsummer	A Emotional Character Study of a Dentist And a Crocodile who must Meet a Sumo Wrestler in California	2006	1	6	2.99	85	10.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'amistad':1 'california':20 'charact':5 'crocodil':12 'dentist':9 'emot':4 'meet':15 'midsumm':2 'must':14 'studi':6 'sumo':17 'wrestler':18
-23	Anaconda Confessions	A Lacklusture Display of a Dentist And a Dentist who must Fight a Girl in Australia	2006	1	3	0.99	92	9.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'anaconda':1 'australia':18 'confess':2 'dentist':8,11 'display':5 'fight':14 'girl':16 'lacklustur':4 'must':13
-24	Analyze Hoosiers	A Thoughtful Display of a Explorer And a Pastry Chef who must Overcome a Feminist in The Sahara Desert	2006	1	6	2.99	181	19.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'analyz':1 'chef':12 'desert':21 'display':5 'explor':8 'feminist':17 'hoosier':2 'must':14 'overcom':15 'pastri':11 'sahara':20 'thought':4
-25	Angels Life	A Thoughtful Display of a Woman And a Astronaut who must Battle a Robot in Berlin	2006	1	3	2.99	74	15.99	G	2013-05-26 14:50:58.951	{Trailers}	'angel':1 'astronaut':11 'battl':14 'berlin':18 'display':5 'life':2 'must':13 'robot':16 'thought':4 'woman':8
-26	Annie Identity	A Amazing Panorama of a Pastry Chef And a Boat who must Escape a Woman in An Abandoned Amusement Park	2006	1	3	0.99	86	15.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'abandon':20 'amaz':4 'amus':21 'anni':1 'boat':12 'chef':9 'escap':15 'ident':2 'must':14 'panorama':5 'park':22 'pastri':8 'woman':17
-27	Anonymous Human	A Amazing Reflection of a Database Administrator And a Astronaut who must Outrace a Database Administrator in A Shark Tank	2006	1	7	0.99	179	12.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'administr':9,18 'amaz':4 'anonym':1 'astronaut':12 'databas':8,17 'human':2 'must':14 'outrac':15 'reflect':5 'shark':21 'tank':22
-28	Anthem Luke	A Touching Panorama of a Waitress And a Woman who must Outrace a Dog in An Abandoned Amusement Park	2006	1	5	4.99	91	16.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'abandon':19 'amus':20 'anthem':1 'dog':16 'luke':2 'must':13 'outrac':14 'panorama':5 'park':21 'touch':4 'waitress':8 'woman':11
-29	Antitrust Tomatoes	A Fateful Yarn of a Womanizer And a Feminist who must Succumb a Database Administrator in Ancient India	2006	1	5	2.99	168	11.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'administr':17 'ancient':19 'antitrust':1 'databas':16 'fate':4 'feminist':11 'india':20 'must':13 'succumb':14 'tomato':2 'woman':8 'yarn':5
-30	Anything Savannah	A Epic Story of a Pastry Chef And a Woman who must Chase a Feminist in An Abandoned Fun House	2006	1	4	2.99	82	27.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'anyth':1 'chase':15 'chef':9 'epic':4 'feminist':17 'fun':21 'hous':22 'must':14 'pastri':8 'savannah':2 'stori':5 'woman':12
-31	Apache Divine	A Awe-Inspiring Reflection of a Pastry Chef And a Teacher who must Overcome a Sumo Wrestler in A U-Boat	2006	1	5	4.99	92	16.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'apach':1 'awe':5 'awe-inspir':4 'boat':25 'chef':11 'divin':2 'inspir':6 'must':16 'overcom':17 'pastri':10 'reflect':7 'sumo':19 'teacher':14 'u':24 'u-boat':23 'wrestler':20
-32	Apocalypse Flamingos	A Astounding Story of a Dog And a Squirrel who must Defeat a Woman in An Abandoned Amusement Park	2006	1	6	4.99	119	11.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':19 'amus':20 'apocalyps':1 'astound':4 'defeat':14 'dog':8 'flamingo':2 'must':13 'park':21 'squirrel':11 'stori':5 'woman':16
-33	Apollo Teen	A Action-Packed Reflection of a Crocodile And a Explorer who must Find a Sumo Wrestler in An Abandoned Mine Shaft	2006	1	5	2.99	153	15.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':22 'action':5 'action-pack':4 'apollo':1 'crocodil':10 'explor':13 'find':16 'mine':23 'must':15 'pack':6 'reflect':7 'shaft':24 'sumo':18 'teen':2 'wrestler':19
-34	Arabia Dogma	A Touching Epistle of a Madman And a Mad Cow who must Defeat a Student in Nigeria	2006	1	6	0.99	62	29.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'arabia':1 'cow':12 'defeat':15 'dogma':2 'epistl':5 'mad':11 'madman':8 'must':14 'nigeria':19 'student':17 'touch':4
-35	Arachnophobia Rollercoaster	A Action-Packed Reflection of a Pastry Chef And a Composer who must Discover a Mad Scientist in The First Manned Space Station	2006	1	4	2.99	147	24.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'action':5 'action-pack':4 'arachnophobia':1 'chef':11 'compos':14 'discov':17 'first':23 'mad':19 'man':24 'must':16 'pack':6 'pastri':10 'reflect':7 'rollercoast':2 'scientist':20 'space':25 'station':26
-36	Argonauts Town	A Emotional Epistle of a Forensic Psychologist And a Butler who must Challenge a Waitress in An Abandoned Mine Shaft	2006	1	7	0.99	127	12.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':20 'argonaut':1 'butler':12 'challeng':15 'emot':4 'epistl':5 'forens':8 'mine':21 'must':14 'psychologist':9 'shaft':22 'town':2 'waitress':17
-37	Arizona Bang	A Brilliant Panorama of a Mad Scientist And a Mad Cow who must Meet a Pioneer in A Monastery	2006	1	3	2.99	121	28.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'arizona':1 'bang':2 'brilliant':4 'cow':13 'mad':8,12 'meet':16 'monasteri':21 'must':15 'panorama':5 'pioneer':18 'scientist':9
-38	Ark Ridgemont	A Beautiful Yarn of a Pioneer And a Monkey who must Pursue a Explorer in The Sahara Desert	2006	1	6	0.99	68	25.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ark':1 'beauti':4 'desert':20 'explor':16 'monkey':11 'must':13 'pioneer':8 'pursu':14 'ridgemont':2 'sahara':19 'yarn':5
-39	Armageddon Lost	A Fast-Paced Tale of a Boat And a Teacher who must Succumb a Composer in An Abandoned Mine Shaft	2006	1	5	0.99	99	10.99	G	2013-05-26 14:50:58.951	{Trailers}	'abandon':21 'armageddon':1 'boat':10 'compos':18 'fast':5 'fast-pac':4 'lost':2 'mine':22 'must':15 'pace':6 'shaft':23 'succumb':16 'tale':7 'teacher':13
-40	Army Flintstones	A Boring Saga of a Database Administrator And a Womanizer who must Battle a Waitress in Nigeria	2006	1	4	0.99	148	22.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'administr':9 'armi':1 'battl':15 'bore':4 'databas':8 'flintston':2 'must':14 'nigeria':19 'saga':5 'waitress':17 'woman':12
-41	Arsenic Independence	A Fanciful Documentary of a Mad Cow And a Womanizer who must Find a Dentist in Berlin	2006	1	4	0.99	137	17.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'arsenic':1 'berlin':19 'cow':9 'dentist':17 'documentari':5 'fanci':4 'find':15 'independ':2 'mad':8 'must':14 'woman':12
-42	Artist Coldblooded	A Stunning Reflection of a Robot And a Moose who must Challenge a Woman in California	2006	1	5	2.99	170	10.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'artist':1 'california':18 'challeng':14 'coldblood':2 'moos':11 'must':13 'reflect':5 'robot':8 'stun':4 'woman':16
-265	Dying Maker	A Intrepid Tale of a Boat And a Monkey who must Kill a Cat in California	2006	1	5	4.99	168	28.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'boat':8 'california':18 'cat':16 'die':1 'intrepid':4 'kill':14 'maker':2 'monkey':11 'must':13 'tale':5
-43	Atlantis Cause	A Thrilling Yarn of a Feminist And a Hunter who must Fight a Technical Writer in A Shark Tank	2006	1	6	2.99	170	15.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'atlanti':1 'caus':2 'feminist':8 'fight':14 'hunter':11 'must':13 'shark':20 'tank':21 'technic':16 'thrill':4 'writer':17 'yarn':5
-44	Attacks Hate	A Fast-Paced Panorama of a Technical Writer And a Mad Scientist who must Find a Feminist in An Abandoned Mine Shaft	2006	1	5	4.99	113	21.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':23 'attack':1 'fast':5 'fast-pac':4 'feminist':20 'find':18 'hate':2 'mad':14 'mine':24 'must':17 'pace':6 'panorama':7 'scientist':15 'shaft':25 'technic':10 'writer':11
-45	Attraction Newton	A Astounding Panorama of a Composer And a Frisbee who must Reach a Husband in Ancient Japan	2006	1	5	4.99	83	14.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'ancient':18 'astound':4 'attract':1 'compos':8 'frisbe':11 'husband':16 'japan':19 'must':13 'newton':2 'panorama':5 'reach':14
-46	Autumn Crow	A Beautiful Tale of a Dentist And a Mad Cow who must Battle a Moose in The Sahara Desert	2006	1	3	4.99	108	13.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'autumn':1 'battl':15 'beauti':4 'cow':12 'crow':2 'dentist':8 'desert':21 'mad':11 'moos':17 'must':14 'sahara':20 'tale':5
-47	Baby Hall	A Boring Character Study of a A Shark And a Girl who must Outrace a Feminist in An Abandoned Mine Shaft	2006	1	5	4.99	153	23.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'abandon':21 'babi':1 'bore':4 'charact':5 'feminist':18 'girl':13 'hall':2 'mine':22 'must':15 'outrac':16 'shaft':23 'shark':10 'studi':6
-48	Backlash Undefeated	A Stunning Character Study of a Mad Scientist And a Mad Cow who must Kill a Car in A Monastery	2006	1	3	4.99	118	24.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'backlash':1 'car':19 'charact':5 'cow':14 'kill':17 'mad':9,13 'monasteri':22 'must':16 'scientist':10 'studi':6 'stun':4 'undef':2
-49	Badman Dawn	A Emotional Panorama of a Pioneer And a Composer who must Escape a Mad Scientist in A Jet Boat	2006	1	6	2.99	162	22.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'badman':1 'boat':21 'compos':11 'dawn':2 'emot':4 'escap':14 'jet':20 'mad':16 'must':13 'panorama':5 'pioneer':8 'scientist':17
-50	Baked Cleopatra	A Stunning Drama of a Forensic Psychologist And a Husband who must Overcome a Waitress in A Monastery	2006	1	3	2.99	182	20.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'bake':1 'cleopatra':2 'drama':5 'forens':8 'husband':12 'monasteri':20 'must':14 'overcom':15 'psychologist':9 'stun':4 'waitress':17
-126	Casualties Encino	A Insightful Yarn of a A Shark And a Pastry Chef who must Face a Boy in A Monastery	2006	1	3	4.99	179	16.99	G	2013-05-26 14:50:58.951	{Trailers}	'boy':18 'casualti':1 'chef':13 'encino':2 'face':16 'insight':4 'monasteri':21 'must':15 'pastri':12 'shark':9 'yarn':5
-51	Balloon Homeward	A Insightful Panorama of a Forensic Psychologist And a Mad Cow who must Build a Mad Scientist in The First Manned Space Station	2006	1	5	2.99	75	10.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'balloon':1 'build':16 'cow':13 'first':22 'forens':8 'homeward':2 'insight':4 'mad':12,18 'man':23 'must':15 'panorama':5 'psychologist':9 'scientist':19 'space':24 'station':25
-52	Ballroom Mockingbird	A Thrilling Documentary of a Composer And a Monkey who must Find a Feminist in California	2006	1	6	0.99	173	29.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'ballroom':1 'california':18 'compos':8 'documentari':5 'feminist':16 'find':14 'mockingbird':2 'monkey':11 'must':13 'thrill':4
-53	Bang Kwai	A Epic Drama of a Madman And a Cat who must Face a A Shark in An Abandoned Amusement Park	2006	1	5	2.99	87	25.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'amus':21 'bang':1 'cat':11 'drama':5 'epic':4 'face':14 'kwai':2 'madman':8 'must':13 'park':22 'shark':17
-54	Banger Pinocchio	A Awe-Inspiring Drama of a Car And a Pastry Chef who must Chase a Crocodile in The First Manned Space Station	2006	1	5	0.99	113	15.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'banger':1 'car':10 'chase':17 'chef':14 'crocodil':19 'drama':7 'first':22 'inspir':6 'man':23 'must':16 'pastri':13 'pinocchio':2 'space':24 'station':25
-55	Barbarella Streetcar	A Awe-Inspiring Story of a Feminist And a Cat who must Conquer a Dog in A Monastery	2006	1	6	2.99	65	27.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'awe':5 'awe-inspir':4 'barbarella':1 'cat':13 'conquer':16 'dog':18 'feminist':10 'inspir':6 'monasteri':21 'must':15 'stori':7 'streetcar':2
-56	Barefoot Manchurian	A Intrepid Story of a Cat And a Student who must Vanquish a Girl in An Abandoned Amusement Park	2006	1	6	2.99	129	15.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':19 'amus':20 'barefoot':1 'cat':8 'girl':16 'intrepid':4 'manchurian':2 'must':13 'park':21 'stori':5 'student':11 'vanquish':14
-57	Basic Easy	A Stunning Epistle of a Man And a Husband who must Reach a Mad Scientist in A Jet Boat	2006	1	4	2.99	90	18.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'basic':1 'boat':21 'easi':2 'epistl':5 'husband':11 'jet':20 'mad':16 'man':8 'must':13 'reach':14 'scientist':17 'stun':4
-58	Beach Heartbreakers	A Fateful Display of a Womanizer And a Mad Scientist who must Outgun a A Shark in Soviet Georgia	2006	1	6	2.99	122	16.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'beach':1 'display':5 'fate':4 'georgia':21 'heartbreak':2 'mad':11 'must':14 'outgun':15 'scientist':12 'shark':18 'soviet':20 'woman':8
-59	Bear Graceland	A Astounding Saga of a Dog And a Boy who must Kill a Teacher in The First Manned Space Station	2006	1	4	2.99	160	20.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'astound':4 'bear':1 'boy':11 'dog':8 'first':19 'graceland':2 'kill':14 'man':20 'must':13 'saga':5 'space':21 'station':22 'teacher':16
-60	Beast Hunchback	A Awe-Inspiring Epistle of a Student And a Squirrel who must Defeat a Boy in Ancient China	2006	1	3	4.99	89	22.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'ancient':20 'awe':5 'awe-inspir':4 'beast':1 'boy':18 'china':21 'defeat':16 'epistl':7 'hunchback':2 'inspir':6 'must':15 'squirrel':13 'student':10
-61	Beauty Grease	A Fast-Paced Display of a Composer And a Moose who must Sink a Robot in An Abandoned Mine Shaft	2006	1	5	4.99	175	28.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':21 'beauti':1 'compos':10 'display':7 'fast':5 'fast-pac':4 'greas':2 'mine':22 'moos':13 'must':15 'pace':6 'robot':18 'shaft':23 'sink':16
-62	Bed Highball	A Astounding Panorama of a Lumberjack And a Dog who must Redeem a Woman in An Abandoned Fun House	2006	1	5	2.99	106	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':19 'astound':4 'bed':1 'dog':11 'fun':20 'highbal':2 'hous':21 'lumberjack':8 'must':13 'panorama':5 'redeem':14 'woman':16
-63	Bedazzled Married	A Astounding Character Study of a Madman And a Robot who must Meet a Mad Scientist in An Abandoned Fun House	2006	1	6	0.99	73	21.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'abandon':21 'astound':4 'bedazzl':1 'charact':5 'fun':22 'hous':23 'mad':17 'madman':9 'marri':2 'meet':15 'must':14 'robot':12 'scientist':18 'studi':6
-64	Beethoven Exorcist	A Epic Display of a Pioneer And a Student who must Challenge a Butler in The Gulf of Mexico	2006	1	6	0.99	151	26.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'beethoven':1 'butler':16 'challeng':14 'display':5 'epic':4 'exorcist':2 'gulf':19 'mexico':21 'must':13 'pioneer':8 'student':11
-65	Behavior Runaway	A Unbelieveable Drama of a Student And a Husband who must Outrace a Sumo Wrestler in Berlin	2006	1	3	4.99	100	20.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'behavior':1 'berlin':19 'drama':5 'husband':11 'must':13 'outrac':14 'runaway':2 'student':8 'sumo':16 'unbeliev':4 'wrestler':17
-66	Beneath Rush	A Astounding Panorama of a Man And a Monkey who must Discover a Man in The First Manned Space Station	2006	1	6	0.99	53	27.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'astound':4 'beneath':1 'discov':14 'first':19 'man':8,16,20 'monkey':11 'must':13 'panorama':5 'rush':2 'space':21 'station':22
-67	Berets Agent	A Taut Saga of a Crocodile And a Boy who must Overcome a Technical Writer in Ancient China	2006	1	5	2.99	77	24.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'agent':2 'ancient':19 'beret':1 'boy':11 'china':20 'crocodil':8 'must':13 'overcom':14 'saga':5 'taut':4 'technic':16 'writer':17
-68	Betrayed Rear	A Emotional Character Study of a Boat And a Pioneer who must Find a Explorer in A Shark Tank	2006	1	5	4.99	122	26.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'betray':1 'boat':9 'charact':5 'emot':4 'explor':17 'find':15 'must':14 'pioneer':12 'rear':2 'shark':20 'studi':6 'tank':21
-69	Beverly Outlaw	A Fanciful Documentary of a Womanizer And a Boat who must Defeat a Madman in The First Manned Space Station	2006	1	3	2.99	85	21.99	R	2013-05-26 14:50:58.951	{Trailers}	'bever':1 'boat':11 'defeat':14 'documentari':5 'fanci':4 'first':19 'madman':16 'man':20 'must':13 'outlaw':2 'space':21 'station':22 'woman':8
-70	Bikini Borrowers	A Astounding Drama of a Astronaut And a Cat who must Discover a Woman in The First Manned Space Station	2006	1	7	4.99	142	26.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'astound':4 'astronaut':8 'bikini':1 'borrow':2 'cat':11 'discov':14 'drama':5 'first':19 'man':20 'must':13 'space':21 'station':22 'woman':16
-71	Bilko Anonymous	A Emotional Reflection of a Teacher And a Man who must Meet a Cat in The First Manned Space Station	2006	1	3	4.99	100	25.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'anonym':2 'bilko':1 'cat':16 'emot':4 'first':19 'man':11,20 'meet':14 'must':13 'reflect':5 'space':21 'station':22 'teacher':8
-72	Bill Others	A Stunning Saga of a Mad Scientist And a Forensic Psychologist who must Challenge a Squirrel in A MySQL Convention	2006	1	6	2.99	93	12.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'bill':1 'challeng':16 'convent':22 'forens':12 'mad':8 'must':15 'mysql':21 'other':2 'psychologist':13 'saga':5 'scientist':9 'squirrel':18 'stun':4
-73	Bingo Talented	A Touching Tale of a Girl And a Crocodile who must Discover a Waitress in Nigeria	2006	1	5	2.99	150	22.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'bingo':1 'crocodil':11 'discov':14 'girl':8 'must':13 'nigeria':18 'tale':5 'talent':2 'touch':4 'waitress':16
-74	Birch Antitrust	A Fanciful Panorama of a Husband And a Pioneer who must Outgun a Dog in A Baloon	2006	1	4	4.99	162	18.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'antitrust':2 'baloon':19 'birch':1 'dog':16 'fanci':4 'husband':8 'must':13 'outgun':14 'panorama':5 'pioneer':11
-75	Bird Independence	A Thrilling Documentary of a Car And a Student who must Sink a Hunter in The Canadian Rockies	2006	1	6	4.99	163	14.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'bird':1 'canadian':19 'car':8 'documentari':5 'hunter':16 'independ':2 'must':13 'rocki':20 'sink':14 'student':11 'thrill':4
-76	Birdcage Casper	A Fast-Paced Saga of a Frisbee And a Astronaut who must Overcome a Feminist in Ancient India	2006	1	4	0.99	103	23.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':20 'astronaut':13 'birdcag':1 'casper':2 'fast':5 'fast-pac':4 'feminist':18 'frisbe':10 'india':21 'must':15 'overcom':16 'pace':6 'saga':7
-77	Birds Perdition	A Boring Story of a Womanizer And a Pioneer who must Face a Dog in California	2006	1	5	4.99	61	15.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'bird':1 'bore':4 'california':18 'dog':16 'face':14 'must':13 'perdit':2 'pioneer':11 'stori':5 'woman':8
-78	Blackout Private	A Intrepid Yarn of a Pastry Chef And a Mad Scientist who must Challenge a Secret Agent in Ancient Japan	2006	1	7	2.99	85	12.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'agent':19 'ancient':21 'blackout':1 'challeng':16 'chef':9 'intrepid':4 'japan':22 'mad':12 'must':15 'pastri':8 'privat':2 'scientist':13 'secret':18 'yarn':5
-79	Blade Polish	A Thoughtful Character Study of a Frisbee And a Pastry Chef who must Fight a Dentist in The First Manned Space Station	2006	1	5	0.99	114	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'blade':1 'charact':5 'chef':13 'dentist':18 'fight':16 'first':21 'frisbe':9 'man':22 'must':15 'pastri':12 'polish':2 'space':23 'station':24 'studi':6 'thought':4
-80	Blanket Beverly	A Emotional Documentary of a Student And a Girl who must Build a Boat in Nigeria	2006	1	7	2.99	148	21.99	G	2013-05-26 14:50:58.951	{Trailers}	'bever':2 'blanket':1 'boat':16 'build':14 'documentari':5 'emot':4 'girl':11 'must':13 'nigeria':18 'student':8
-81	Blindness Gun	A Touching Drama of a Robot And a Dentist who must Meet a Hunter in A Jet Boat	2006	1	6	4.99	103	29.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'blind':1 'boat':20 'dentist':11 'drama':5 'gun':2 'hunter':16 'jet':19 'meet':14 'must':13 'robot':8 'touch':4
-82	Blood Argonauts	A Boring Drama of a Explorer And a Man who must Kill a Lumberjack in A Manhattan Penthouse	2006	1	3	0.99	71	13.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'argonaut':2 'blood':1 'bore':4 'drama':5 'explor':8 'kill':14 'lumberjack':16 'man':11 'manhattan':19 'must':13 'penthous':20
-83	Blues Instinct	A Insightful Documentary of a Boat And a Composer who must Meet a Forensic Psychologist in An Abandoned Fun House	2006	1	5	2.99	50	18.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'blue':1 'boat':8 'compos':11 'documentari':5 'forens':16 'fun':21 'hous':22 'insight':4 'instinct':2 'meet':14 'must':13 'psychologist':17
-84	Boiled Dares	A Awe-Inspiring Story of a Waitress And a Dog who must Discover a Dentist in Ancient Japan	2006	1	7	4.99	102	13.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':20 'awe':5 'awe-inspir':4 'boil':1 'dare':2 'dentist':18 'discov':16 'dog':13 'inspir':6 'japan':21 'must':15 'stori':7 'waitress':10
-85	Bonnie Holocaust	A Fast-Paced Story of a Crocodile And a Robot who must Find a Moose in Ancient Japan	2006	1	4	0.99	63	29.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'ancient':20 'bonni':1 'crocodil':10 'fast':5 'fast-pac':4 'find':16 'holocaust':2 'japan':21 'moos':18 'must':15 'pace':6 'robot':13 'stori':7
-86	Boogie Amelie	A Lacklusture Character Study of a Husband And a Sumo Wrestler who must Succumb a Technical Writer in The Gulf of Mexico	2006	1	6	4.99	121	11.99	R	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'ameli':2 'boogi':1 'charact':5 'gulf':22 'husband':9 'lacklustur':4 'mexico':24 'must':15 'studi':6 'succumb':16 'sumo':12 'technic':18 'wrestler':13 'writer':19
-87	Boondock Ballroom	A Fateful Panorama of a Crocodile And a Boy who must Defeat a Monkey in The Gulf of Mexico	2006	1	7	0.99	76	14.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'ballroom':2 'boondock':1 'boy':11 'crocodil':8 'defeat':14 'fate':4 'gulf':19 'mexico':21 'monkey':16 'must':13 'panorama':5
-88	Born Spinal	A Touching Epistle of a Frisbee And a Husband who must Pursue a Student in Nigeria	2006	1	7	4.99	179	17.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'born':1 'epistl':5 'frisbe':8 'husband':11 'must':13 'nigeria':18 'pursu':14 'spinal':2 'student':16 'touch':4
-89	Borrowers Bedazzled	A Brilliant Epistle of a Teacher And a Sumo Wrestler who must Defeat a Man in An Abandoned Fun House	2006	1	7	0.99	63	22.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'bedazzl':2 'borrow':1 'brilliant':4 'defeat':15 'epistl':5 'fun':21 'hous':22 'man':17 'must':14 'sumo':11 'teacher':8 'wrestler':12
-90	Boulevard Mob	A Fateful Epistle of a Moose And a Monkey who must Confront a Lumberjack in Ancient China	2006	1	3	0.99	63	11.99	R	2013-05-26 14:50:58.951	{Trailers}	'ancient':18 'boulevard':1 'china':19 'confront':14 'epistl':5 'fate':4 'lumberjack':16 'mob':2 'monkey':11 'moos':8 'must':13
-91	Bound Cheaper	A Thrilling Panorama of a Database Administrator And a Astronaut who must Challenge a Lumberjack in A Baloon	2006	1	5	0.99	98	17.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'administr':9 'astronaut':12 'baloon':20 'bound':1 'challeng':15 'cheaper':2 'databas':8 'lumberjack':17 'must':14 'panorama':5 'thrill':4
-92	Bowfinger Gables	A Fast-Paced Yarn of a Waitress And a Composer who must Outgun a Dentist in California	2006	1	7	4.99	72	19.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'bowfing':1 'california':20 'compos':13 'dentist':18 'fast':5 'fast-pac':4 'gabl':2 'must':15 'outgun':16 'pace':6 'waitress':10 'yarn':7
-93	Brannigan Sunrise	A Amazing Epistle of a Moose And a Crocodile who must Outrace a Dog in Berlin	2006	1	4	4.99	121	27.99	PG	2013-05-26 14:50:58.951	{Trailers}	'amaz':4 'berlin':18 'brannigan':1 'crocodil':11 'dog':16 'epistl':5 'moos':8 'must':13 'outrac':14 'sunris':2
-94	Braveheart Human	A Insightful Story of a Dog And a Pastry Chef who must Battle a Girl in Berlin	2006	1	7	2.99	176	14.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'battl':15 'berlin':19 'braveheart':1 'chef':12 'dog':8 'girl':17 'human':2 'insight':4 'must':14 'pastri':11 'stori':5
-95	Breakfast Goldfinger	A Beautiful Reflection of a Student And a Student who must Fight a Moose in Berlin	2006	1	5	4.99	123	18.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'beauti':4 'berlin':18 'breakfast':1 'fight':14 'goldfing':2 'moos':16 'must':13 'reflect':5 'student':8,11
-96	Breaking Home	A Beautiful Display of a Secret Agent And a Monkey who must Battle a Sumo Wrestler in An Abandoned Mine Shaft	2006	1	4	2.99	169	21.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':21 'agent':9 'battl':15 'beauti':4 'break':1 'display':5 'home':2 'mine':22 'monkey':12 'must':14 'secret':8 'shaft':23 'sumo':17 'wrestler':18
-97	Bride Intrigue	A Epic Tale of a Robot And a Monkey who must Vanquish a Man in New Orleans	2006	1	7	0.99	56	24.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'bride':1 'epic':4 'intrigu':2 'man':16 'monkey':11 'must':13 'new':18 'orlean':19 'robot':8 'tale':5 'vanquish':14
-99	Bringing Hysterical	A Fateful Saga of a A Shark And a Technical Writer who must Find a Woman in A Jet Boat	2006	1	7	2.99	136	14.99	PG	2013-05-26 14:50:58.951	{Trailers}	'boat':22 'bring':1 'fate':4 'find':16 'hyster':2 'jet':21 'must':15 'saga':5 'shark':9 'technic':12 'woman':18 'writer':13
-100	Brooklyn Desert	A Beautiful Drama of a Dentist And a Composer who must Battle a Sumo Wrestler in The First Manned Space Station	2006	1	7	4.99	161	21.99	R	2013-05-26 14:50:58.951	{Commentaries}	'battl':14 'beauti':4 'brooklyn':1 'compos':11 'dentist':8 'desert':2 'drama':5 'first':20 'man':21 'must':13 'space':22 'station':23 'sumo':16 'wrestler':17
-101	Brotherhood Blanket	A Fateful Character Study of a Butler And a Technical Writer who must Sink a Astronaut in Ancient Japan	2006	1	3	0.99	73	26.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'ancient':20 'astronaut':18 'blanket':2 'brotherhood':1 'butler':9 'charact':5 'fate':4 'japan':21 'must':15 'sink':16 'studi':6 'technic':12 'writer':13
-102	Bubble Grosse	A Awe-Inspiring Panorama of a Crocodile And a Moose who must Confront a Girl in A Baloon	2006	1	4	4.99	60	20.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'baloon':21 'bubbl':1 'confront':16 'crocodil':10 'girl':18 'gross':2 'inspir':6 'moos':13 'must':15 'panorama':7
-103	Bucket Brotherhood	A Amazing Display of a Girl And a Womanizer who must Succumb a Lumberjack in A Baloon Factory	2006	1	7	4.99	133	27.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'amaz':4 'baloon':19 'brotherhood':2 'bucket':1 'display':5 'factori':20 'girl':8 'lumberjack':16 'must':13 'succumb':14 'woman':11
-104	Bugsy Song	A Awe-Inspiring Character Study of a Secret Agent And a Boat who must Find a Squirrel in The First Manned Space Station	2006	1	4	2.99	119	17.99	G	2013-05-26 14:50:58.951	{Commentaries}	'agent':12 'awe':5 'awe-inspir':4 'boat':15 'bugsi':1 'charact':7 'find':18 'first':23 'inspir':6 'man':24 'must':17 'secret':11 'song':2 'space':25 'squirrel':20 'station':26 'studi':8
-105	Bull Shawshank	A Fanciful Drama of a Moose And a Squirrel who must Conquer a Pioneer in The Canadian Rockies	2006	1	6	0.99	125	21.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'bull':1 'canadian':19 'conquer':14 'drama':5 'fanci':4 'moos':8 'must':13 'pioneer':16 'rocki':20 'shawshank':2 'squirrel':11
-106	Bulworth Commandments	A Amazing Display of a Mad Cow And a Pioneer who must Redeem a Sumo Wrestler in The Outback	2006	1	4	2.99	61	14.99	G	2013-05-26 14:50:58.951	{Trailers}	'amaz':4 'bulworth':1 'command':2 'cow':9 'display':5 'mad':8 'must':14 'outback':21 'pioneer':12 'redeem':15 'sumo':17 'wrestler':18
-107	Bunch Minds	A Emotional Story of a Feminist And a Feminist who must Escape a Pastry Chef in A MySQL Convention	2006	1	4	2.99	63	13.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'bunch':1 'chef':17 'convent':21 'emot':4 'escap':14 'feminist':8,11 'mind':2 'must':13 'mysql':20 'pastri':16 'stori':5
-108	Butch Panther	A Lacklusture Yarn of a Feminist And a Database Administrator who must Face a Hunter in New Orleans	2006	1	6	0.99	67	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'administr':12 'butch':1 'databas':11 'face':15 'feminist':8 'hunter':17 'lacklustur':4 'must':14 'new':19 'orlean':20 'panther':2 'yarn':5
-109	Butterfly Chocolat	A Fateful Story of a Girl And a Composer who must Conquer a Husband in A Shark Tank	2006	1	3	0.99	89	17.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'butterfli':1 'chocolat':2 'compos':11 'conquer':14 'fate':4 'girl':8 'husband':16 'must':13 'shark':19 'stori':5 'tank':20
-110	Cabin Flash	A Stunning Epistle of a Boat And a Man who must Challenge a A Shark in A Baloon Factory	2006	1	4	0.99	53	25.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'baloon':20 'boat':8 'cabin':1 'challeng':14 'epistl':5 'factori':21 'flash':2 'man':11 'must':13 'shark':17 'stun':4
-111	Caddyshack Jedi	A Awe-Inspiring Epistle of a Woman And a Madman who must Fight a Robot in Soviet Georgia	2006	1	3	0.99	52	17.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'caddyshack':1 'epistl':7 'fight':16 'georgia':21 'inspir':6 'jedi':2 'madman':13 'must':15 'robot':18 'soviet':20 'woman':10
-112	Calendar Gunfight	A Thrilling Drama of a Frisbee And a Lumberjack who must Sink a Man in Nigeria	2006	1	4	4.99	120	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'calendar':1 'drama':5 'frisbe':8 'gunfight':2 'lumberjack':11 'man':16 'must':13 'nigeria':18 'sink':14 'thrill':4
-113	California Birds	A Thrilling Yarn of a Database Administrator And a Robot who must Battle a Database Administrator in Ancient India	2006	1	4	4.99	75	19.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'administr':9,18 'ancient':20 'battl':15 'bird':2 'california':1 'databas':8,17 'india':21 'must':14 'robot':12 'thrill':4 'yarn':5
-114	Camelot Vacation	A Touching Character Study of a Woman And a Waitress who must Battle a Pastry Chef in A MySQL Convention	2006	1	3	0.99	61	26.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'battl':15 'camelot':1 'charact':5 'chef':18 'convent':22 'must':14 'mysql':21 'pastri':17 'studi':6 'touch':4 'vacat':2 'waitress':12 'woman':9
-115	Campus Remember	A Astounding Drama of a Crocodile And a Mad Cow who must Build a Robot in A Jet Boat	2006	1	5	2.99	167	27.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'astound':4 'boat':21 'build':15 'campus':1 'cow':12 'crocodil':8 'drama':5 'jet':20 'mad':11 'must':14 'rememb':2 'robot':17
-116	Candidate Perdition	A Brilliant Epistle of a Composer And a Database Administrator who must Vanquish a Mad Scientist in The First Manned Space Station	2006	1	4	2.99	70	10.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'administr':12 'brilliant':4 'candid':1 'compos':8 'databas':11 'epistl':5 'first':21 'mad':17 'man':22 'must':14 'perdit':2 'scientist':18 'space':23 'station':24 'vanquish':15
-117	Candles Grapes	A Fanciful Character Study of a Monkey And a Explorer who must Build a Astronaut in An Abandoned Fun House	2006	1	6	4.99	135	15.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':20 'astronaut':17 'build':15 'candl':1 'charact':5 'explor':12 'fanci':4 'fun':21 'grape':2 'hous':22 'monkey':9 'must':14 'studi':6
-118	Canyon Stock	A Thoughtful Reflection of a Waitress And a Feminist who must Escape a Squirrel in A Manhattan Penthouse	2006	1	7	0.99	85	26.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'canyon':1 'escap':14 'feminist':11 'manhattan':19 'must':13 'penthous':20 'reflect':5 'squirrel':16 'stock':2 'thought':4 'waitress':8
-119	Caper Motions	A Fateful Saga of a Moose And a Car who must Pursue a Woman in A MySQL Convention	2006	1	6	0.99	176	22.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'caper':1 'car':11 'convent':20 'fate':4 'moos':8 'motion':2 'must':13 'mysql':19 'pursu':14 'saga':5 'woman':16
-120	Caribbean Liberty	A Fanciful Tale of a Pioneer And a Technical Writer who must Outgun a Pioneer in A Shark Tank	2006	1	3	4.99	92	16.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'caribbean':1 'fanci':4 'liberti':2 'must':14 'outgun':15 'pioneer':8,17 'shark':20 'tale':5 'tank':21 'technic':11 'writer':12
-121	Carol Texas	A Astounding Character Study of a Composer And a Student who must Overcome a Composer in A Monastery	2006	1	4	2.99	151	15.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'astound':4 'carol':1 'charact':5 'compos':9,17 'monasteri':20 'must':14 'overcom':15 'student':12 'studi':6 'texa':2
-122	Carrie Bunch	A Amazing Epistle of a Student And a Astronaut who must Discover a Frisbee in The Canadian Rockies	2006	1	7	0.99	114	11.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'amaz':4 'astronaut':11 'bunch':2 'canadian':19 'carri':1 'discov':14 'epistl':5 'frisbe':16 'must':13 'rocki':20 'student':8
-123	Casablanca Super	A Amazing Panorama of a Crocodile And a Forensic Psychologist who must Pursue a Secret Agent in The First Manned Space Station	2006	1	6	4.99	85	22.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'agent':18 'amaz':4 'casablanca':1 'crocodil':8 'first':21 'forens':11 'man':22 'must':14 'panorama':5 'psychologist':12 'pursu':15 'secret':17 'space':23 'station':24 'super':2
-124	Casper Dragonfly	A Intrepid Documentary of a Boat And a Crocodile who must Chase a Robot in The Sahara Desert	2006	1	3	4.99	163	16.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'boat':8 'casper':1 'chase':14 'crocodil':11 'desert':20 'documentari':5 'dragonfli':2 'intrepid':4 'must':13 'robot':16 'sahara':19
-125	Cassidy Wyoming	A Intrepid Drama of a Frisbee And a Hunter who must Kill a Secret Agent in New Orleans	2006	1	5	2.99	61	19.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'agent':17 'cassidi':1 'drama':5 'frisbe':8 'hunter':11 'intrepid':4 'kill':14 'must':13 'new':19 'orlean':20 'secret':16 'wyom':2
-127	Cat Coneheads	A Fast-Paced Panorama of a Girl And a A Shark who must Confront a Boy in Ancient India	2006	1	5	4.99	112	14.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'ancient':21 'boy':19 'cat':1 'conehead':2 'confront':17 'fast':5 'fast-pac':4 'girl':10 'india':22 'must':16 'pace':6 'panorama':7 'shark':14
-128	Catch Amistad	A Boring Reflection of a Lumberjack And a Feminist who must Discover a Woman in Nigeria	2006	1	7	0.99	183	10.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'amistad':2 'bore':4 'catch':1 'discov':14 'feminist':11 'lumberjack':8 'must':13 'nigeria':18 'reflect':5 'woman':16
-129	Cause Date	A Taut Tale of a Explorer And a Pastry Chef who must Conquer a Hunter in A MySQL Convention	2006	1	3	2.99	179	16.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'caus':1 'chef':12 'conquer':15 'convent':21 'date':2 'explor':8 'hunter':17 'must':14 'mysql':20 'pastri':11 'tale':5 'taut':4
-130	Celebrity Horn	A Amazing Documentary of a Secret Agent And a Astronaut who must Vanquish a Hunter in A Shark Tank	2006	1	7	0.99	110	24.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'agent':9 'amaz':4 'astronaut':12 'celebr':1 'documentari':5 'horn':2 'hunter':17 'must':14 'secret':8 'shark':20 'tank':21 'vanquish':15
-131	Center Dinosaur	A Beautiful Character Study of a Sumo Wrestler And a Dentist who must Find a Dog in California	2006	1	5	4.99	152	12.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'beauti':4 'california':20 'center':1 'charact':5 'dentist':13 'dinosaur':2 'dog':18 'find':16 'must':15 'studi':6 'sumo':9 'wrestler':10
-132	Chainsaw Uptown	A Beautiful Documentary of a Boy And a Robot who must Discover a Squirrel in Australia	2006	1	6	0.99	114	25.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'australia':18 'beauti':4 'boy':8 'chainsaw':1 'discov':14 'documentari':5 'must':13 'robot':11 'squirrel':16 'uptown':2
-134	Champion Flatliners	A Amazing Story of a Mad Cow And a Dog who must Kill a Husband in A Monastery	2006	1	4	4.99	51	21.99	PG	2013-05-26 14:50:58.951	{Trailers}	'amaz':4 'champion':1 'cow':9 'dog':12 'flatlin':2 'husband':17 'kill':15 'mad':8 'monasteri':20 'must':14 'stori':5
-135	Chance Resurrection	A Astounding Story of a Forensic Psychologist And a Forensic Psychologist who must Overcome a Moose in Ancient China	2006	1	3	2.99	70	22.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':20 'astound':4 'chanc':1 'china':21 'forens':8,12 'moos':18 'must':15 'overcom':16 'psychologist':9,13 'resurrect':2 'stori':5
-154	Clash Freddy	A Amazing Yarn of a Composer And a Squirrel who must Escape a Astronaut in Australia	2006	1	6	2.99	81	12.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'amaz':4 'astronaut':16 'australia':18 'clash':1 'compos':8 'escap':14 'freddi':2 'must':13 'squirrel':11 'yarn':5
-136	Chaplin License	A Boring Drama of a Dog And a Forensic Psychologist who must Outrace a Explorer in Ancient India	2006	1	7	2.99	146	26.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'ancient':19 'bore':4 'chaplin':1 'dog':8 'drama':5 'explor':17 'forens':11 'india':20 'licens':2 'must':14 'outrac':15 'psychologist':12
-137	Charade Duffel	A Action-Packed Display of a Man And a Waitress who must Build a Dog in A MySQL Convention	2006	1	3	2.99	66	21.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'action':5 'action-pack':4 'build':16 'charad':1 'convent':22 'display':7 'dog':18 'duffel':2 'man':10 'must':15 'mysql':21 'pack':6 'waitress':13
-138	Chariots Conspiracy	A Unbelieveable Epistle of a Robot And a Husband who must Chase a Robot in The First Manned Space Station	2006	1	5	2.99	71	29.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'chariot':1 'chase':14 'conspiraci':2 'epistl':5 'first':19 'husband':11 'man':20 'must':13 'robot':8,16 'space':21 'station':22 'unbeliev':4
-139	Chasing Fight	A Astounding Saga of a Technical Writer And a Butler who must Battle a Butler in A Shark Tank	2006	1	7	4.99	114	21.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'astound':4 'battl':15 'butler':12,17 'chase':1 'fight':2 'must':14 'saga':5 'shark':20 'tank':21 'technic':8 'writer':9
-140	Cheaper Clyde	A Emotional Character Study of a Pioneer And a Girl who must Discover a Dog in Ancient Japan	2006	1	6	0.99	87	23.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':19 'charact':5 'cheaper':1 'clyde':2 'discov':15 'dog':17 'emot':4 'girl':12 'japan':20 'must':14 'pioneer':9 'studi':6
-141	Chicago North	A Fateful Yarn of a Mad Cow And a Waitress who must Battle a Student in California	2006	1	6	4.99	185	11.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'battl':15 'california':19 'chicago':1 'cow':9 'fate':4 'mad':8 'must':14 'north':2 'student':17 'waitress':12 'yarn':5
-142	Chicken Hellfighters	A Emotional Drama of a Dog And a Explorer who must Outrace a Technical Writer in Australia	2006	1	3	0.99	122	24.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'australia':19 'chicken':1 'dog':8 'drama':5 'emot':4 'explor':11 'hellfight':2 'must':13 'outrac':14 'technic':16 'writer':17
-143	Chill Luck	A Lacklusture Epistle of a Boat And a Technical Writer who must Fight a A Shark in The Canadian Rockies	2006	1	6	0.99	142	17.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'boat':8 'canadian':21 'chill':1 'epistl':5 'fight':15 'lacklustur':4 'luck':2 'must':14 'rocki':22 'shark':18 'technic':11 'writer':12
-144	Chinatown Gladiator	A Brilliant Panorama of a Technical Writer And a Lumberjack who must Escape a Butler in Ancient India	2006	1	7	4.99	61	24.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'ancient':19 'brilliant':4 'butler':17 'chinatown':1 'escap':15 'gladiat':2 'india':20 'lumberjack':12 'must':14 'panorama':5 'technic':8 'writer':9
-145	Chisum Behavior	A Epic Documentary of a Sumo Wrestler And a Butler who must Kill a Car in Ancient India	2006	1	5	4.99	124	25.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':19 'behavior':2 'butler':12 'car':17 'chisum':1 'documentari':5 'epic':4 'india':20 'kill':15 'must':14 'sumo':8 'wrestler':9
-146	Chitty Lock	A Boring Epistle of a Boat And a Database Administrator who must Kill a Sumo Wrestler in The First Manned Space Station	2006	1	6	2.99	107	24.99	G	2013-05-26 14:50:58.951	{Commentaries}	'administr':12 'boat':8 'bore':4 'chitti':1 'databas':11 'epistl':5 'first':21 'kill':15 'lock':2 'man':22 'must':14 'space':23 'station':24 'sumo':17 'wrestler':18
-147	Chocolat Harry	A Action-Packed Epistle of a Dentist And a Moose who must Meet a Mad Cow in Ancient Japan	2006	1	5	0.99	101	16.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'ancient':21 'chocolat':1 'cow':19 'dentist':10 'epistl':7 'harri':2 'japan':22 'mad':18 'meet':16 'moos':13 'must':15 'pack':6
-148	Chocolate Duck	A Unbelieveable Story of a Mad Scientist And a Technical Writer who must Discover a Composer in Ancient China	2006	1	3	2.99	132	13.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':20 'china':21 'chocol':1 'compos':18 'discov':16 'duck':2 'mad':8 'must':15 'scientist':9 'stori':5 'technic':12 'unbeliev':4 'writer':13
-149	Christmas Moonshine	A Action-Packed Epistle of a Feminist And a Astronaut who must Conquer a Boat in A Manhattan Penthouse	2006	1	7	0.99	150	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'astronaut':13 'boat':18 'christma':1 'conquer':16 'epistl':7 'feminist':10 'manhattan':21 'moonshin':2 'must':15 'pack':6 'penthous':22
-150	Cider Desire	A Stunning Character Study of a Composer And a Mad Cow who must Succumb a Cat in Soviet Georgia	2006	1	7	2.99	101	9.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'cat':18 'charact':5 'cider':1 'compos':9 'cow':13 'desir':2 'georgia':21 'mad':12 'must':15 'soviet':20 'studi':6 'stun':4 'succumb':16
-151	Cincinatti Whisperer	A Brilliant Saga of a Pastry Chef And a Hunter who must Confront a Butler in Berlin	2006	1	5	4.99	143	26.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'berlin':19 'brilliant':4 'butler':17 'chef':9 'cincinatti':1 'confront':15 'hunter':12 'must':14 'pastri':8 'saga':5 'whisper':2
-152	Circus Youth	A Thoughtful Drama of a Pastry Chef And a Dentist who must Pursue a Girl in A Baloon	2006	1	5	2.99	90	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'baloon':20 'chef':9 'circus':1 'dentist':12 'drama':5 'girl':17 'must':14 'pastri':8 'pursu':15 'thought':4 'youth':2
-153	Citizen Shrek	A Fanciful Character Study of a Technical Writer And a Husband who must Redeem a Robot in The Outback	2006	1	7	0.99	165	18.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'charact':5 'citizen':1 'fanci':4 'husband':13 'must':15 'outback':21 'redeem':16 'robot':18 'shrek':2 'studi':6 'technic':9 'writer':10
-155	Cleopatra Devil	A Fanciful Documentary of a Crocodile And a Technical Writer who must Fight a A Shark in A Baloon	2006	1	6	0.99	150	26.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'baloon':21 'cleopatra':1 'crocodil':8 'devil':2 'documentari':5 'fanci':4 'fight':15 'must':14 'shark':18 'technic':11 'writer':12
-156	Clerks Angels	A Thrilling Display of a Sumo Wrestler And a Girl who must Confront a Man in A Baloon	2006	1	3	4.99	164	15.99	G	2013-05-26 14:50:58.951	{Commentaries}	'angel':2 'baloon':20 'clerk':1 'confront':15 'display':5 'girl':12 'man':17 'must':14 'sumo':8 'thrill':4 'wrestler':9
-157	Clockwork Paradise	A Insightful Documentary of a Technical Writer And a Feminist who must Challenge a Cat in A Baloon	2006	1	7	0.99	143	29.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'baloon':20 'cat':17 'challeng':15 'clockwork':1 'documentari':5 'feminist':12 'insight':4 'must':14 'paradis':2 'technic':8 'writer':9
-158	Clones Pinocchio	A Amazing Drama of a Car And a Robot who must Pursue a Dentist in New Orleans	2006	1	6	2.99	124	16.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'amaz':4 'car':8 'clone':1 'dentist':16 'drama':5 'must':13 'new':18 'orlean':19 'pinocchio':2 'pursu':14 'robot':11
-159	Closer Bang	A Unbelieveable Panorama of a Frisbee And a Hunter who must Vanquish a Monkey in Ancient India	2006	1	5	4.99	58	12.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'ancient':18 'bang':2 'closer':1 'frisbe':8 'hunter':11 'india':19 'monkey':16 'must':13 'panorama':5 'unbeliev':4 'vanquish':14
-160	Club Graffiti	A Epic Tale of a Pioneer And a Hunter who must Escape a Girl in A U-Boat	2006	1	4	0.99	65	12.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'boat':21 'club':1 'epic':4 'escap':14 'girl':16 'graffiti':2 'hunter':11 'must':13 'pioneer':8 'tale':5 'u':20 'u-boat':19
-161	Clue Grail	A Taut Tale of a Butler And a Mad Scientist who must Build a Crocodile in Ancient China	2006	1	6	4.99	70	27.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':19 'build':15 'butler':8 'china':20 'clue':1 'crocodil':17 'grail':2 'mad':11 'must':14 'scientist':12 'tale':5 'taut':4
-162	Clueless Bucket	A Taut Tale of a Car And a Pioneer who must Conquer a Sumo Wrestler in An Abandoned Fun House	2006	1	4	2.99	95	13.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'bucket':2 'car':8 'clueless':1 'conquer':14 'fun':21 'hous':22 'must':13 'pioneer':11 'sumo':16 'tale':5 'taut':4 'wrestler':17
-163	Clyde Theory	A Beautiful Yarn of a Astronaut And a Frisbee who must Overcome a Explorer in A Jet Boat	2006	1	4	0.99	139	29.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'astronaut':8 'beauti':4 'boat':20 'clyde':1 'explor':16 'frisbe':11 'jet':19 'must':13 'overcom':14 'theori':2 'yarn':5
-164	Coast Rainbow	A Astounding Documentary of a Mad Cow And a Pioneer who must Challenge a Butler in The Sahara Desert	2006	1	4	0.99	55	20.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'astound':4 'butler':17 'challeng':15 'coast':1 'cow':9 'desert':21 'documentari':5 'mad':8 'must':14 'pioneer':12 'rainbow':2 'sahara':20
-184	Core Suit	A Unbelieveable Tale of a Car And a Explorer who must Confront a Boat in A Manhattan Penthouse	2006	1	3	2.99	92	24.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'boat':16 'car':8 'confront':14 'core':1 'explor':11 'manhattan':19 'must':13 'penthous':20 'suit':2 'tale':5 'unbeliev':4
-165	Coldblooded Darling	A Brilliant Panorama of a Dentist And a Moose who must Find a Student in The Gulf of Mexico	2006	1	7	4.99	70	27.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'brilliant':4 'coldblood':1 'darl':2 'dentist':8 'find':14 'gulf':19 'mexico':21 'moos':11 'must':13 'panorama':5 'student':16
-166	Color Philadelphia	A Thoughtful Panorama of a Car And a Crocodile who must Sink a Monkey in The Sahara Desert	2006	1	6	2.99	149	19.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'car':8 'color':1 'crocodil':11 'desert':20 'monkey':16 'must':13 'panorama':5 'philadelphia':2 'sahara':19 'sink':14 'thought':4
-167	Coma Head	A Awe-Inspiring Drama of a Boy And a Frisbee who must Escape a Pastry Chef in California	2006	1	6	4.99	109	10.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'awe':5 'awe-inspir':4 'boy':10 'california':21 'chef':19 'coma':1 'drama':7 'escap':16 'frisbe':13 'head':2 'inspir':6 'must':15 'pastri':18
-168	Comancheros Enemy	A Boring Saga of a Lumberjack And a Monkey who must Find a Monkey in The Gulf of Mexico	2006	1	5	0.99	67	23.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'bore':4 'comanchero':1 'enemi':2 'find':14 'gulf':19 'lumberjack':8 'mexico':21 'monkey':11,16 'must':13 'saga':5
-169	Comforts Rush	A Unbelieveable Panorama of a Pioneer And a Husband who must Meet a Mad Cow in An Abandoned Mine Shaft	2006	1	3	2.99	76	19.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'abandon':20 'comfort':1 'cow':17 'husband':11 'mad':16 'meet':14 'mine':21 'must':13 'panorama':5 'pioneer':8 'rush':2 'shaft':22 'unbeliev':4
-170	Command Darling	A Awe-Inspiring Tale of a Forensic Psychologist And a Woman who must Challenge a Database Administrator in Ancient Japan	2006	1	5	4.99	120	28.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'administr':20 'ancient':22 'awe':5 'awe-inspir':4 'challeng':17 'command':1 'darl':2 'databas':19 'forens':10 'inspir':6 'japan':23 'must':16 'psychologist':11 'tale':7 'woman':14
-171	Commandments Express	A Fanciful Saga of a Student And a Mad Scientist who must Battle a Hunter in An Abandoned Mine Shaft	2006	1	6	4.99	59	13.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':20 'battl':15 'command':1 'express':2 'fanci':4 'hunter':17 'mad':11 'mine':21 'must':14 'saga':5 'scientist':12 'shaft':22 'student':8
-172	Coneheads Smoochy	A Touching Story of a Womanizer And a Composer who must Pursue a Husband in Nigeria	2006	1	7	4.99	112	12.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'compos':11 'conehead':1 'husband':16 'must':13 'nigeria':18 'pursu':14 'smoochi':2 'stori':5 'touch':4 'woman':8
-173	Confessions Maguire	A Insightful Story of a Car And a Boy who must Battle a Technical Writer in A Baloon	2006	1	7	4.99	65	25.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'baloon':20 'battl':14 'boy':11 'car':8 'confess':1 'insight':4 'maguir':2 'must':13 'stori':5 'technic':16 'writer':17
-174	Confidential Interview	A Stunning Reflection of a Cat And a Woman who must Find a Astronaut in Ancient Japan	2006	1	6	4.99	180	13.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'ancient':18 'astronaut':16 'cat':8 'confidenti':1 'find':14 'interview':2 'japan':19 'must':13 'reflect':5 'stun':4 'woman':11
-175	Confused Candles	A Stunning Epistle of a Cat And a Forensic Psychologist who must Confront a Pioneer in A Baloon	2006	1	3	2.99	122	27.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'baloon':20 'candl':2 'cat':8 'confront':15 'confus':1 'epistl':5 'forens':11 'must':14 'pioneer':17 'psychologist':12 'stun':4
-176	Congeniality Quest	A Touching Documentary of a Cat And a Pastry Chef who must Find a Lumberjack in A Baloon	2006	1	6	0.99	87	21.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'baloon':20 'cat':8 'chef':12 'congeni':1 'documentari':5 'find':15 'lumberjack':17 'must':14 'pastri':11 'quest':2 'touch':4
-177	Connecticut Tramp	A Unbelieveable Drama of a Crocodile And a Mad Cow who must Reach a Dentist in A Shark Tank	2006	1	4	4.99	172	20.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'connecticut':1 'cow':12 'crocodil':8 'dentist':17 'drama':5 'mad':11 'must':14 'reach':15 'shark':20 'tank':21 'tramp':2 'unbeliev':4
-178	Connection Microcosmos	A Fateful Documentary of a Crocodile And a Husband who must Face a Husband in The First Manned Space Station	2006	1	6	0.99	115	25.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'connect':1 'crocodil':8 'documentari':5 'face':14 'fate':4 'first':19 'husband':11,16 'man':20 'microcosmo':2 'must':13 'space':21 'station':22
-179	Conquerer Nuts	A Taut Drama of a Mad Scientist And a Man who must Escape a Pioneer in An Abandoned Mine Shaft	2006	1	4	4.99	173	14.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'conquer':1 'drama':5 'escap':15 'mad':8 'man':12 'mine':21 'must':14 'nut':2 'pioneer':17 'scientist':9 'shaft':22 'taut':4
-180	Conspiracy Spirit	A Awe-Inspiring Story of a Student And a Frisbee who must Conquer a Crocodile in An Abandoned Mine Shaft	2006	1	4	2.99	184	27.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':21 'awe':5 'awe-inspir':4 'conquer':16 'conspiraci':1 'crocodil':18 'frisbe':13 'inspir':6 'mine':22 'must':15 'shaft':23 'spirit':2 'stori':7 'student':10
-181	Contact Anonymous	A Insightful Display of a A Shark And a Monkey who must Face a Database Administrator in Ancient India	2006	1	7	2.99	166	10.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'administr':18 'ancient':20 'anonym':2 'contact':1 'databas':17 'display':5 'face':15 'india':21 'insight':4 'monkey':12 'must':14 'shark':9
-182	Control Anthem	A Fateful Documentary of a Robot And a Student who must Battle a Cat in A Monastery	2006	1	7	4.99	185	9.99	G	2013-05-26 14:50:58.951	{Commentaries}	'anthem':2 'battl':14 'cat':16 'control':1 'documentari':5 'fate':4 'monasteri':19 'must':13 'robot':8 'student':11
-183	Conversation Downhill	A Taut Character Study of a Husband And a Waitress who must Sink a Squirrel in A MySQL Convention	2006	1	4	4.99	112	14.99	R	2013-05-26 14:50:58.951	{Commentaries}	'charact':5 'convent':21 'convers':1 'downhil':2 'husband':9 'must':14 'mysql':20 'sink':15 'squirrel':17 'studi':6 'taut':4 'waitress':12
-185	Cowboy Doom	A Astounding Drama of a Boy And a Lumberjack who must Fight a Butler in A Baloon	2006	1	3	2.99	146	10.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'astound':4 'baloon':19 'boy':8 'butler':16 'cowboy':1 'doom':2 'drama':5 'fight':14 'lumberjack':11 'must':13
-186	Craft Outfield	A Lacklusture Display of a Explorer And a Hunter who must Succumb a Database Administrator in A Baloon Factory	2006	1	6	0.99	64	17.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'administr':17 'baloon':20 'craft':1 'databas':16 'display':5 'explor':8 'factori':21 'hunter':11 'lacklustur':4 'must':13 'outfield':2 'succumb':14
-187	Cranes Reservoir	A Fanciful Documentary of a Teacher And a Dog who must Outgun a Forensic Psychologist in A Baloon Factory	2006	1	5	2.99	57	12.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'baloon':20 'crane':1 'documentari':5 'dog':11 'factori':21 'fanci':4 'forens':16 'must':13 'outgun':14 'psychologist':17 'reservoir':2 'teacher':8
-188	Crazy Home	A Fanciful Panorama of a Boy And a Woman who must Vanquish a Database Administrator in The Outback	2006	1	7	2.99	136	24.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'administr':17 'boy':8 'crazi':1 'databas':16 'fanci':4 'home':2 'must':13 'outback':20 'panorama':5 'vanquish':14 'woman':11
-189	Creatures Shakespeare	A Emotional Drama of a Womanizer And a Squirrel who must Vanquish a Crocodile in Ancient India	2006	1	3	0.99	139	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':18 'creatur':1 'crocodil':16 'drama':5 'emot':4 'india':19 'must':13 'shakespear':2 'squirrel':11 'vanquish':14 'woman':8
-190	Creepers Kane	A Awe-Inspiring Reflection of a Squirrel And a Boat who must Outrace a Car in A Jet Boat	2006	1	5	4.99	172	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'awe':5 'awe-inspir':4 'boat':13,22 'car':18 'creeper':1 'inspir':6 'jet':21 'kane':2 'must':15 'outrac':16 'reflect':7 'squirrel':10
-191	Crooked Frogmen	A Unbelieveable Drama of a Hunter And a Database Administrator who must Battle a Crocodile in An Abandoned Amusement Park	2006	1	6	0.99	143	27.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'administr':12 'amus':21 'battl':15 'crocodil':17 'crook':1 'databas':11 'drama':5 'frogmen':2 'hunter':8 'must':14 'park':22 'unbeliev':4
-192	Crossing Divorce	A Beautiful Documentary of a Dog And a Robot who must Redeem a Womanizer in Berlin	2006	1	4	4.99	50	19.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'beauti':4 'berlin':18 'cross':1 'divorc':2 'documentari':5 'dog':8 'must':13 'redeem':14 'robot':11 'woman':16
-193	Crossroads Casualties	A Intrepid Documentary of a Sumo Wrestler And a Astronaut who must Battle a Composer in The Outback	2006	1	5	2.99	153	20.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'astronaut':12 'battl':15 'casualti':2 'compos':17 'crossroad':1 'documentari':5 'intrepid':4 'must':14 'outback':20 'sumo':8 'wrestler':9
-194	Crow Grease	A Awe-Inspiring Documentary of a Woman And a Husband who must Sink a Database Administrator in The First Manned Space Station	2006	1	6	0.99	104	22.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'administr':19 'awe':5 'awe-inspir':4 'crow':1 'databas':18 'documentari':7 'first':22 'greas':2 'husband':13 'inspir':6 'man':23 'must':15 'sink':16 'space':24 'station':25 'woman':10
-195	Crowds Telemark	A Intrepid Documentary of a Astronaut And a Forensic Psychologist who must Find a Frisbee in An Abandoned Fun House	2006	1	3	4.99	112	16.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':20 'astronaut':8 'crowd':1 'documentari':5 'find':15 'forens':11 'frisbe':17 'fun':21 'hous':22 'intrepid':4 'must':14 'psychologist':12 'telemark':2
-196	Cruelty Unforgiven	A Brilliant Tale of a Car And a Moose who must Battle a Dentist in Nigeria	2006	1	7	0.99	69	29.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'battl':14 'brilliant':4 'car':8 'cruelti':1 'dentist':16 'moos':11 'must':13 'nigeria':18 'tale':5 'unforgiven':2
-197	Crusade Honey	A Fast-Paced Reflection of a Explorer And a Butler who must Battle a Madman in An Abandoned Amusement Park	2006	1	4	2.99	112	27.99	R	2013-05-26 14:50:58.951	{Commentaries}	'abandon':21 'amus':22 'battl':16 'butler':13 'crusad':1 'explor':10 'fast':5 'fast-pac':4 'honey':2 'madman':18 'must':15 'pace':6 'park':23 'reflect':7
-198	Crystal Breaking	A Fast-Paced Character Study of a Feminist And a Explorer who must Face a Pastry Chef in Ancient Japan	2006	1	6	2.99	184	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':22 'break':2 'charact':7 'chef':20 'crystal':1 'explor':14 'face':17 'fast':5 'fast-pac':4 'feminist':11 'japan':23 'must':16 'pace':6 'pastri':19 'studi':8
-199	Cupboard Sinners	A Emotional Reflection of a Frisbee And a Boat who must Reach a Pastry Chef in An Abandoned Amusement Park	2006	1	4	2.99	56	29.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'abandon':20 'amus':21 'boat':11 'chef':17 'cupboard':1 'emot':4 'frisbe':8 'must':13 'park':22 'pastri':16 'reach':14 'reflect':5 'sinner':2
-200	Curtain Videotape	A Boring Reflection of a Dentist And a Mad Cow who must Chase a Secret Agent in A Shark Tank	2006	1	7	0.99	133	27.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'agent':18 'bore':4 'chase':15 'cow':12 'curtain':1 'dentist':8 'mad':11 'must':14 'reflect':5 'secret':17 'shark':21 'tank':22 'videotap':2
-201	Cyclone Family	A Lacklusture Drama of a Student And a Monkey who must Sink a Womanizer in A MySQL Convention	2006	1	7	2.99	176	18.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'convent':20 'cyclon':1 'drama':5 'famili':2 'lacklustur':4 'monkey':11 'must':13 'mysql':19 'sink':14 'student':8 'woman':16
-202	Daddy Pittsburgh	A Epic Story of a A Shark And a Student who must Confront a Explorer in The Gulf of Mexico	2006	1	5	4.99	161	26.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'confront':15 'daddi':1 'epic':4 'explor':17 'gulf':20 'mexico':22 'must':14 'pittsburgh':2 'shark':9 'stori':5 'student':12
-203	Daisy Menagerie	A Fast-Paced Saga of a Pastry Chef And a Monkey who must Sink a Composer in Ancient India	2006	1	5	4.99	84	9.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':21 'chef':11 'compos':19 'daisi':1 'fast':5 'fast-pac':4 'india':22 'menageri':2 'monkey':14 'must':16 'pace':6 'pastri':10 'saga':7 'sink':17
-204	Dalmations Sweden	A Emotional Epistle of a Moose And a Hunter who must Overcome a Robot in A Manhattan Penthouse	2006	1	4	0.99	106	25.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'dalmat':1 'emot':4 'epistl':5 'hunter':11 'manhattan':19 'moos':8 'must':13 'overcom':14 'penthous':20 'robot':16 'sweden':2
-205	Dances None	A Insightful Reflection of a A Shark And a Dog who must Kill a Butler in An Abandoned Amusement Park	2006	1	3	0.99	58	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'amus':21 'butler':17 'danc':1 'dog':12 'insight':4 'kill':15 'must':14 'none':2 'park':22 'reflect':5 'shark':9
-206	Dancing Fever	A Stunning Story of a Explorer And a Forensic Psychologist who must Face a Crocodile in A Shark Tank	2006	1	6	0.99	144	25.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'crocodil':17 'danc':1 'explor':8 'face':15 'fever':2 'forens':11 'must':14 'psychologist':12 'shark':20 'stori':5 'stun':4 'tank':21
-207	Dangerous Uptown	A Unbelieveable Story of a Mad Scientist And a Woman who must Overcome a Dog in California	2006	1	7	4.99	121	26.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'california':19 'danger':1 'dog':17 'mad':8 'must':14 'overcom':15 'scientist':9 'stori':5 'unbeliev':4 'uptown':2 'woman':12
-208	Dares Pluto	A Fateful Story of a Robot And a Dentist who must Defeat a Astronaut in New Orleans	2006	1	7	2.99	89	16.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'astronaut':16 'dare':1 'defeat':14 'dentist':11 'fate':4 'must':13 'new':18 'orlean':19 'pluto':2 'robot':8 'stori':5
-209	Darkness War	A Touching Documentary of a Husband And a Hunter who must Escape a Boy in The Sahara Desert	2006	1	6	2.99	99	24.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'dark':1 'desert':20 'documentari':5 'escap':14 'hunter':11 'husband':8 'must':13 'sahara':19 'touch':4 'war':2
-210	Darko Dorado	A Stunning Reflection of a Frisbee And a Husband who must Redeem a Dog in New Orleans	2006	1	3	4.99	130	13.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'darko':1 'dog':16 'dorado':2 'frisbe':8 'husband':11 'must':13 'new':18 'orlean':19 'redeem':14 'reflect':5 'stun':4
-211	Darling Breaking	A Brilliant Documentary of a Astronaut And a Squirrel who must Succumb a Student in The Gulf of Mexico	2006	1	7	4.99	165	20.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'astronaut':8 'break':2 'brilliant':4 'darl':1 'documentari':5 'gulf':19 'mexico':21 'must':13 'squirrel':11 'student':16 'succumb':14
-212	Darn Forrester	A Fateful Story of a A Shark And a Explorer who must Succumb a Technical Writer in A Jet Boat	2006	1	7	4.99	185	14.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'boat':22 'darn':1 'explor':12 'fate':4 'forrest':2 'jet':21 'must':14 'shark':9 'stori':5 'succumb':15 'technic':17 'writer':18
-214	Daughter Madigan	A Beautiful Tale of a Hunter And a Mad Scientist who must Confront a Squirrel in The First Manned Space Station	2006	1	3	4.99	59	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'beauti':4 'confront':15 'daughter':1 'first':20 'hunter':8 'mad':11 'madigan':2 'man':21 'must':14 'scientist':12 'space':22 'squirrel':17 'station':23 'tale':5
-215	Dawn Pond	A Thoughtful Documentary of a Dentist And a Forensic Psychologist who must Defeat a Waitress in Berlin	2006	1	4	4.99	57	27.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'berlin':19 'dawn':1 'defeat':15 'dentist':8 'documentari':5 'forens':11 'must':14 'pond':2 'psychologist':12 'thought':4 'waitress':17
-216	Day Unfaithful	A Stunning Documentary of a Composer And a Mad Scientist who must Find a Technical Writer in A U-Boat	2006	1	3	4.99	113	16.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':23 'compos':8 'day':1 'documentari':5 'find':15 'mad':11 'must':14 'scientist':12 'stun':4 'technic':17 'u':22 'u-boat':21 'unfaith':2 'writer':18
-217	Dazed Punk	A Action-Packed Story of a Pioneer And a Technical Writer who must Discover a Forensic Psychologist in An Abandoned Amusement Park	2006	1	6	4.99	120	20.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'abandon':23 'action':5 'action-pack':4 'amus':24 'daze':1 'discov':17 'forens':19 'must':16 'pack':6 'park':25 'pioneer':10 'psychologist':20 'punk':2 'stori':7 'technic':13 'writer':14
-218	Deceiver Betrayed	A Taut Story of a Moose And a Squirrel who must Build a Husband in Ancient India	2006	1	7	0.99	122	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':18 'betray':2 'build':14 'deceiv':1 'husband':16 'india':19 'moos':8 'must':13 'squirrel':11 'stori':5 'taut':4
-219	Deep Crusade	A Amazing Tale of a Crocodile And a Squirrel who must Discover a Composer in Australia	2006	1	6	4.99	51	20.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'amaz':4 'australia':18 'compos':16 'crocodil':8 'crusad':2 'deep':1 'discov':14 'must':13 'squirrel':11 'tale':5
-220	Deer Virginian	A Thoughtful Story of a Mad Cow And a Womanizer who must Overcome a Mad Scientist in Soviet Georgia	2006	1	7	2.99	106	13.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'cow':9 'deer':1 'georgia':21 'mad':8,17 'must':14 'overcom':15 'scientist':18 'soviet':20 'stori':5 'thought':4 'virginian':2 'woman':12
-221	Deliverance Mulholland	A Astounding Saga of a Monkey And a Moose who must Conquer a Butler in A Shark Tank	2006	1	4	0.99	100	9.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'astound':4 'butler':16 'conquer':14 'deliver':1 'monkey':8 'moos':11 'mulholland':2 'must':13 'saga':5 'shark':19 'tank':20
-222	Desert Poseidon	A Brilliant Documentary of a Butler And a Frisbee who must Build a Astronaut in New Orleans	2006	1	4	4.99	64	27.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'astronaut':16 'brilliant':4 'build':14 'butler':8 'desert':1 'documentari':5 'frisbe':11 'must':13 'new':18 'orlean':19 'poseidon':2
-223	Desire Alien	A Fast-Paced Tale of a Dog And a Forensic Psychologist who must Meet a Astronaut in The First Manned Space Station	2006	1	7	2.99	76	24.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'alien':2 'astronaut':19 'desir':1 'dog':10 'fast':5 'fast-pac':4 'first':22 'forens':13 'man':23 'meet':17 'must':16 'pace':6 'psychologist':14 'space':24 'station':25 'tale':7
-224	Desperate Trainspotting	A Epic Yarn of a Forensic Psychologist And a Teacher who must Face a Lumberjack in California	2006	1	7	4.99	81	29.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'california':19 'desper':1 'epic':4 'face':15 'forens':8 'lumberjack':17 'must':14 'psychologist':9 'teacher':12 'trainspot':2 'yarn':5
-225	Destination Jerk	A Beautiful Yarn of a Teacher And a Cat who must Build a Car in A U-Boat	2006	1	3	0.99	76	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'beauti':4 'boat':21 'build':14 'car':16 'cat':11 'destin':1 'jerk':2 'must':13 'teacher':8 'u':20 'u-boat':19 'yarn':5
-226	Destiny Saturday	A Touching Drama of a Crocodile And a Crocodile who must Conquer a Explorer in Soviet Georgia	2006	1	4	4.99	56	20.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'conquer':14 'crocodil':8,11 'destini':1 'drama':5 'explor':16 'georgia':19 'must':13 'saturday':2 'soviet':18 'touch':4
-227	Details Packer	A Epic Saga of a Waitress And a Composer who must Face a Boat in A U-Boat	2006	1	4	4.99	88	17.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'boat':16,21 'compos':11 'detail':1 'epic':4 'face':14 'must':13 'packer':2 'saga':5 'u':20 'u-boat':19 'waitress':8
-228	Detective Vision	A Fanciful Documentary of a Pioneer And a Woman who must Redeem a Hunter in Ancient Japan	2006	1	4	0.99	143	16.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':18 'detect':1 'documentari':5 'fanci':4 'hunter':16 'japan':19 'must':13 'pioneer':8 'redeem':14 'vision':2 'woman':11
-229	Devil Desire	A Beautiful Reflection of a Monkey And a Dentist who must Face a Database Administrator in Ancient Japan	2006	1	6	4.99	87	12.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'administr':17 'ancient':19 'beauti':4 'databas':16 'dentist':11 'desir':2 'devil':1 'face':14 'japan':20 'monkey':8 'must':13 'reflect':5
-230	Diary Panic	A Thoughtful Character Study of a Frisbee And a Mad Cow who must Outgun a Man in Ancient India	2006	1	7	2.99	107	20.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'ancient':20 'charact':5 'cow':13 'diari':1 'frisbe':9 'india':21 'mad':12 'man':18 'must':15 'outgun':16 'panic':2 'studi':6 'thought':4
-231	Dinosaur Secretary	A Action-Packed Drama of a Feminist And a Girl who must Reach a Robot in The Canadian Rockies	2006	1	7	2.99	63	27.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'action':5 'action-pack':4 'canadian':21 'dinosaur':1 'drama':7 'feminist':10 'girl':13 'must':15 'pack':6 'reach':16 'robot':18 'rocki':22 'secretari':2
-232	Dirty Ace	A Action-Packed Character Study of a Forensic Psychologist And a Girl who must Build a Dentist in The Outback	2006	1	7	2.99	147	29.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'ace':2 'action':5 'action-pack':4 'build':18 'charact':7 'dentist':20 'dirti':1 'forens':11 'girl':15 'must':17 'outback':23 'pack':6 'psychologist':12 'studi':8
-233	Disciple Mother	A Touching Reflection of a Mad Scientist And a Boat who must Face a Moose in A Shark Tank	2006	1	3	0.99	141	17.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'boat':12 'discipl':1 'face':15 'mad':8 'moos':17 'mother':2 'must':14 'reflect':5 'scientist':9 'shark':20 'tank':21 'touch':4
-234	Disturbing Scarface	A Lacklusture Display of a Crocodile And a Butler who must Overcome a Monkey in A U-Boat	2006	1	6	2.99	94	27.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'boat':21 'butler':11 'crocodil':8 'display':5 'disturb':1 'lacklustur':4 'monkey':16 'must':13 'overcom':14 'scarfac':2 'u':20 'u-boat':19
-235	Divide Monster	A Intrepid Saga of a Man And a Forensic Psychologist who must Reach a Squirrel in A Monastery	2006	1	6	2.99	68	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'divid':1 'forens':11 'intrepid':4 'man':8 'monasteri':20 'monster':2 'must':14 'psychologist':12 'reach':15 'saga':5 'squirrel':17
-236	Divine Resurrection	A Boring Character Study of a Man And a Womanizer who must Succumb a Teacher in An Abandoned Amusement Park	2006	1	4	2.99	100	19.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':20 'amus':21 'bore':4 'charact':5 'divin':1 'man':9 'must':14 'park':22 'resurrect':2 'studi':6 'succumb':15 'teacher':17 'woman':12
-237	Divorce Shining	A Unbelieveable Saga of a Crocodile And a Student who must Discover a Cat in Ancient India	2006	1	3	2.99	47	21.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'ancient':18 'cat':16 'crocodil':8 'discov':14 'divorc':1 'india':19 'must':13 'saga':5 'shine':2 'student':11 'unbeliev':4
-238	Doctor Grail	A Insightful Drama of a Womanizer And a Waitress who must Reach a Forensic Psychologist in The Outback	2006	1	4	2.99	57	29.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'doctor':1 'drama':5 'forens':16 'grail':2 'insight':4 'must':13 'outback':20 'psychologist':17 'reach':14 'waitress':11 'woman':8
-239	Dogma Family	A Brilliant Character Study of a Database Administrator And a Monkey who must Succumb a Astronaut in New Orleans	2006	1	5	4.99	122	16.99	G	2013-05-26 14:50:58.951	{Commentaries}	'administr':10 'astronaut':18 'brilliant':4 'charact':5 'databas':9 'dogma':1 'famili':2 'monkey':13 'must':15 'new':20 'orlean':21 'studi':6 'succumb':16
-240	Dolls Rage	A Thrilling Display of a Pioneer And a Frisbee who must Escape a Teacher in The Outback	2006	1	7	2.99	120	10.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'display':5 'doll':1 'escap':14 'frisbe':11 'must':13 'outback':19 'pioneer':8 'rage':2 'teacher':16 'thrill':4
-241	Donnie Alley	A Awe-Inspiring Tale of a Butler And a Frisbee who must Vanquish a Teacher in Ancient Japan	2006	1	4	0.99	125	20.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'alley':2 'ancient':20 'awe':5 'awe-inspir':4 'butler':10 'donni':1 'frisbe':13 'inspir':6 'japan':21 'must':15 'tale':7 'teacher':18 'vanquish':16
-242	Doom Dancing	A Astounding Panorama of a Car And a Mad Scientist who must Battle a Lumberjack in A MySQL Convention	2006	1	4	0.99	68	13.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'astound':4 'battl':15 'car':8 'convent':21 'danc':2 'doom':1 'lumberjack':17 'mad':11 'must':14 'mysql':20 'panorama':5 'scientist':12
-243	Doors President	A Awe-Inspiring Display of a Squirrel And a Woman who must Overcome a Boy in The Gulf of Mexico	2006	1	3	4.99	49	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'boy':18 'display':7 'door':1 'gulf':21 'inspir':6 'mexico':23 'must':15 'overcom':16 'presid':2 'squirrel':10 'woman':13
-244	Dorado Notting	A Action-Packed Tale of a Sumo Wrestler And a A Shark who must Meet a Frisbee in California	2006	1	5	4.99	139	26.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'action':5 'action-pack':4 'california':22 'dorado':1 'frisbe':20 'meet':18 'must':17 'not':2 'pack':6 'shark':15 'sumo':10 'tale':7 'wrestler':11
-245	Double Wrath	A Thoughtful Yarn of a Womanizer And a Dog who must Challenge a Madman in The Gulf of Mexico	2006	1	4	0.99	177	28.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'challeng':14 'dog':11 'doubl':1 'gulf':19 'madman':16 'mexico':21 'must':13 'thought':4 'woman':8 'wrath':2 'yarn':5
-246	Doubtfire Labyrinth	A Intrepid Panorama of a Butler And a Composer who must Meet a Mad Cow in The Sahara Desert	2006	1	5	4.99	154	16.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'butler':8 'compos':11 'cow':17 'desert':21 'doubtfir':1 'intrepid':4 'labyrinth':2 'mad':16 'meet':14 'must':13 'panorama':5 'sahara':20
-247	Downhill Enough	A Emotional Tale of a Pastry Chef And a Forensic Psychologist who must Succumb a Monkey in The Sahara Desert	2006	1	3	0.99	47	19.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'chef':9 'desert':22 'downhil':1 'emot':4 'enough':2 'forens':12 'monkey':18 'must':15 'pastri':8 'psychologist':13 'sahara':21 'succumb':16 'tale':5
-248	Dozen Lion	A Taut Drama of a Cat And a Girl who must Defeat a Frisbee in The Canadian Rockies	2006	1	6	4.99	177	20.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'canadian':19 'cat':8 'defeat':14 'dozen':1 'drama':5 'frisbe':16 'girl':11 'lion':2 'must':13 'rocki':20 'taut':4
-249	Dracula Crystal	A Thrilling Reflection of a Feminist And a Cat who must Find a Frisbee in An Abandoned Fun House	2006	1	7	0.99	176	26.99	G	2013-05-26 14:50:58.951	{Commentaries}	'abandon':19 'cat':11 'crystal':2 'dracula':1 'feminist':8 'find':14 'frisbe':16 'fun':20 'hous':21 'must':13 'reflect':5 'thrill':4
-250	Dragon Squad	A Taut Reflection of a Boy And a Waitress who must Outgun a Teacher in Ancient China	2006	1	4	0.99	170	26.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'ancient':18 'boy':8 'china':19 'dragon':1 'must':13 'outgun':14 'reflect':5 'squad':2 'taut':4 'teacher':16 'waitress':11
-251	Dragonfly Strangers	A Boring Documentary of a Pioneer And a Man who must Vanquish a Man in Nigeria	2006	1	6	4.99	133	19.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'bore':4 'documentari':5 'dragonfli':1 'man':11,16 'must':13 'nigeria':18 'pioneer':8 'stranger':2 'vanquish':14
-252	Dream Pickup	A Epic Display of a Car And a Composer who must Overcome a Forensic Psychologist in The Gulf of Mexico	2006	1	6	2.99	135	18.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'car':8 'compos':11 'display':5 'dream':1 'epic':4 'forens':16 'gulf':20 'mexico':22 'must':13 'overcom':14 'pickup':2 'psychologist':17
-253	Drifter Commandments	A Epic Reflection of a Womanizer And a Squirrel who must Discover a Husband in A Jet Boat	2006	1	5	4.99	61	18.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'boat':20 'command':2 'discov':14 'drifter':1 'epic':4 'husband':16 'jet':19 'must':13 'reflect':5 'squirrel':11 'woman':8
-254	Driver Annie	A Lacklusture Character Study of a Butler And a Car who must Redeem a Boat in An Abandoned Fun House	2006	1	4	2.99	159	11.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'anni':2 'boat':17 'butler':9 'car':12 'charact':5 'driver':1 'fun':21 'hous':22 'lacklustur':4 'must':14 'redeem':15 'studi':6
-255	Driving Polish	A Action-Packed Yarn of a Feminist And a Technical Writer who must Sink a Boat in An Abandoned Mine Shaft	2006	1	6	4.99	175	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':22 'action':5 'action-pack':4 'boat':19 'drive':1 'feminist':10 'mine':23 'must':16 'pack':6 'polish':2 'shaft':24 'sink':17 'technic':13 'writer':14 'yarn':7
-256	Drop Waterfront	A Fanciful Documentary of a Husband And a Explorer who must Reach a Madman in Ancient China	2006	1	6	4.99	178	20.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':18 'china':19 'documentari':5 'drop':1 'explor':11 'fanci':4 'husband':8 'madman':16 'must':13 'reach':14 'waterfront':2
-257	Drumline Cyclone	A Insightful Panorama of a Monkey And a Sumo Wrestler who must Outrace a Mad Scientist in The Canadian Rockies	2006	1	3	0.99	110	14.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'canadian':21 'cyclon':2 'drumlin':1 'insight':4 'mad':17 'monkey':8 'must':14 'outrac':15 'panorama':5 'rocki':22 'scientist':18 'sumo':11 'wrestler':12
-258	Drums Dynamite	A Epic Display of a Crocodile And a Crocodile who must Confront a Dog in An Abandoned Amusement Park	2006	1	6	0.99	96	11.99	PG	2013-05-26 14:50:58.951	{Trailers}	'abandon':19 'amus':20 'confront':14 'crocodil':8,11 'display':5 'dog':16 'drum':1 'dynamit':2 'epic':4 'must':13 'park':21
-259	Duck Racer	A Lacklusture Yarn of a Teacher And a Squirrel who must Overcome a Dog in A Shark Tank	2006	1	4	2.99	116	15.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'dog':16 'duck':1 'lacklustur':4 'must':13 'overcom':14 'racer':2 'shark':19 'squirrel':11 'tank':20 'teacher':8 'yarn':5
-260	Dude Blindness	A Stunning Reflection of a Husband And a Lumberjack who must Face a Frisbee in An Abandoned Fun House	2006	1	3	4.99	132	9.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':19 'blind':2 'dude':1 'face':14 'frisbe':16 'fun':20 'hous':21 'husband':8 'lumberjack':11 'must':13 'reflect':5 'stun':4
-261	Duffel Apocalypse	A Emotional Display of a Boat And a Explorer who must Challenge a Madman in A MySQL Convention	2006	1	5	0.99	171	13.99	G	2013-05-26 14:50:58.951	{Commentaries}	'apocalyps':2 'boat':8 'challeng':14 'convent':20 'display':5 'duffel':1 'emot':4 'explor':11 'madman':16 'must':13 'mysql':19
-262	Dumbo Lust	A Touching Display of a Feminist And a Dentist who must Conquer a Husband in The Gulf of Mexico	2006	1	5	0.99	119	17.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'conquer':14 'dentist':11 'display':5 'dumbo':1 'feminist':8 'gulf':19 'husband':16 'lust':2 'mexico':21 'must':13 'touch':4
-263	Durham Panky	A Brilliant Panorama of a Girl And a Boy who must Face a Mad Scientist in An Abandoned Mine Shaft	2006	1	6	4.99	154	14.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':20 'boy':11 'brilliant':4 'durham':1 'face':14 'girl':8 'mad':16 'mine':21 'must':13 'panki':2 'panorama':5 'scientist':17 'shaft':22
-264	Dwarfs Alter	A Emotional Yarn of a Girl And a Dog who must Challenge a Composer in Ancient Japan	2006	1	6	2.99	101	13.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'alter':2 'ancient':18 'challeng':14 'compos':16 'dog':11 'dwarf':1 'emot':4 'girl':8 'japan':19 'must':13 'yarn':5
-266	Dynamite Tarzan	A Intrepid Documentary of a Forensic Psychologist And a Mad Scientist who must Face a Explorer in A U-Boat	2006	1	4	0.99	141	27.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'boat':23 'documentari':5 'dynamit':1 'explor':18 'face':16 'forens':8 'intrepid':4 'mad':12 'must':15 'psychologist':9 'scientist':13 'tarzan':2 'u':22 'u-boat':21
-267	Eagles Panky	A Thoughtful Story of a Car And a Boy who must Find a A Shark in The Sahara Desert	2006	1	4	4.99	140	14.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'boy':11 'car':8 'desert':21 'eagl':1 'find':14 'must':13 'panki':2 'sahara':20 'shark':17 'stori':5 'thought':4
-268	Early Home	A Amazing Panorama of a Mad Scientist And a Husband who must Meet a Woman in The Outback	2006	1	6	4.99	96	27.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'amaz':4 'earli':1 'home':2 'husband':12 'mad':8 'meet':15 'must':14 'outback':20 'panorama':5 'scientist':9 'woman':17
-269	Earring Instinct	A Stunning Character Study of a Dentist And a Mad Cow who must Find a Teacher in Nigeria	2006	1	3	0.99	98	22.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'charact':5 'cow':13 'dentist':9 'earring':1 'find':16 'instinct':2 'mad':12 'must':15 'nigeria':20 'studi':6 'stun':4 'teacher':18
-270	Earth Vision	A Stunning Drama of a Butler And a Madman who must Outrace a Womanizer in Ancient India	2006	1	7	0.99	85	29.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'ancient':18 'butler':8 'drama':5 'earth':1 'india':19 'madman':11 'must':13 'outrac':14 'stun':4 'vision':2 'woman':16
-271	Easy Gladiator	A Fateful Story of a Monkey And a Girl who must Overcome a Pastry Chef in Ancient India	2006	1	5	4.99	148	12.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':19 'chef':17 'easi':1 'fate':4 'girl':11 'gladiat':2 'india':20 'monkey':8 'must':13 'overcom':14 'pastri':16 'stori':5
-272	Edge Kissing	A Beautiful Yarn of a Composer And a Mad Cow who must Redeem a Mad Scientist in A Jet Boat	2006	1	5	4.99	153	9.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'beauti':4 'boat':22 'compos':8 'cow':12 'edg':1 'jet':21 'kiss':2 'mad':11,17 'must':14 'redeem':15 'scientist':18 'yarn':5
-273	Effect Gladiator	A Beautiful Display of a Pastry Chef And a Pastry Chef who must Outgun a Forensic Psychologist in A Manhattan Penthouse	2006	1	6	0.99	107	14.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'beauti':4 'chef':9,13 'display':5 'effect':1 'forens':18 'gladiat':2 'manhattan':22 'must':15 'outgun':16 'pastri':8,12 'penthous':23 'psychologist':19
-274	Egg Igby	A Beautiful Documentary of a Boat And a Sumo Wrestler who must Succumb a Database Administrator in The First Manned Space Station	2006	1	4	2.99	67	20.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'administr':18 'beauti':4 'boat':8 'databas':17 'documentari':5 'egg':1 'first':21 'igbi':2 'man':22 'must':14 'space':23 'station':24 'succumb':15 'sumo':11 'wrestler':12
-275	Egypt Tenenbaums	A Intrepid Story of a Madman And a Secret Agent who must Outrace a Astronaut in An Abandoned Amusement Park	2006	1	3	0.99	85	11.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'agent':12 'amus':21 'astronaut':17 'egypt':1 'intrepid':4 'madman':8 'must':14 'outrac':15 'park':22 'secret':11 'stori':5 'tenenbaum':2
-276	Element Freddy	A Awe-Inspiring Reflection of a Waitress And a Squirrel who must Kill a Mad Cow in A Jet Boat	2006	1	6	4.99	115	28.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'awe':5 'awe-inspir':4 'boat':23 'cow':19 'element':1 'freddi':2 'inspir':6 'jet':22 'kill':16 'mad':18 'must':15 'reflect':7 'squirrel':13 'waitress':10
-277	Elephant Trojan	A Beautiful Panorama of a Lumberjack And a Forensic Psychologist who must Overcome a Frisbee in A Baloon	2006	1	4	4.99	126	24.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'baloon':20 'beauti':4 'eleph':1 'forens':11 'frisbe':17 'lumberjack':8 'must':14 'overcom':15 'panorama':5 'psychologist':12 'trojan':2
-278	Elf Murder	A Action-Packed Story of a Frisbee And a Woman who must Reach a Girl in An Abandoned Mine Shaft	2006	1	4	4.99	155	19.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'abandon':21 'action':5 'action-pack':4 'elf':1 'frisbe':10 'girl':18 'mine':22 'murder':2 'must':15 'pack':6 'reach':16 'shaft':23 'stori':7 'woman':13
-279	Elizabeth Shane	A Lacklusture Display of a Womanizer And a Dog who must Face a Sumo Wrestler in Ancient Japan	2006	1	7	4.99	152	11.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'ancient':19 'display':5 'dog':11 'elizabeth':1 'face':14 'japan':20 'lacklustur':4 'must':13 'shane':2 'sumo':16 'woman':8 'wrestler':17
-280	Empire Malkovich	A Amazing Story of a Feminist And a Cat who must Face a Car in An Abandoned Fun House	2006	1	7	0.99	177	26.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'abandon':19 'amaz':4 'car':16 'cat':11 'empir':1 'face':14 'feminist':8 'fun':20 'hous':21 'malkovich':2 'must':13 'stori':5
-281	Encino Elf	A Astounding Drama of a Feminist And a Teacher who must Confront a Husband in A Baloon	2006	1	6	0.99	143	9.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'astound':4 'baloon':19 'confront':14 'drama':5 'elf':2 'encino':1 'feminist':8 'husband':16 'must':13 'teacher':11
-282	Encounters Curtain	A Insightful Epistle of a Pastry Chef And a Womanizer who must Build a Boat in New Orleans	2006	1	5	0.99	92	20.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'boat':17 'build':15 'chef':9 'curtain':2 'encount':1 'epistl':5 'insight':4 'must':14 'new':19 'orlean':20 'pastri':8 'woman':12
-283	Ending Crowds	A Unbelieveable Display of a Dentist And a Madman who must Vanquish a Squirrel in Berlin	2006	1	6	0.99	85	10.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'berlin':18 'crowd':2 'dentist':8 'display':5 'end':1 'madman':11 'must':13 'squirrel':16 'unbeliev':4 'vanquish':14
-284	Enemy Odds	A Fanciful Panorama of a Mad Scientist And a Woman who must Pursue a Astronaut in Ancient India	2006	1	5	4.99	77	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'ancient':19 'astronaut':17 'enemi':1 'fanci':4 'india':20 'mad':8 'must':14 'odd':2 'panorama':5 'pursu':15 'scientist':9 'woman':12
-285	English Bulworth	A Intrepid Epistle of a Pastry Chef And a Pastry Chef who must Pursue a Crocodile in Ancient China	2006	1	3	0.99	51	18.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'ancient':20 'bulworth':2 'chef':9,13 'china':21 'crocodil':18 'english':1 'epistl':5 'intrepid':4 'must':15 'pastri':8,12 'pursu':16
-286	Enough Raging	A Astounding Character Study of a Boat And a Secret Agent who must Find a Mad Cow in The Sahara Desert	2006	1	7	2.99	158	16.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'agent':13 'astound':4 'boat':9 'charact':5 'cow':19 'desert':23 'enough':1 'find':16 'mad':18 'must':15 'rage':2 'sahara':22 'secret':12 'studi':6
-287	Entrapment Satisfaction	A Thoughtful Panorama of a Hunter And a Teacher who must Reach a Mad Cow in A U-Boat	2006	1	5	0.99	176	19.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':22 'cow':17 'entrap':1 'hunter':8 'mad':16 'must':13 'panorama':5 'reach':14 'satisfact':2 'teacher':11 'thought':4 'u':21 'u-boat':20
-288	Escape Metropolis	A Taut Yarn of a Astronaut And a Technical Writer who must Outgun a Boat in New Orleans	2006	1	7	2.99	167	20.99	R	2013-05-26 14:50:58.951	{Trailers}	'astronaut':8 'boat':17 'escap':1 'metropoli':2 'must':14 'new':19 'orlean':20 'outgun':15 'taut':4 'technic':11 'writer':12 'yarn':5
-289	Eve Resurrection	A Awe-Inspiring Yarn of a Pastry Chef And a Database Administrator who must Challenge a Teacher in A Baloon	2006	1	5	4.99	66	25.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'administr':15 'awe':5 'awe-inspir':4 'baloon':23 'challeng':18 'chef':11 'databas':14 'eve':1 'inspir':6 'must':17 'pastri':10 'resurrect':2 'teacher':20 'yarn':7
-290	Everyone Craft	A Fateful Display of a Waitress And a Dentist who must Reach a Butler in Nigeria	2006	1	4	0.99	163	29.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'butler':16 'craft':2 'dentist':11 'display':5 'everyon':1 'fate':4 'must':13 'nigeria':18 'reach':14 'waitress':8
-291	Evolution Alter	A Fanciful Character Study of a Feminist And a Madman who must Find a Explorer in A Baloon Factory	2006	1	5	0.99	174	10.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'alter':2 'baloon':20 'charact':5 'evolut':1 'explor':17 'factori':21 'fanci':4 'feminist':9 'find':15 'madman':12 'must':14 'studi':6
-292	Excitement Eve	A Brilliant Documentary of a Monkey And a Car who must Conquer a Crocodile in A Shark Tank	2006	1	3	0.99	51	20.99	G	2013-05-26 14:50:58.951	{Commentaries}	'brilliant':4 'car':11 'conquer':14 'crocodil':16 'documentari':5 'eve':2 'excit':1 'monkey':8 'must':13 'shark':19 'tank':20
-293	Exorcist Sting	A Touching Drama of a Dog And a Sumo Wrestler who must Conquer a Mad Scientist in Berlin	2006	1	6	2.99	167	17.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'berlin':20 'conquer':15 'dog':8 'drama':5 'exorcist':1 'mad':17 'must':14 'scientist':18 'sting':2 'sumo':11 'touch':4 'wrestler':12
-294	Expecations Natural	A Amazing Drama of a Butler And a Husband who must Reach a A Shark in A U-Boat	2006	1	5	4.99	138	26.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'amaz':4 'boat':22 'butler':8 'drama':5 'expec':1 'husband':11 'must':13 'natur':2 'reach':14 'shark':17 'u':21 'u-boat':20
-295	Expendable Stallion	A Amazing Character Study of a Mad Cow And a Squirrel who must Discover a Hunter in A U-Boat	2006	1	3	0.99	97	14.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'amaz':4 'boat':23 'charact':5 'cow':10 'discov':16 'expend':1 'hunter':18 'mad':9 'must':15 'squirrel':13 'stallion':2 'studi':6 'u':22 'u-boat':21
-296	Express Lonely	A Boring Drama of a Astronaut And a Boat who must Face a Boat in California	2006	1	5	2.99	178	23.99	R	2013-05-26 14:50:58.951	{Trailers}	'astronaut':8 'boat':11,16 'bore':4 'california':18 'drama':5 'express':1 'face':14 'lone':2 'must':13
-297	Extraordinary Conquerer	A Stunning Story of a Dog And a Feminist who must Face a Forensic Psychologist in Berlin	2006	1	6	2.99	122	29.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'berlin':19 'conquer':2 'dog':8 'extraordinari':1 'face':14 'feminist':11 'forens':16 'must':13 'psychologist':17 'stori':5 'stun':4
-298	Eyes Driving	A Thrilling Story of a Cat And a Waitress who must Fight a Explorer in The Outback	2006	1	4	2.99	172	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'cat':8 'drive':2 'explor':16 'eye':1 'fight':14 'must':13 'outback':19 'stori':5 'thrill':4 'waitress':11
-299	Factory Dragon	A Action-Packed Saga of a Teacher And a Frisbee who must Escape a Lumberjack in The Sahara Desert	2006	1	4	0.99	144	9.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'action':5 'action-pack':4 'desert':22 'dragon':2 'escap':16 'factori':1 'frisbe':13 'lumberjack':18 'must':15 'pack':6 'saga':7 'sahara':21 'teacher':10
-300	Falcon Volume	A Fateful Saga of a Sumo Wrestler And a Hunter who must Redeem a A Shark in New Orleans	2006	1	5	4.99	102	21.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'falcon':1 'fate':4 'hunter':12 'must':14 'new':20 'orlean':21 'redeem':15 'saga':5 'shark':18 'sumo':8 'volum':2 'wrestler':9
-301	Family Sweet	A Epic Documentary of a Teacher And a Boy who must Escape a Woman in Berlin	2006	1	4	0.99	155	24.99	R	2013-05-26 14:50:58.951	{Trailers}	'berlin':18 'boy':11 'documentari':5 'epic':4 'escap':14 'famili':1 'must':13 'sweet':2 'teacher':8 'woman':16
-302	Fantasia Park	A Thoughtful Documentary of a Mad Scientist And a A Shark who must Outrace a Feminist in Australia	2006	1	5	2.99	131	29.99	G	2013-05-26 14:50:58.951	{Commentaries}	'australia':20 'documentari':5 'fantasia':1 'feminist':18 'mad':8 'must':15 'outrac':16 'park':2 'scientist':9 'shark':13 'thought':4
-303	Fantasy Troopers	A Touching Saga of a Teacher And a Monkey who must Overcome a Secret Agent in A MySQL Convention	2006	1	6	0.99	58	27.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'agent':17 'convent':21 'fantasi':1 'monkey':11 'must':13 'mysql':20 'overcom':14 'saga':5 'secret':16 'teacher':8 'touch':4 'trooper':2
-304	Fargo Gandhi	A Thrilling Reflection of a Pastry Chef And a Crocodile who must Reach a Teacher in The Outback	2006	1	3	2.99	130	28.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'chef':9 'crocodil':12 'fargo':1 'gandhi':2 'must':14 'outback':20 'pastri':8 'reach':15 'reflect':5 'teacher':17 'thrill':4
-305	Fatal Haunted	A Beautiful Drama of a Student And a Secret Agent who must Confront a Dentist in Ancient Japan	2006	1	6	2.99	91	24.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'agent':12 'ancient':19 'beauti':4 'confront':15 'dentist':17 'drama':5 'fatal':1 'haunt':2 'japan':20 'must':14 'secret':11 'student':8
-306	Feathers Metal	A Thoughtful Yarn of a Monkey And a Teacher who must Find a Dog in Australia	2006	1	3	0.99	104	12.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'australia':18 'dog':16 'feather':1 'find':14 'metal':2 'monkey':8 'must':13 'teacher':11 'thought':4 'yarn':5
-307	Fellowship Autumn	A Lacklusture Reflection of a Dentist And a Hunter who must Meet a Teacher in A Baloon	2006	1	6	4.99	77	9.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'autumn':2 'baloon':19 'dentist':8 'fellowship':1 'hunter':11 'lacklustur':4 'meet':14 'must':13 'reflect':5 'teacher':16
-308	Ferris Mother	A Touching Display of a Frisbee And a Frisbee who must Kill a Girl in The Gulf of Mexico	2006	1	3	2.99	142	13.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'display':5 'ferri':1 'frisbe':8,11 'girl':16 'gulf':19 'kill':14 'mexico':21 'mother':2 'must':13 'touch':4
-309	Feud Frogmen	A Brilliant Reflection of a Database Administrator And a Mad Cow who must Chase a Woman in The Canadian Rockies	2006	1	6	0.99	98	29.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':9 'brilliant':4 'canadian':21 'chase':16 'cow':13 'databas':8 'feud':1 'frogmen':2 'mad':12 'must':15 'reflect':5 'rocki':22 'woman':18
-310	Fever Empire	A Insightful Panorama of a Cat And a Boat who must Defeat a Boat in The Gulf of Mexico	2006	1	5	4.99	158	20.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'boat':11,16 'cat':8 'defeat':14 'empir':2 'fever':1 'gulf':19 'insight':4 'mexico':21 'must':13 'panorama':5
-311	Fiction Christmas	A Emotional Yarn of a A Shark And a Student who must Battle a Robot in An Abandoned Mine Shaft	2006	1	4	0.99	72	14.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'battl':15 'christma':2 'emot':4 'fiction':1 'mine':21 'must':14 'robot':17 'shaft':22 'shark':9 'student':12 'yarn':5
-312	Fiddler Lost	A Boring Tale of a Squirrel And a Dog who must Challenge a Madman in The Gulf of Mexico	2006	1	4	4.99	75	20.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'bore':4 'challeng':14 'dog':11 'fiddler':1 'gulf':19 'lost':2 'madman':16 'mexico':21 'must':13 'squirrel':8 'tale':5
-313	Fidelity Devil	A Awe-Inspiring Drama of a Technical Writer And a Composer who must Reach a Pastry Chef in A U-Boat	2006	1	5	4.99	118	11.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'boat':25 'chef':20 'compos':14 'devil':2 'drama':7 'fidel':1 'inspir':6 'must':16 'pastri':19 'reach':17 'technic':10 'u':24 'u-boat':23 'writer':11
-314	Fight Jawbreaker	A Intrepid Panorama of a Womanizer And a Girl who must Escape a Girl in A Manhattan Penthouse	2006	1	3	0.99	91	13.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'escap':14 'fight':1 'girl':11,16 'intrepid':4 'jawbreak':2 'manhattan':19 'must':13 'panorama':5 'penthous':20 'woman':8
-315	Finding Anaconda	A Fateful Tale of a Database Administrator And a Girl who must Battle a Squirrel in New Orleans	2006	1	4	0.99	156	10.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'administr':9 'anaconda':2 'battl':15 'databas':8 'fate':4 'find':1 'girl':12 'must':14 'new':19 'orlean':20 'squirrel':17 'tale':5
-316	Fire Wolves	A Intrepid Documentary of a Frisbee And a Dog who must Outrace a Lumberjack in Nigeria	2006	1	5	4.99	173	18.99	R	2013-05-26 14:50:58.951	{Trailers}	'documentari':5 'dog':11 'fire':1 'frisbe':8 'intrepid':4 'lumberjack':16 'must':13 'nigeria':18 'outrac':14 'wolv':2
-317	Fireball Philadelphia	A Amazing Yarn of a Dentist And a A Shark who must Vanquish a Madman in An Abandoned Mine Shaft	2006	1	4	0.99	148	25.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'abandon':20 'amaz':4 'dentist':8 'firebal':1 'madman':17 'mine':21 'must':14 'philadelphia':2 'shaft':22 'shark':12 'vanquish':15 'yarn':5
-318	Firehouse Vietnam	A Awe-Inspiring Character Study of a Boat And a Boy who must Kill a Pastry Chef in The Sahara Desert	2006	1	7	0.99	103	14.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'boat':11 'boy':14 'charact':7 'chef':20 'desert':24 'firehous':1 'inspir':6 'kill':17 'must':16 'pastri':19 'sahara':23 'studi':8 'vietnam':2
-319	Fish Opus	A Touching Display of a Feminist And a Girl who must Confront a Astronaut in Australia	2006	1	4	2.99	125	22.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'astronaut':16 'australia':18 'confront':14 'display':5 'feminist':8 'fish':1 'girl':11 'must':13 'opus':2 'touch':4
-320	Flamingos Connecticut	A Fast-Paced Reflection of a Composer And a Composer who must Meet a Cat in The Sahara Desert	2006	1	4	4.99	80	28.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'cat':18 'compos':10,13 'connecticut':2 'desert':22 'fast':5 'fast-pac':4 'flamingo':1 'meet':16 'must':15 'pace':6 'reflect':7 'sahara':21
-321	Flash Wars	A Astounding Saga of a Moose And a Pastry Chef who must Chase a Student in The Gulf of Mexico	2006	1	3	4.99	123	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'astound':4 'chase':15 'chef':12 'flash':1 'gulf':20 'mexico':22 'moos':8 'must':14 'pastri':11 'saga':5 'student':17 'war':2
-322	Flatliners Killer	A Taut Display of a Secret Agent And a Waitress who must Sink a Robot in An Abandoned Mine Shaft	2006	1	5	2.99	100	29.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':20 'agent':9 'display':5 'flatlin':1 'killer':2 'mine':21 'must':14 'robot':17 'secret':8 'shaft':22 'sink':15 'taut':4 'waitress':12
-323	Flight Lies	A Stunning Character Study of a Crocodile And a Pioneer who must Pursue a Teacher in New Orleans	2006	1	7	4.99	179	22.99	R	2013-05-26 14:50:58.951	{Trailers}	'charact':5 'crocodil':9 'flight':1 'lie':2 'must':14 'new':19 'orlean':20 'pioneer':12 'pursu':15 'studi':6 'stun':4 'teacher':17
-324	Flintstones Happiness	A Fateful Story of a Husband And a Moose who must Vanquish a Boy in California	2006	1	3	4.99	148	11.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':16 'california':18 'fate':4 'flintston':1 'happi':2 'husband':8 'moos':11 'must':13 'stori':5 'vanquish':14
-325	Floats Garden	A Action-Packed Epistle of a Robot And a Car who must Chase a Boat in Ancient Japan	2006	1	6	2.99	145	29.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'ancient':20 'boat':18 'car':13 'chase':16 'epistl':7 'float':1 'garden':2 'japan':21 'must':15 'pack':6 'robot':10
-326	Flying Hook	A Thrilling Display of a Mad Cow And a Dog who must Challenge a Frisbee in Nigeria	2006	1	6	2.99	69	18.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'challeng':15 'cow':9 'display':5 'dog':12 'fli':1 'frisbe':17 'hook':2 'mad':8 'must':14 'nigeria':19 'thrill':4
-327	Fool Mockingbird	A Lacklusture Tale of a Crocodile And a Composer who must Defeat a Madman in A U-Boat	2006	1	3	4.99	158	24.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'boat':21 'compos':11 'crocodil':8 'defeat':14 'fool':1 'lacklustur':4 'madman':16 'mockingbird':2 'must':13 'tale':5 'u':20 'u-boat':19
-328	Forever Candidate	A Unbelieveable Panorama of a Technical Writer And a Man who must Pursue a Frisbee in A U-Boat	2006	1	7	2.99	131	28.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':22 'candid':2 'forev':1 'frisbe':17 'man':12 'must':14 'panorama':5 'pursu':15 'technic':8 'u':21 'u-boat':20 'unbeliev':4 'writer':9
-329	Forrest Sons	A Thrilling Documentary of a Forensic Psychologist And a Butler who must Defeat a Explorer in A Jet Boat	2006	1	4	2.99	63	15.99	R	2013-05-26 14:50:58.951	{Commentaries}	'boat':21 'butler':12 'defeat':15 'documentari':5 'explor':17 'forens':8 'forrest':1 'jet':20 'must':14 'psychologist':9 'son':2 'thrill':4
-330	Forrester Comancheros	A Fateful Tale of a Squirrel And a Forensic Psychologist who must Redeem a Man in Nigeria	2006	1	7	4.99	112	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'comanchero':2 'fate':4 'forens':11 'forrest':1 'man':17 'must':14 'nigeria':19 'psychologist':12 'redeem':15 'squirrel':8 'tale':5
-331	Forward Temple	A Astounding Display of a Forensic Psychologist And a Mad Scientist who must Challenge a Girl in New Orleans	2006	1	6	2.99	90	25.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'astound':4 'challeng':16 'display':5 'forens':8 'forward':1 'girl':18 'mad':12 'must':15 'new':20 'orlean':21 'psychologist':9 'scientist':13 'templ':2
-332	Frankenstein Stranger	A Insightful Character Study of a Feminist And a Pioneer who must Pursue a Pastry Chef in Nigeria	2006	1	7	0.99	159	16.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'charact':5 'chef':18 'feminist':9 'frankenstein':1 'insight':4 'must':14 'nigeria':20 'pastri':17 'pioneer':12 'pursu':15 'stranger':2 'studi':6
-333	Freaky Pocus	A Fast-Paced Documentary of a Pastry Chef And a Crocodile who must Chase a Squirrel in The Gulf of Mexico	2006	1	7	2.99	126	16.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'chase':17 'chef':11 'crocodil':14 'documentari':7 'fast':5 'fast-pac':4 'freaki':1 'gulf':22 'mexico':24 'must':16 'pace':6 'pastri':10 'pocus':2 'squirrel':19
-334	Freddy Storm	A Intrepid Saga of a Man And a Lumberjack who must Vanquish a Husband in The Outback	2006	1	6	4.99	65	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'freddi':1 'husband':16 'intrepid':4 'lumberjack':11 'man':8 'must':13 'outback':19 'saga':5 'storm':2 'vanquish':14
-335	Freedom Cleopatra	A Emotional Reflection of a Dentist And a Mad Cow who must Face a Squirrel in A Baloon	2006	1	5	0.99	133	23.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'baloon':20 'cleopatra':2 'cow':12 'dentist':8 'emot':4 'face':15 'freedom':1 'mad':11 'must':14 'reflect':5 'squirrel':17
-336	French Holiday	A Thrilling Epistle of a Dog And a Feminist who must Kill a Madman in Berlin	2006	1	5	4.99	99	22.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'berlin':18 'dog':8 'epistl':5 'feminist':11 'french':1 'holiday':2 'kill':14 'madman':16 'must':13 'thrill':4
-337	Frida Slipper	A Fateful Story of a Lumberjack And a Car who must Escape a Boat in An Abandoned Mine Shaft	2006	1	6	2.99	73	11.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':19 'boat':16 'car':11 'escap':14 'fate':4 'frida':1 'lumberjack':8 'mine':20 'must':13 'shaft':21 'slipper':2 'stori':5
-338	Frisco Forrest	A Beautiful Documentary of a Woman And a Pioneer who must Pursue a Mad Scientist in A Shark Tank	2006	1	6	4.99	51	23.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'beauti':4 'documentari':5 'forrest':2 'frisco':1 'mad':16 'must':13 'pioneer':11 'pursu':14 'scientist':17 'shark':20 'tank':21 'woman':8
-339	Frogmen Breaking	A Unbelieveable Yarn of a Mad Scientist And a Cat who must Chase a Lumberjack in Australia	2006	1	5	0.99	111	17.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'australia':19 'break':2 'cat':12 'chase':15 'frogmen':1 'lumberjack':17 'mad':8 'must':14 'scientist':9 'unbeliev':4 'yarn':5
-340	Frontier Cabin	A Emotional Story of a Madman And a Waitress who must Battle a Teacher in An Abandoned Fun House	2006	1	6	4.99	183	14.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'abandon':19 'battl':14 'cabin':2 'emot':4 'frontier':1 'fun':20 'hous':21 'madman':8 'must':13 'stori':5 'teacher':16 'waitress':11
-341	Frost Head	A Amazing Reflection of a Lumberjack And a Cat who must Discover a Husband in A MySQL Convention	2006	1	5	0.99	82	13.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'amaz':4 'cat':11 'convent':20 'discov':14 'frost':1 'head':2 'husband':16 'lumberjack':8 'must':13 'mysql':19 'reflect':5
-342	Fugitive Maguire	A Taut Epistle of a Feminist And a Sumo Wrestler who must Battle a Crocodile in Australia	2006	1	7	4.99	83	28.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'australia':19 'battl':15 'crocodil':17 'epistl':5 'feminist':8 'fugit':1 'maguir':2 'must':14 'sumo':11 'taut':4 'wrestler':12
-343	Full Flatliners	A Beautiful Documentary of a Astronaut And a Moose who must Pursue a Monkey in A Shark Tank	2006	1	6	2.99	94	14.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'astronaut':8 'beauti':4 'documentari':5 'flatlin':2 'full':1 'monkey':16 'moos':11 'must':13 'pursu':14 'shark':19 'tank':20
-344	Fury Murder	A Lacklusture Reflection of a Boat And a Forensic Psychologist who must Fight a Waitress in A Monastery	2006	1	3	0.99	178	28.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'boat':8 'fight':15 'forens':11 'furi':1 'lacklustur':4 'monasteri':20 'murder':2 'must':14 'psychologist':12 'reflect':5 'waitress':17
-345	Gables Metropolis	A Fateful Display of a Cat And a Pioneer who must Challenge a Pastry Chef in A Baloon Factory	2006	1	3	0.99	161	17.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'baloon':20 'cat':8 'challeng':14 'chef':17 'display':5 'factori':21 'fate':4 'gabl':1 'metropoli':2 'must':13 'pastri':16 'pioneer':11
-346	Galaxy Sweethearts	A Emotional Reflection of a Womanizer And a Pioneer who must Face a Squirrel in Berlin	2006	1	4	4.99	128	13.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'berlin':18 'emot':4 'face':14 'galaxi':1 'must':13 'pioneer':11 'reflect':5 'squirrel':16 'sweetheart':2 'woman':8
-347	Games Bowfinger	A Astounding Documentary of a Butler And a Explorer who must Challenge a Butler in A Monastery	2006	1	7	4.99	119	17.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'astound':4 'bowfing':2 'butler':8,16 'challeng':14 'documentari':5 'explor':11 'game':1 'monasteri':19 'must':13
-348	Gandhi Kwai	A Thoughtful Display of a Mad Scientist And a Secret Agent who must Chase a Boat in Berlin	2006	1	7	0.99	86	9.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'agent':13 'berlin':20 'boat':18 'chase':16 'display':5 'gandhi':1 'kwai':2 'mad':8 'must':15 'scientist':9 'secret':12 'thought':4
-349	Gangs Pride	A Taut Character Study of a Woman And a A Shark who must Confront a Frisbee in Berlin	2006	1	4	2.99	185	27.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'berlin':20 'charact':5 'confront':16 'frisbe':18 'gang':1 'must':15 'pride':2 'shark':13 'studi':6 'taut':4 'woman':9
-350	Garden Island	A Unbelieveable Character Study of a Womanizer And a Madman who must Reach a Man in The Outback	2006	1	3	4.99	80	21.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'charact':5 'garden':1 'island':2 'madman':12 'man':17 'must':14 'outback':20 'reach':15 'studi':6 'unbeliev':4 'woman':9
-351	Gaslight Crusade	A Amazing Epistle of a Boy And a Astronaut who must Redeem a Man in The Gulf of Mexico	2006	1	4	2.99	106	10.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'amaz':4 'astronaut':11 'boy':8 'crusad':2 'epistl':5 'gaslight':1 'gulf':19 'man':16 'mexico':21 'must':13 'redeem':14
-352	Gathering Calendar	A Intrepid Tale of a Pioneer And a Moose who must Conquer a Frisbee in A MySQL Convention	2006	1	4	0.99	176	22.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'calendar':2 'conquer':14 'convent':20 'frisbe':16 'gather':1 'intrepid':4 'moos':11 'must':13 'mysql':19 'pioneer':8 'tale':5
-353	Gentlemen Stage	A Awe-Inspiring Reflection of a Monkey And a Student who must Overcome a Dentist in The First Manned Space Station	2006	1	6	2.99	125	22.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'dentist':18 'first':21 'gentlemen':1 'inspir':6 'man':22 'monkey':10 'must':15 'overcom':16 'reflect':7 'space':23 'stage':2 'station':24 'student':13
-354	Ghost Groundhog	A Brilliant Panorama of a Madman And a Composer who must Succumb a Car in Ancient India	2006	1	6	4.99	85	18.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':18 'brilliant':4 'car':16 'compos':11 'ghost':1 'groundhog':2 'india':19 'madman':8 'must':13 'panorama':5 'succumb':14
-355	Ghostbusters Elf	A Thoughtful Epistle of a Dog And a Feminist who must Chase a Composer in Berlin	2006	1	7	0.99	101	18.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'berlin':18 'chase':14 'compos':16 'dog':8 'elf':2 'epistl':5 'feminist':11 'ghostbust':1 'must':13 'thought':4
-356	Giant Troopers	A Fateful Display of a Feminist And a Monkey who must Vanquish a Monkey in The Canadian Rockies	2006	1	5	2.99	102	10.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'canadian':19 'display':5 'fate':4 'feminist':8 'giant':1 'monkey':11,16 'must':13 'rocki':20 'trooper':2 'vanquish':14
-357	Gilbert Pelican	A Fateful Tale of a Man And a Feminist who must Conquer a Crocodile in A Manhattan Penthouse	2006	1	7	0.99	114	13.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'conquer':14 'crocodil':16 'fate':4 'feminist':11 'gilbert':1 'man':8 'manhattan':19 'must':13 'pelican':2 'penthous':20 'tale':5
-358	Gilmore Boiled	A Unbelieveable Documentary of a Boat And a Husband who must Succumb a Student in A U-Boat	2006	1	5	0.99	163	29.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'boat':8,21 'boil':2 'documentari':5 'gilmor':1 'husband':11 'must':13 'student':16 'succumb':14 'u':20 'u-boat':19 'unbeliev':4
-359	Gladiator Westward	A Astounding Reflection of a Squirrel And a Sumo Wrestler who must Sink a Dentist in Ancient Japan	2006	1	6	4.99	173	20.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'ancient':19 'astound':4 'dentist':17 'gladiat':1 'japan':20 'must':14 'reflect':5 'sink':15 'squirrel':8 'sumo':11 'westward':2 'wrestler':12
-360	Glass Dying	A Astounding Drama of a Frisbee And a Astronaut who must Fight a Dog in Ancient Japan	2006	1	4	0.99	103	24.99	G	2013-05-26 14:50:58.951	{Trailers}	'ancient':18 'astound':4 'astronaut':11 'die':2 'dog':16 'drama':5 'fight':14 'frisbe':8 'glass':1 'japan':19 'must':13
-361	Gleaming Jawbreaker	A Amazing Display of a Composer And a Forensic Psychologist who must Discover a Car in The Canadian Rockies	2006	1	5	2.99	89	25.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'amaz':4 'canadian':20 'car':17 'compos':8 'discov':15 'display':5 'forens':11 'gleam':1 'jawbreak':2 'must':14 'psychologist':12 'rocki':21
-362	Glory Tracy	A Amazing Saga of a Woman And a Womanizer who must Discover a Cat in The First Manned Space Station	2006	1	7	2.99	115	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'amaz':4 'cat':16 'discov':14 'first':19 'glori':1 'man':20 'must':13 'saga':5 'space':21 'station':22 'traci':2 'woman':8,11
-363	Go Purple	A Fast-Paced Display of a Car And a Database Administrator who must Battle a Woman in A Baloon	2006	1	3	0.99	54	12.99	R	2013-05-26 14:50:58.951	{Trailers}	'administr':14 'baloon':22 'battl':17 'car':10 'databas':13 'display':7 'fast':5 'fast-pac':4 'go':1 'must':16 'pace':6 'purpl':2 'woman':19
-364	Godfather Diary	A Stunning Saga of a Lumberjack And a Squirrel who must Chase a Car in The Outback	2006	1	3	2.99	73	14.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'car':16 'chase':14 'diari':2 'godfath':1 'lumberjack':8 'must':13 'outback':19 'saga':5 'squirrel':11 'stun':4
-365	Gold River	A Taut Documentary of a Database Administrator And a Waitress who must Reach a Mad Scientist in A Baloon Factory	2006	1	4	4.99	154	21.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':9 'baloon':21 'databas':8 'documentari':5 'factori':22 'gold':1 'mad':17 'must':14 'reach':15 'river':2 'scientist':18 'taut':4 'waitress':12
-366	Goldfinger Sensibility	A Insightful Drama of a Mad Scientist And a Hunter who must Defeat a Pastry Chef in New Orleans	2006	1	3	0.99	93	29.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'chef':18 'defeat':15 'drama':5 'goldfing':1 'hunter':12 'insight':4 'mad':8 'must':14 'new':20 'orlean':21 'pastri':17 'scientist':9 'sensibl':2
-367	Goldmine Tycoon	A Brilliant Epistle of a Composer And a Frisbee who must Conquer a Husband in The Outback	2006	1	6	0.99	153	20.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'brilliant':4 'compos':8 'conquer':14 'epistl':5 'frisbe':11 'goldmin':1 'husband':16 'must':13 'outback':19 'tycoon':2
-368	Gone Trouble	A Insightful Character Study of a Mad Cow And a Forensic Psychologist who must Conquer a A Shark in A Manhattan Penthouse	2006	1	7	2.99	84	20.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'charact':5 'conquer':17 'cow':10 'forens':13 'gone':1 'insight':4 'mad':9 'manhattan':23 'must':16 'penthous':24 'psychologist':14 'shark':20 'studi':6 'troubl':2
-369	Goodfellas Salute	A Unbelieveable Tale of a Dog And a Explorer who must Sink a Mad Cow in A Baloon Factory	2006	1	4	4.99	56	22.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'baloon':20 'cow':17 'dog':8 'explor':11 'factori':21 'goodfella':1 'mad':16 'must':13 'salut':2 'sink':14 'tale':5 'unbeliev':4
-370	Gorgeous Bingo	A Action-Packed Display of a Sumo Wrestler And a Car who must Overcome a Waitress in A Baloon Factory	2006	1	4	2.99	108	26.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'action':5 'action-pack':4 'baloon':22 'bingo':2 'car':14 'display':7 'factori':23 'gorgeous':1 'must':16 'overcom':17 'pack':6 'sumo':10 'waitress':19 'wrestler':11
-371	Gosford Donnie	A Epic Panorama of a Mad Scientist And a Monkey who must Redeem a Secret Agent in Berlin	2006	1	5	4.99	129	17.99	G	2013-05-26 14:50:58.951	{Commentaries}	'agent':18 'berlin':20 'donni':2 'epic':4 'gosford':1 'mad':8 'monkey':12 'must':14 'panorama':5 'redeem':15 'scientist':9 'secret':17
-372	Graceland Dynamite	A Taut Display of a Cat And a Girl who must Overcome a Database Administrator in New Orleans	2006	1	5	4.99	140	26.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'administr':17 'cat':8 'databas':16 'display':5 'dynamit':2 'girl':11 'graceland':1 'must':13 'new':19 'orlean':20 'overcom':14 'taut':4
-373	Graduate Lord	A Lacklusture Epistle of a Girl And a A Shark who must Meet a Mad Scientist in Ancient China	2006	1	7	2.99	156	14.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'ancient':20 'china':21 'epistl':5 'girl':8 'graduat':1 'lacklustur':4 'lord':2 'mad':17 'meet':15 'must':14 'scientist':18 'shark':12
-374	Graffiti Love	A Unbelieveable Epistle of a Sumo Wrestler And a Hunter who must Build a Composer in Berlin	2006	1	3	0.99	117	29.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'berlin':19 'build':15 'compos':17 'epistl':5 'graffiti':1 'hunter':12 'love':2 'must':14 'sumo':8 'unbeliev':4 'wrestler':9
-375	Grail Frankenstein	A Unbelieveable Saga of a Teacher And a Monkey who must Fight a Girl in An Abandoned Mine Shaft	2006	1	4	2.99	85	17.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':19 'fight':14 'frankenstein':2 'girl':16 'grail':1 'mine':20 'monkey':11 'must':13 'saga':5 'shaft':21 'teacher':8 'unbeliev':4
-376	Grapes Fury	A Boring Yarn of a Mad Cow And a Sumo Wrestler who must Meet a Robot in Australia	2006	1	4	0.99	155	20.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'australia':20 'bore':4 'cow':9 'furi':2 'grape':1 'mad':8 'meet':16 'must':15 'robot':18 'sumo':12 'wrestler':13 'yarn':5
-377	Grease Youth	A Emotional Panorama of a Secret Agent And a Waitress who must Escape a Composer in Soviet Georgia	2006	1	7	0.99	135	20.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'agent':9 'compos':17 'emot':4 'escap':15 'georgia':20 'greas':1 'must':14 'panorama':5 'secret':8 'soviet':19 'waitress':12 'youth':2
-378	Greatest North	A Astounding Character Study of a Secret Agent And a Robot who must Build a A Shark in Berlin	2006	1	5	2.99	93	24.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'agent':10 'astound':4 'berlin':21 'build':16 'charact':5 'greatest':1 'must':15 'north':2 'robot':13 'secret':9 'shark':19 'studi':6
-379	Greedy Roots	A Amazing Reflection of a A Shark And a Butler who must Chase a Hunter in The Canadian Rockies	2006	1	7	0.99	166	14.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'amaz':4 'butler':12 'canadian':20 'chase':15 'greedi':1 'hunter':17 'must':14 'reflect':5 'rocki':21 'root':2 'shark':9
-380	Greek Everyone	A Stunning Display of a Butler And a Teacher who must Confront a A Shark in The First Manned Space Station	2006	1	7	2.99	176	11.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'butler':8 'confront':14 'display':5 'everyon':2 'first':20 'greek':1 'man':21 'must':13 'shark':17 'space':22 'station':23 'stun':4 'teacher':11
-381	Grinch Massage	A Intrepid Display of a Madman And a Feminist who must Pursue a Pioneer in The First Manned Space Station	2006	1	7	4.99	150	25.99	R	2013-05-26 14:50:58.951	{Trailers}	'display':5 'feminist':11 'first':19 'grinch':1 'intrepid':4 'madman':8 'man':20 'massag':2 'must':13 'pioneer':16 'pursu':14 'space':21 'station':22
-382	Grit Clockwork	A Thoughtful Display of a Dentist And a Squirrel who must Confront a Lumberjack in A Shark Tank	2006	1	3	0.99	137	21.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'clockwork':2 'confront':14 'dentist':8 'display':5 'grit':1 'lumberjack':16 'must':13 'shark':19 'squirrel':11 'tank':20 'thought':4
-383	Groove Fiction	A Unbelieveable Reflection of a Moose And a A Shark who must Defeat a Lumberjack in An Abandoned Mine Shaft	2006	1	6	0.99	111	13.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'abandon':20 'defeat':15 'fiction':2 'groov':1 'lumberjack':17 'mine':21 'moos':8 'must':14 'reflect':5 'shaft':22 'shark':12 'unbeliev':4
-385	Groundhog Uncut	A Brilliant Panorama of a Astronaut And a Technical Writer who must Discover a Butler in A Manhattan Penthouse	2006	1	6	4.99	139	26.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'astronaut':8 'brilliant':4 'butler':17 'discov':15 'groundhog':1 'manhattan':20 'must':14 'panorama':5 'penthous':21 'technic':11 'uncut':2 'writer':12
-386	Gump Date	A Intrepid Yarn of a Explorer And a Student who must Kill a Husband in An Abandoned Mine Shaft	2006	1	3	4.99	53	12.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'abandon':19 'date':2 'explor':8 'gump':1 'husband':16 'intrepid':4 'kill':14 'mine':20 'must':13 'shaft':21 'student':11 'yarn':5
-387	Gun Bonnie	A Boring Display of a Sumo Wrestler And a Husband who must Build a Waitress in The Gulf of Mexico	2006	1	7	0.99	100	27.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'bonni':2 'bore':4 'build':15 'display':5 'gulf':20 'gun':1 'husband':12 'mexico':22 'must':14 'sumo':8 'waitress':17 'wrestler':9
-388	Gunfight Moon	A Epic Reflection of a Pastry Chef And a Explorer who must Reach a Dentist in The Sahara Desert	2006	1	5	0.99	70	16.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'chef':9 'dentist':17 'desert':21 'epic':4 'explor':12 'gunfight':1 'moon':2 'must':14 'pastri':8 'reach':15 'reflect':5 'sahara':20
-389	Gunfighter Mussolini	A Touching Saga of a Robot And a Boy who must Kill a Man in Ancient Japan	2006	1	3	2.99	127	9.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':18 'boy':11 'gunfight':1 'japan':19 'kill':14 'man':16 'mussolini':2 'must':13 'robot':8 'saga':5 'touch':4
-390	Guys Falcon	A Boring Story of a Woman And a Feminist who must Redeem a Squirrel in A U-Boat	2006	1	4	4.99	84	20.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'boat':21 'bore':4 'falcon':2 'feminist':11 'guy':1 'must':13 'redeem':14 'squirrel':16 'stori':5 'u':20 'u-boat':19 'woman':8
-391	Half Outfield	A Epic Epistle of a Database Administrator And a Crocodile who must Face a Madman in A Jet Boat	2006	1	6	2.99	146	25.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':9 'boat':21 'crocodil':12 'databas':8 'epic':4 'epistl':5 'face':15 'half':1 'jet':20 'madman':17 'must':14 'outfield':2
-392	Hall Cassidy	A Beautiful Panorama of a Pastry Chef And a A Shark who must Battle a Pioneer in Soviet Georgia	2006	1	5	4.99	51	13.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'battl':16 'beauti':4 'cassidi':2 'chef':9 'georgia':21 'hall':1 'must':15 'panorama':5 'pastri':8 'pioneer':18 'shark':13 'soviet':20
-393	Halloween Nuts	A Amazing Panorama of a Forensic Psychologist And a Technical Writer who must Fight a Dentist in A U-Boat	2006	1	6	2.99	47	19.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'amaz':4 'boat':23 'dentist':18 'fight':16 'forens':8 'halloween':1 'must':15 'nut':2 'panorama':5 'psychologist':9 'technic':12 'u':22 'u-boat':21 'writer':13
-394	Hamlet Wisdom	A Touching Reflection of a Man And a Man who must Sink a Robot in The Outback	2006	1	7	2.99	146	21.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'hamlet':1 'man':8,11 'must':13 'outback':19 'reflect':5 'robot':16 'sink':14 'touch':4 'wisdom':2
-449	Identity Lover	A Boring Tale of a Composer And a Mad Cow who must Defeat a Car in The Outback	2006	1	4	2.99	119	12.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'bore':4 'car':17 'compos':8 'cow':12 'defeat':15 'ident':1 'lover':2 'mad':11 'must':14 'outback':20 'tale':5
-395	Handicap Boondock	A Beautiful Display of a Pioneer And a Squirrel who must Vanquish a Sumo Wrestler in Soviet Georgia	2006	1	4	0.99	108	28.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'beauti':4 'boondock':2 'display':5 'georgia':20 'handicap':1 'must':13 'pioneer':8 'soviet':19 'squirrel':11 'sumo':16 'vanquish':14 'wrestler':17
-396	Hanging Deep	A Action-Packed Yarn of a Boat And a Crocodile who must Build a Monkey in Berlin	2006	1	5	4.99	62	18.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'action':5 'action-pack':4 'berlin':20 'boat':10 'build':16 'crocodil':13 'deep':2 'hang':1 'monkey':18 'must':15 'pack':6 'yarn':7
-397	Hanky October	A Boring Epistle of a Database Administrator And a Explorer who must Pursue a Madman in Soviet Georgia	2006	1	5	2.99	107	26.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'administr':9 'bore':4 'databas':8 'epistl':5 'explor':12 'georgia':20 'hanki':1 'madman':17 'must':14 'octob':2 'pursu':15 'soviet':19
-398	Hanover Galaxy	A Stunning Reflection of a Girl And a Secret Agent who must Succumb a Boy in A MySQL Convention	2006	1	5	4.99	47	21.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'agent':12 'boy':17 'convent':21 'galaxi':2 'girl':8 'hanov':1 'must':14 'mysql':20 'reflect':5 'secret':11 'stun':4 'succumb':15
-399	Happiness United	A Action-Packed Panorama of a Husband And a Feminist who must Meet a Forensic Psychologist in Ancient Japan	2006	1	6	2.99	100	23.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'action':5 'action-pack':4 'ancient':21 'feminist':13 'forens':18 'happi':1 'husband':10 'japan':22 'meet':16 'must':15 'pack':6 'panorama':7 'psychologist':19 'unit':2
-400	Hardly Robbers	A Emotional Character Study of a Hunter And a Car who must Kill a Woman in Berlin	2006	1	7	2.99	72	15.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'berlin':19 'car':12 'charact':5 'emot':4 'hard':1 'hunter':9 'kill':15 'must':14 'robber':2 'studi':6 'woman':17
-401	Harold French	A Stunning Saga of a Sumo Wrestler And a Student who must Outrace a Moose in The Sahara Desert	2006	1	6	0.99	168	10.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'desert':21 'french':2 'harold':1 'moos':17 'must':14 'outrac':15 'saga':5 'sahara':20 'student':12 'stun':4 'sumo':8 'wrestler':9
-402	Harper Dying	A Awe-Inspiring Reflection of a Woman And a Cat who must Confront a Feminist in The Sahara Desert	2006	1	3	0.99	52	15.99	G	2013-05-26 14:50:58.951	{Trailers}	'awe':5 'awe-inspir':4 'cat':13 'confront':16 'desert':22 'die':2 'feminist':18 'harper':1 'inspir':6 'must':15 'reflect':7 'sahara':21 'woman':10
-403	Harry Idaho	A Taut Yarn of a Technical Writer And a Feminist who must Outrace a Dog in California	2006	1	5	4.99	121	18.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'california':19 'dog':17 'feminist':12 'harri':1 'idaho':2 'must':14 'outrac':15 'taut':4 'technic':8 'writer':9 'yarn':5
-404	Hate Handicap	A Intrepid Reflection of a Mad Scientist And a Pioneer who must Overcome a Hunter in The First Manned Space Station	2006	1	4	0.99	107	26.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'first':20 'handicap':2 'hate':1 'hunter':17 'intrepid':4 'mad':8 'man':21 'must':14 'overcom':15 'pioneer':12 'reflect':5 'scientist':9 'space':22 'station':23
-405	Haunted Antitrust	A Amazing Saga of a Man And a Dentist who must Reach a Technical Writer in Ancient India	2006	1	6	4.99	76	13.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'amaz':4 'ancient':19 'antitrust':2 'dentist':11 'haunt':1 'india':20 'man':8 'must':13 'reach':14 'saga':5 'technic':16 'writer':17
-406	Haunting Pianist	A Fast-Paced Story of a Database Administrator And a Composer who must Defeat a Squirrel in An Abandoned Amusement Park	2006	1	5	0.99	181	22.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'abandon':22 'administr':11 'amus':23 'compos':14 'databas':10 'defeat':17 'fast':5 'fast-pac':4 'haunt':1 'must':16 'pace':6 'park':24 'pianist':2 'squirrel':19 'stori':7
-407	Hawk Chill	A Action-Packed Drama of a Mad Scientist And a Composer who must Outgun a Car in Australia	2006	1	5	0.99	47	12.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'action':5 'action-pack':4 'australia':21 'car':19 'chill':2 'compos':14 'drama':7 'hawk':1 'mad':10 'must':16 'outgun':17 'pack':6 'scientist':11
-408	Head Stranger	A Thoughtful Saga of a Hunter And a Crocodile who must Confront a Dog in The Gulf of Mexico	2006	1	4	4.99	69	28.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'confront':14 'crocodil':11 'dog':16 'gulf':19 'head':1 'hunter':8 'mexico':21 'must':13 'saga':5 'stranger':2 'thought':4
-409	Heartbreakers Bright	A Awe-Inspiring Documentary of a A Shark And a Dentist who must Outrace a Pastry Chef in The Canadian Rockies	2006	1	3	4.99	59	9.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'bright':2 'canadian':23 'chef':20 'dentist':14 'documentari':7 'heartbreak':1 'inspir':6 'must':16 'outrac':17 'pastri':19 'rocki':24 'shark':11
-410	Heaven Freedom	A Intrepid Story of a Butler And a Car who must Vanquish a Man in New Orleans	2006	1	7	2.99	48	19.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'butler':8 'car':11 'freedom':2 'heaven':1 'intrepid':4 'man':16 'must':13 'new':18 'orlean':19 'stori':5 'vanquish':14
-411	Heavenly Gun	A Beautiful Yarn of a Forensic Psychologist And a Frisbee who must Battle a Moose in A Jet Boat	2006	1	5	4.99	49	13.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'battl':15 'beauti':4 'boat':21 'forens':8 'frisbe':12 'gun':2 'heaven':1 'jet':20 'moos':17 'must':14 'psychologist':9 'yarn':5
-412	Heavyweights Beast	A Unbelieveable Story of a Composer And a Dog who must Overcome a Womanizer in An Abandoned Amusement Park	2006	1	6	4.99	102	25.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'abandon':19 'amus':20 'beast':2 'compos':8 'dog':11 'heavyweight':1 'must':13 'overcom':14 'park':21 'stori':5 'unbeliev':4 'woman':16
-413	Hedwig Alter	A Action-Packed Yarn of a Womanizer And a Lumberjack who must Chase a Sumo Wrestler in A Monastery	2006	1	7	2.99	169	16.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'alter':2 'chase':16 'hedwig':1 'lumberjack':13 'monasteri':22 'must':15 'pack':6 'sumo':18 'woman':10 'wrestler':19 'yarn':7
-414	Hellfighters Sierra	A Taut Reflection of a A Shark And a Dentist who must Battle a Boat in Soviet Georgia	2006	1	3	2.99	75	23.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'battl':15 'boat':17 'dentist':12 'georgia':20 'hellfight':1 'must':14 'reflect':5 'shark':9 'sierra':2 'soviet':19 'taut':4
-415	High Encino	A Fateful Saga of a Waitress And a Hunter who must Outrace a Sumo Wrestler in Australia	2006	1	3	2.99	84	23.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'australia':19 'encino':2 'fate':4 'high':1 'hunter':11 'must':13 'outrac':14 'saga':5 'sumo':16 'waitress':8 'wrestler':17
-416	Highball Potter	A Action-Packed Saga of a Husband And a Dog who must Redeem a Database Administrator in The Sahara Desert	2006	1	6	0.99	110	10.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'action':5 'action-pack':4 'administr':19 'databas':18 'desert':23 'dog':13 'highbal':1 'husband':10 'must':15 'pack':6 'potter':2 'redeem':16 'saga':7 'sahara':22
-417	Hills Neighbors	A Epic Display of a Hunter And a Feminist who must Sink a Car in A U-Boat	2006	1	5	0.99	93	29.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':21 'car':16 'display':5 'epic':4 'feminist':11 'hill':1 'hunter':8 'must':13 'neighbor':2 'sink':14 'u':20 'u-boat':19
-418	Hobbit Alien	A Emotional Drama of a Husband And a Girl who must Outgun a Composer in The First Manned Space Station	2006	1	5	0.99	157	27.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'alien':2 'compos':16 'drama':5 'emot':4 'first':19 'girl':11 'hobbit':1 'husband':8 'man':20 'must':13 'outgun':14 'space':21 'station':22
-419	Hocus Frida	A Awe-Inspiring Tale of a Girl And a Madman who must Outgun a Student in A Shark Tank	2006	1	4	2.99	141	19.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'frida':2 'girl':10 'hocus':1 'inspir':6 'madman':13 'must':15 'outgun':16 'shark':21 'student':18 'tale':7 'tank':22
-420	Holes Brannigan	A Fast-Paced Reflection of a Technical Writer And a Student who must Fight a Boy in The Canadian Rockies	2006	1	7	4.99	128	27.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'boy':19 'brannigan':2 'canadian':22 'fast':5 'fast-pac':4 'fight':17 'hole':1 'must':16 'pace':6 'reflect':7 'rocki':23 'student':14 'technic':10 'writer':11
-421	Holiday Games	A Insightful Reflection of a Waitress And a Madman who must Pursue a Boy in Ancient Japan	2006	1	7	4.99	78	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':18 'boy':16 'game':2 'holiday':1 'insight':4 'japan':19 'madman':11 'must':13 'pursu':14 'reflect':5 'waitress':8
-422	Hollow Jeopardy	A Beautiful Character Study of a Robot And a Astronaut who must Overcome a Boat in A Monastery	2006	1	7	4.99	136	25.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'astronaut':12 'beauti':4 'boat':17 'charact':5 'hollow':1 'jeopardi':2 'monasteri':20 'must':14 'overcom':15 'robot':9 'studi':6
-423	Hollywood Anonymous	A Fast-Paced Epistle of a Boy And a Explorer who must Escape a Dog in A U-Boat	2006	1	7	0.99	69	29.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'anonym':2 'boat':23 'boy':10 'dog':18 'epistl':7 'escap':16 'explor':13 'fast':5 'fast-pac':4 'hollywood':1 'must':15 'pace':6 'u':22 'u-boat':21
-424	Holocaust Highball	A Awe-Inspiring Yarn of a Composer And a Man who must Find a Robot in Soviet Georgia	2006	1	6	0.99	149	12.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'awe':5 'awe-inspir':4 'compos':10 'find':16 'georgia':21 'highbal':2 'holocaust':1 'inspir':6 'man':13 'must':15 'robot':18 'soviet':20 'yarn':7
-425	Holy Tadpole	A Action-Packed Display of a Feminist And a Pioneer who must Pursue a Dog in A Baloon Factory	2006	1	6	0.99	88	20.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'action':5 'action-pack':4 'baloon':21 'display':7 'dog':18 'factori':22 'feminist':10 'holi':1 'must':15 'pack':6 'pioneer':13 'pursu':16 'tadpol':2
-426	Home Pity	A Touching Panorama of a Man And a Secret Agent who must Challenge a Teacher in A MySQL Convention	2006	1	7	4.99	185	15.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'agent':12 'challeng':15 'convent':21 'home':1 'man':8 'must':14 'mysql':20 'panorama':5 'piti':2 'secret':11 'teacher':17 'touch':4
-427	Homeward Cider	A Taut Reflection of a Astronaut And a Squirrel who must Fight a Squirrel in A Manhattan Penthouse	2006	1	5	0.99	103	19.99	R	2013-05-26 14:50:58.951	{Trailers}	'astronaut':8 'cider':2 'fight':14 'homeward':1 'manhattan':19 'must':13 'penthous':20 'reflect':5 'squirrel':11,16 'taut':4
-428	Homicide Peach	A Astounding Documentary of a Hunter And a Boy who must Confront a Boy in A MySQL Convention	2006	1	6	2.99	141	21.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'astound':4 'boy':11,16 'confront':14 'convent':20 'documentari':5 'homicid':1 'hunter':8 'must':13 'mysql':19 'peach':2
-429	Honey Ties	A Taut Story of a Waitress And a Crocodile who must Outrace a Lumberjack in A Shark Tank	2006	1	3	0.99	84	29.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'crocodil':11 'honey':1 'lumberjack':16 'must':13 'outrac':14 'shark':19 'stori':5 'tank':20 'taut':4 'tie':2 'waitress':8
-430	Hook Chariots	A Insightful Story of a Boy And a Dog who must Redeem a Boy in Australia	2006	1	7	0.99	49	23.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'australia':18 'boy':8,16 'chariot':2 'dog':11 'hook':1 'insight':4 'must':13 'redeem':14 'stori':5
-450	Idols Snatchers	A Insightful Drama of a Car And a Composer who must Fight a Man in A Monastery	2006	1	5	2.99	84	29.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'car':8 'compos':11 'drama':5 'fight':14 'idol':1 'insight':4 'man':16 'monasteri':19 'must':13 'snatcher':2
-431	Hoosiers Birdcage	A Astounding Display of a Explorer And a Boat who must Vanquish a Car in The First Manned Space Station	2006	1	3	2.99	176	12.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'astound':4 'birdcag':2 'boat':11 'car':16 'display':5 'explor':8 'first':19 'hoosier':1 'man':20 'must':13 'space':21 'station':22 'vanquish':14
-432	Hope Tootsie	A Amazing Documentary of a Student And a Sumo Wrestler who must Outgun a A Shark in A Shark Tank	2006	1	4	2.99	139	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'amaz':4 'documentari':5 'hope':1 'must':14 'outgun':15 'shark':18,21 'student':8 'sumo':11 'tank':22 'tootsi':2 'wrestler':12
-433	Horn Working	A Stunning Display of a Mad Scientist And a Technical Writer who must Succumb a Monkey in A Shark Tank	2006	1	4	2.99	95	23.99	PG	2013-05-26 14:50:58.951	{Trailers}	'display':5 'horn':1 'mad':8 'monkey':18 'must':15 'scientist':9 'shark':21 'stun':4 'succumb':16 'tank':22 'technic':12 'work':2 'writer':13
-434	Horror Reign	A Touching Documentary of a A Shark And a Car who must Build a Husband in Nigeria	2006	1	3	0.99	139	25.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'build':15 'car':12 'documentari':5 'horror':1 'husband':17 'must':14 'nigeria':19 'reign':2 'shark':9 'touch':4
-435	Hotel Happiness	A Thrilling Yarn of a Pastry Chef And a A Shark who must Challenge a Mad Scientist in The Outback	2006	1	6	4.99	181	28.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'challeng':16 'chef':9 'happi':2 'hotel':1 'mad':18 'must':15 'outback':22 'pastri':8 'scientist':19 'shark':13 'thrill':4 'yarn':5
-436	Hours Rage	A Fateful Story of a Explorer And a Feminist who must Meet a Technical Writer in Soviet Georgia	2006	1	4	0.99	122	14.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'explor':8 'fate':4 'feminist':11 'georgia':20 'hour':1 'meet':14 'must':13 'rage':2 'soviet':19 'stori':5 'technic':16 'writer':17
-437	House Dynamite	A Taut Story of a Pioneer And a Squirrel who must Battle a Student in Soviet Georgia	2006	1	7	2.99	109	13.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'battl':14 'dynamit':2 'georgia':19 'hous':1 'must':13 'pioneer':8 'soviet':18 'squirrel':11 'stori':5 'student':16 'taut':4
-438	Human Graffiti	A Beautiful Reflection of a Womanizer And a Sumo Wrestler who must Chase a Database Administrator in The Gulf of Mexico	2006	1	3	2.99	68	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'administr':18 'beauti':4 'chase':15 'databas':17 'graffiti':2 'gulf':21 'human':1 'mexico':23 'must':14 'reflect':5 'sumo':11 'woman':8 'wrestler':12
-439	Hunchback Impossible	A Touching Yarn of a Frisbee And a Dentist who must Fight a Composer in Ancient Japan	2006	1	4	4.99	151	28.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':18 'compos':16 'dentist':11 'fight':14 'frisbe':8 'hunchback':1 'imposs':2 'japan':19 'must':13 'touch':4 'yarn':5
-440	Hunger Roof	A Unbelieveable Yarn of a Student And a Database Administrator who must Outgun a Husband in An Abandoned Mine Shaft	2006	1	6	0.99	105	21.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'abandon':20 'administr':12 'databas':11 'hunger':1 'husband':17 'mine':21 'must':14 'outgun':15 'roof':2 'shaft':22 'student':8 'unbeliev':4 'yarn':5
-441	Hunter Alter	A Emotional Drama of a Mad Cow And a Boat who must Redeem a Secret Agent in A Shark Tank	2006	1	5	2.99	125	21.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'agent':18 'alter':2 'boat':12 'cow':9 'drama':5 'emot':4 'hunter':1 'mad':8 'must':14 'redeem':15 'secret':17 'shark':21 'tank':22
-442	Hunting Musketeers	A Thrilling Reflection of a Pioneer And a Dentist who must Outrace a Womanizer in An Abandoned Mine Shaft	2006	1	6	2.99	65	24.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':19 'dentist':11 'hunt':1 'mine':20 'musket':2 'must':13 'outrac':14 'pioneer':8 'reflect':5 'shaft':21 'thrill':4 'woman':16
-443	Hurricane Affair	A Lacklusture Epistle of a Database Administrator And a Woman who must Meet a Hunter in An Abandoned Mine Shaft	2006	1	6	2.99	49	11.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'abandon':20 'administr':9 'affair':2 'databas':8 'epistl':5 'hunter':17 'hurrican':1 'lacklustur':4 'meet':15 'mine':21 'must':14 'shaft':22 'woman':12
-444	Hustler Party	A Emotional Reflection of a Sumo Wrestler And a Monkey who must Conquer a Robot in The Sahara Desert	2006	1	3	4.99	83	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'conquer':15 'desert':21 'emot':4 'hustler':1 'monkey':12 'must':14 'parti':2 'reflect':5 'robot':17 'sahara':20 'sumo':8 'wrestler':9
-445	Hyde Doctor	A Fanciful Documentary of a Boy And a Woman who must Redeem a Womanizer in A Jet Boat	2006	1	5	2.99	100	11.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'boat':20 'boy':8 'doctor':2 'documentari':5 'fanci':4 'hyde':1 'jet':19 'must':13 'redeem':14 'woman':11,16
-446	Hysterical Grail	A Amazing Saga of a Madman And a Dentist who must Build a Car in A Manhattan Penthouse	2006	1	5	4.99	150	19.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'amaz':4 'build':14 'car':16 'dentist':11 'grail':2 'hyster':1 'madman':8 'manhattan':19 'must':13 'penthous':20 'saga':5
-447	Ice Crossing	A Fast-Paced Tale of a Butler And a Moose who must Overcome a Pioneer in A Manhattan Penthouse	2006	1	5	2.99	131	28.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'butler':10 'cross':2 'fast':5 'fast-pac':4 'ice':1 'manhattan':21 'moos':13 'must':15 'overcom':16 'pace':6 'penthous':22 'pioneer':18 'tale':7
-448	Idaho Love	A Fast-Paced Drama of a Student And a Crocodile who must Meet a Database Administrator in The Outback	2006	1	3	2.99	172	25.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':19 'crocodil':13 'databas':18 'drama':7 'fast':5 'fast-pac':4 'idaho':1 'love':2 'meet':16 'must':15 'outback':22 'pace':6 'student':10
-451	Igby Maker	A Epic Documentary of a Hunter And a Dog who must Outgun a Dog in A Baloon Factory	2006	1	7	4.99	160	12.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'baloon':19 'documentari':5 'dog':11,16 'epic':4 'factori':20 'hunter':8 'igbi':1 'maker':2 'must':13 'outgun':14
-452	Illusion Amelie	A Emotional Epistle of a Boat And a Mad Scientist who must Outrace a Robot in An Abandoned Mine Shaft	2006	1	4	0.99	122	15.99	R	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'abandon':20 'ameli':2 'boat':8 'emot':4 'epistl':5 'illus':1 'mad':11 'mine':21 'must':14 'outrac':15 'robot':17 'scientist':12 'shaft':22
-453	Image Princess	A Lacklusture Panorama of a Secret Agent And a Crocodile who must Discover a Madman in The Canadian Rockies	2006	1	3	2.99	178	17.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'agent':9 'canadian':20 'crocodil':12 'discov':15 'imag':1 'lacklustur':4 'madman':17 'must':14 'panorama':5 'princess':2 'rocki':21 'secret':8
-454	Impact Aladdin	A Epic Character Study of a Frisbee And a Moose who must Outgun a Technical Writer in A Shark Tank	2006	1	6	0.99	180	20.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'aladdin':2 'charact':5 'epic':4 'frisbe':9 'impact':1 'moos':12 'must':14 'outgun':15 'shark':21 'studi':6 'tank':22 'technic':17 'writer':18
-455	Impossible Prejudice	A Awe-Inspiring Yarn of a Monkey And a Hunter who must Chase a Teacher in Ancient China	2006	1	7	4.99	103	11.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'ancient':20 'awe':5 'awe-inspir':4 'chase':16 'china':21 'hunter':13 'imposs':1 'inspir':6 'monkey':10 'must':15 'prejudic':2 'teacher':18 'yarn':7
-456	Inch Jet	A Fateful Saga of a Womanizer And a Student who must Defeat a Butler in A Monastery	2006	1	6	4.99	167	18.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'butler':16 'defeat':14 'fate':4 'inch':1 'jet':2 'monasteri':19 'must':13 'saga':5 'student':11 'woman':8
-457	Independence Hotel	A Thrilling Tale of a Technical Writer And a Boy who must Face a Pioneer in A Monastery	2006	1	5	0.99	157	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'boy':12 'face':15 'hotel':2 'independ':1 'monasteri':20 'must':14 'pioneer':17 'tale':5 'technic':8 'thrill':4 'writer':9
-458	Indian Love	A Insightful Saga of a Mad Scientist And a Mad Scientist who must Kill a Astronaut in An Abandoned Fun House	2006	1	4	0.99	135	26.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':21 'astronaut':18 'fun':22 'hous':23 'indian':1 'insight':4 'kill':16 'love':2 'mad':8,12 'must':15 'saga':5 'scientist':9,13
-459	Informer Double	A Action-Packed Display of a Woman And a Dentist who must Redeem a Forensic Psychologist in The Canadian Rockies	2006	1	4	4.99	74	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'action':5 'action-pack':4 'canadian':22 'dentist':13 'display':7 'doubl':2 'forens':18 'inform':1 'must':15 'pack':6 'psychologist':19 'redeem':16 'rocki':23 'woman':10
-460	Innocent Usual	A Beautiful Drama of a Pioneer And a Crocodile who must Challenge a Student in The Outback	2006	1	3	4.99	178	26.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'beauti':4 'challeng':14 'crocodil':11 'drama':5 'innoc':1 'must':13 'outback':19 'pioneer':8 'student':16 'usual':2
-461	Insects Stone	A Epic Display of a Butler And a Dog who must Vanquish a Crocodile in A Manhattan Penthouse	2006	1	3	0.99	123	14.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'butler':8 'crocodil':16 'display':5 'dog':11 'epic':4 'insect':1 'manhattan':19 'must':13 'penthous':20 'stone':2 'vanquish':14
-462	Insider Arizona	A Astounding Saga of a Mad Scientist And a Hunter who must Pursue a Robot in A Baloon Factory	2006	1	5	2.99	78	17.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'arizona':2 'astound':4 'baloon':20 'factori':21 'hunter':12 'insid':1 'mad':8 'must':14 'pursu':15 'robot':17 'saga':5 'scientist':9
-463	Instinct Airport	A Touching Documentary of a Mad Cow And a Explorer who must Confront a Butler in A Manhattan Penthouse	2006	1	4	2.99	116	21.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'airport':2 'butler':17 'confront':15 'cow':9 'documentari':5 'explor':12 'instinct':1 'mad':8 'manhattan':20 'must':14 'penthous':21 'touch':4
-464	Intentions Empire	A Astounding Epistle of a Cat And a Cat who must Conquer a Mad Cow in A U-Boat	2006	1	3	2.99	107	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'astound':4 'boat':22 'cat':8,11 'conquer':14 'cow':17 'empir':2 'epistl':5 'intent':1 'mad':16 'must':13 'u':21 'u-boat':20
-465	Interview Liaisons	A Action-Packed Reflection of a Student And a Butler who must Discover a Database Administrator in A Manhattan Penthouse	2006	1	4	4.99	59	17.99	R	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'administr':19 'butler':13 'databas':18 'discov':16 'interview':1 'liaison':2 'manhattan':22 'must':15 'pack':6 'penthous':23 'reflect':7 'student':10
-466	Intolerable Intentions	A Awe-Inspiring Story of a Monkey And a Pastry Chef who must Succumb a Womanizer in A MySQL Convention	2006	1	6	4.99	63	20.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'awe':5 'awe-inspir':4 'chef':14 'convent':23 'inspir':6 'intent':2 'intoler':1 'monkey':10 'must':16 'mysql':22 'pastri':13 'stori':7 'succumb':17 'woman':19
-467	Intrigue Worst	A Fanciful Character Study of a Explorer And a Mad Scientist who must Vanquish a Squirrel in A Jet Boat	2006	1	6	0.99	181	10.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'boat':22 'charact':5 'explor':9 'fanci':4 'intrigu':1 'jet':21 'mad':12 'must':15 'scientist':13 'squirrel':18 'studi':6 'vanquish':16 'worst':2
-468	Invasion Cyclone	A Lacklusture Character Study of a Mad Scientist And a Womanizer who must Outrace a Explorer in A Monastery	2006	1	5	2.99	97	12.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'charact':5 'cyclon':2 'explor':18 'invas':1 'lacklustur':4 'mad':9 'monasteri':21 'must':15 'outrac':16 'scientist':10 'studi':6 'woman':13
-469	Iron Moon	A Fast-Paced Documentary of a Mad Cow And a Boy who must Pursue a Dentist in A Baloon	2006	1	7	4.99	46	27.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'baloon':22 'boy':14 'cow':11 'dentist':19 'documentari':7 'fast':5 'fast-pac':4 'iron':1 'mad':10 'moon':2 'must':16 'pace':6 'pursu':17
-470	Ishtar Rocketeer	A Astounding Saga of a Dog And a Squirrel who must Conquer a Dog in An Abandoned Fun House	2006	1	4	4.99	79	24.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':19 'astound':4 'conquer':14 'dog':8,16 'fun':20 'hous':21 'ishtar':1 'must':13 'rocket':2 'saga':5 'squirrel':11
-471	Island Exorcist	A Fanciful Panorama of a Technical Writer And a Boy who must Find a Dentist in An Abandoned Fun House	2006	1	7	2.99	84	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':20 'boy':12 'dentist':17 'exorcist':2 'fanci':4 'find':15 'fun':21 'hous':22 'island':1 'must':14 'panorama':5 'technic':8 'writer':9
-472	Italian African	A Astounding Character Study of a Monkey And a Moose who must Outgun a Cat in A U-Boat	2006	1	3	4.99	174	24.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'african':2 'astound':4 'boat':22 'cat':17 'charact':5 'italian':1 'monkey':9 'moos':12 'must':14 'outgun':15 'studi':6 'u':21 'u-boat':20
-473	Jacket Frisco	A Insightful Reflection of a Womanizer And a Husband who must Conquer a Pastry Chef in A Baloon	2006	1	5	2.99	181	16.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'baloon':20 'chef':17 'conquer':14 'frisco':2 'husband':11 'insight':4 'jacket':1 'must':13 'pastri':16 'reflect':5 'woman':8
-474	Jade Bunch	A Insightful Panorama of a Squirrel And a Mad Cow who must Confront a Student in The First Manned Space Station	2006	1	6	2.99	174	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'bunch':2 'confront':15 'cow':12 'first':20 'insight':4 'jade':1 'mad':11 'man':21 'must':14 'panorama':5 'space':22 'squirrel':8 'station':23 'student':17
-475	Japanese Run	A Awe-Inspiring Epistle of a Feminist And a Girl who must Sink a Girl in The Outback	2006	1	6	0.99	135	29.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'awe':5 'awe-inspir':4 'epistl':7 'feminist':10 'girl':13,18 'inspir':6 'japanes':1 'must':15 'outback':21 'run':2 'sink':16
-476	Jason Trap	A Thoughtful Tale of a Woman And a A Shark who must Conquer a Dog in A Monastery	2006	1	5	2.99	130	9.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'conquer':15 'dog':17 'jason':1 'monasteri':20 'must':14 'shark':12 'tale':5 'thought':4 'trap':2 'woman':8
-477	Jawbreaker Brooklyn	A Stunning Reflection of a Boat And a Pastry Chef who must Succumb a A Shark in A Jet Boat	2006	1	5	0.99	118	15.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'boat':8,22 'brooklyn':2 'chef':12 'jawbreak':1 'jet':21 'must':14 'pastri':11 'reflect':5 'shark':18 'stun':4 'succumb':15
-478	Jaws Harry	A Thrilling Display of a Database Administrator And a Monkey who must Overcome a Dog in An Abandoned Fun House	2006	1	4	2.99	112	10.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'abandon':20 'administr':9 'databas':8 'display':5 'dog':17 'fun':21 'harri':2 'hous':22 'jaw':1 'monkey':12 'must':14 'overcom':15 'thrill':4
-479	Jedi Beneath	A Astounding Reflection of a Explorer And a Dentist who must Pursue a Student in Nigeria	2006	1	7	0.99	128	12.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'astound':4 'beneath':2 'dentist':11 'explor':8 'jedi':1 'must':13 'nigeria':18 'pursu':14 'reflect':5 'student':16
-480	Jeepers Wedding	A Astounding Display of a Composer And a Dog who must Kill a Pastry Chef in Soviet Georgia	2006	1	3	2.99	84	29.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'astound':4 'chef':17 'compos':8 'display':5 'dog':11 'georgia':20 'jeeper':1 'kill':14 'must':13 'pastri':16 'soviet':19 'wed':2
-481	Jekyll Frogmen	A Fanciful Epistle of a Student And a Astronaut who must Kill a Waitress in A Shark Tank	2006	1	4	2.99	58	22.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'astronaut':11 'epistl':5 'fanci':4 'frogmen':2 'jekyl':1 'kill':14 'must':13 'shark':19 'student':8 'tank':20 'waitress':16
-482	Jeopardy Encino	A Boring Panorama of a Man And a Mad Cow who must Face a Explorer in Ancient India	2006	1	3	0.99	102	12.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':19 'bore':4 'cow':12 'encino':2 'explor':17 'face':15 'india':20 'jeopardi':1 'mad':11 'man':8 'must':14 'panorama':5
-483	Jericho Mulan	A Amazing Yarn of a Hunter And a Butler who must Defeat a Boy in A Jet Boat	2006	1	3	2.99	171	29.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'amaz':4 'boat':20 'boy':16 'butler':11 'defeat':14 'hunter':8 'jericho':1 'jet':19 'mulan':2 'must':13 'yarn':5
-484	Jerk Paycheck	A Touching Character Study of a Pastry Chef And a Database Administrator who must Reach a A Shark in Ancient Japan	2006	1	3	2.99	172	13.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':14 'ancient':22 'charact':5 'chef':10 'databas':13 'japan':23 'jerk':1 'must':16 'pastri':9 'paycheck':2 'reach':17 'shark':20 'studi':6 'touch':4
-485	Jersey Sassy	A Lacklusture Documentary of a Madman And a Mad Cow who must Find a Feminist in Ancient Japan	2006	1	6	4.99	60	16.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'ancient':19 'cow':12 'documentari':5 'feminist':17 'find':15 'japan':20 'jersey':1 'lacklustur':4 'mad':11 'madman':8 'must':14 'sassi':2
-486	Jet Neighbors	A Amazing Display of a Lumberjack And a Teacher who must Outrace a Woman in A U-Boat	2006	1	7	4.99	59	14.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'amaz':4 'boat':21 'display':5 'jet':1 'lumberjack':8 'must':13 'neighbor':2 'outrac':14 'teacher':11 'u':20 'u-boat':19 'woman':16
-487	Jingle Sagebrush	A Epic Character Study of a Feminist And a Student who must Meet a Woman in A Baloon	2006	1	6	4.99	124	29.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'baloon':20 'charact':5 'epic':4 'feminist':9 'jingl':1 'meet':15 'must':14 'sagebrush':2 'student':12 'studi':6 'woman':17
-488	Joon Northwest	A Thrilling Panorama of a Technical Writer And a Car who must Discover a Forensic Psychologist in A Shark Tank	2006	1	3	0.99	105	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'car':12 'discov':15 'forens':17 'joon':1 'must':14 'northwest':2 'panorama':5 'psychologist':18 'shark':21 'tank':22 'technic':8 'thrill':4 'writer':9
-489	Juggler Hardly	A Epic Story of a Mad Cow And a Astronaut who must Challenge a Car in California	2006	1	4	0.99	54	14.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'astronaut':12 'california':19 'car':17 'challeng':15 'cow':9 'epic':4 'hard':2 'juggler':1 'mad':8 'must':14 'stori':5
-490	Jumanji Blade	A Intrepid Yarn of a Husband And a Womanizer who must Pursue a Mad Scientist in New Orleans	2006	1	4	2.99	121	13.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'blade':2 'husband':8 'intrepid':4 'jumanji':1 'mad':16 'must':13 'new':19 'orlean':20 'pursu':14 'scientist':17 'woman':11 'yarn':5
-491	Jumping Wrath	A Touching Epistle of a Monkey And a Feminist who must Discover a Boat in Berlin	2006	1	4	0.99	74	18.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'berlin':18 'boat':16 'discov':14 'epistl':5 'feminist':11 'jump':1 'monkey':8 'must':13 'touch':4 'wrath':2
-492	Jungle Closer	A Boring Character Study of a Boy And a Woman who must Battle a Astronaut in Australia	2006	1	6	0.99	134	11.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'astronaut':17 'australia':19 'battl':15 'bore':4 'boy':9 'charact':5 'closer':2 'jungl':1 'must':14 'studi':6 'woman':12
-493	Kane Exorcist	A Epic Documentary of a Composer And a Robot who must Overcome a Car in Berlin	2006	1	5	0.99	92	18.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'berlin':18 'car':16 'compos':8 'documentari':5 'epic':4 'exorcist':2 'kane':1 'must':13 'overcom':14 'robot':11
-494	Karate Moon	A Astounding Yarn of a Womanizer And a Dog who must Reach a Waitress in A MySQL Convention	2006	1	4	0.99	120	21.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'astound':4 'convent':20 'dog':11 'karat':1 'moon':2 'must':13 'mysql':19 'reach':14 'waitress':16 'woman':8 'yarn':5
-495	Kentuckian Giant	A Stunning Yarn of a Woman And a Frisbee who must Escape a Waitress in A U-Boat	2006	1	5	2.99	169	10.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':21 'escap':14 'frisbe':11 'giant':2 'kentuckian':1 'must':13 'stun':4 'u':20 'u-boat':19 'waitress':16 'woman':8 'yarn':5
-496	Kick Savannah	A Emotional Drama of a Monkey And a Robot who must Defeat a Monkey in New Orleans	2006	1	3	0.99	179	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'defeat':14 'drama':5 'emot':4 'kick':1 'monkey':8,16 'must':13 'new':18 'orlean':19 'robot':11 'savannah':2
-497	Kill Brotherhood	A Touching Display of a Hunter And a Secret Agent who must Redeem a Husband in The Outback	2006	1	4	0.99	54	15.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'agent':12 'brotherhood':2 'display':5 'hunter':8 'husband':17 'kill':1 'must':14 'outback':20 'redeem':15 'secret':11 'touch':4
-498	Killer Innocent	A Fanciful Character Study of a Student And a Explorer who must Succumb a Composer in An Abandoned Mine Shaft	2006	1	7	2.99	161	11.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':20 'charact':5 'compos':17 'explor':12 'fanci':4 'innoc':2 'killer':1 'mine':21 'must':14 'shaft':22 'student':9 'studi':6 'succumb':15
-499	King Evolution	A Action-Packed Tale of a Boy And a Lumberjack who must Chase a Madman in A Baloon	2006	1	3	4.99	184	24.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'action':5 'action-pack':4 'baloon':21 'boy':10 'chase':16 'evolut':2 'king':1 'lumberjack':13 'madman':18 'must':15 'pack':6 'tale':7
-500	Kiss Glory	A Lacklusture Reflection of a Girl And a Husband who must Find a Robot in The Canadian Rockies	2006	1	5	4.99	163	11.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'canadian':19 'find':14 'girl':8 'glori':2 'husband':11 'kiss':1 'lacklustur':4 'must':13 'reflect':5 'robot':16 'rocki':20
-501	Kissing Dolls	A Insightful Reflection of a Pioneer And a Teacher who must Build a Composer in The First Manned Space Station	2006	1	3	4.99	141	9.99	R	2013-05-26 14:50:58.951	{Trailers}	'build':14 'compos':16 'doll':2 'first':19 'insight':4 'kiss':1 'man':20 'must':13 'pioneer':8 'reflect':5 'space':21 'station':22 'teacher':11
-502	Knock Warlock	A Unbelieveable Story of a Teacher And a Boat who must Confront a Moose in A Baloon	2006	1	4	2.99	71	21.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'baloon':19 'boat':11 'confront':14 'knock':1 'moos':16 'must':13 'stori':5 'teacher':8 'unbeliev':4 'warlock':2
-503	Kramer Chocolate	A Amazing Yarn of a Robot And a Pastry Chef who must Redeem a Mad Scientist in The Outback	2006	1	3	2.99	171	24.99	R	2013-05-26 14:50:58.951	{Trailers}	'amaz':4 'chef':12 'chocol':2 'kramer':1 'mad':17 'must':14 'outback':21 'pastri':11 'redeem':15 'robot':8 'scientist':18 'yarn':5
-504	Kwai Homeward	A Amazing Drama of a Car And a Squirrel who must Pursue a Car in Soviet Georgia	2006	1	5	0.99	46	25.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'amaz':4 'car':8,16 'drama':5 'georgia':19 'homeward':2 'kwai':1 'must':13 'pursu':14 'soviet':18 'squirrel':11
-505	Labyrinth League	A Awe-Inspiring Saga of a Composer And a Frisbee who must Succumb a Pioneer in The Sahara Desert	2006	1	6	2.99	46	24.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'awe':5 'awe-inspir':4 'compos':10 'desert':22 'frisbe':13 'inspir':6 'labyrinth':1 'leagu':2 'must':15 'pioneer':18 'saga':7 'sahara':21 'succumb':16
-753	Rush Goodfellas	A Emotional Display of a Man And a Dentist who must Challenge a Squirrel in Australia	2006	1	3	0.99	48	20.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'australia':18 'challeng':14 'dentist':11 'display':5 'emot':4 'goodfella':2 'man':8 'must':13 'rush':1 'squirrel':16
-506	Lady Stage	A Beautiful Character Study of a Woman And a Man who must Pursue a Explorer in A U-Boat	2006	1	4	4.99	67	14.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'beauti':4 'boat':22 'charact':5 'explor':17 'ladi':1 'man':12 'must':14 'pursu':15 'stage':2 'studi':6 'u':21 'u-boat':20 'woman':9
-507	Ladybugs Armageddon	A Fateful Reflection of a Dog And a Mad Scientist who must Meet a Mad Scientist in New Orleans	2006	1	4	0.99	113	13.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'armageddon':2 'dog':8 'fate':4 'ladybug':1 'mad':11,17 'meet':15 'must':14 'new':20 'orlean':21 'reflect':5 'scientist':12,18
-508	Lambs Cincinatti	A Insightful Story of a Man And a Feminist who must Fight a Composer in Australia	2006	1	6	4.99	144	18.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'australia':18 'cincinatti':2 'compos':16 'feminist':11 'fight':14 'insight':4 'lamb':1 'man':8 'must':13 'stori':5
-509	Language Cowboy	A Epic Yarn of a Cat And a Madman who must Vanquish a Dentist in An Abandoned Amusement Park	2006	1	5	0.99	78	26.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':19 'amus':20 'cat':8 'cowboy':2 'dentist':16 'epic':4 'languag':1 'madman':11 'must':13 'park':21 'vanquish':14 'yarn':5
-510	Lawless Vision	A Insightful Yarn of a Boy And a Sumo Wrestler who must Outgun a Car in The Outback	2006	1	6	4.99	181	29.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'boy':8 'car':17 'insight':4 'lawless':1 'must':14 'outback':20 'outgun':15 'sumo':11 'vision':2 'wrestler':12 'yarn':5
-511	Lawrence Love	A Fanciful Yarn of a Database Administrator And a Mad Cow who must Pursue a Womanizer in Berlin	2006	1	7	0.99	175	23.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':9 'berlin':20 'cow':13 'databas':8 'fanci':4 'lawrenc':1 'love':2 'mad':12 'must':15 'pursu':16 'woman':18 'yarn':5
-512	League Hellfighters	A Thoughtful Saga of a A Shark And a Monkey who must Outgun a Student in Ancient China	2006	1	5	4.99	110	25.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'ancient':19 'china':20 'hellfight':2 'leagu':1 'monkey':12 'must':14 'outgun':15 'saga':5 'shark':9 'student':17 'thought':4
-513	Leathernecks Dwarfs	A Fateful Reflection of a Dog And a Mad Cow who must Outrace a Teacher in An Abandoned Mine Shaft	2006	1	6	2.99	153	21.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'abandon':20 'cow':12 'dog':8 'dwarf':2 'fate':4 'leatherneck':1 'mad':11 'mine':21 'must':14 'outrac':15 'reflect':5 'shaft':22 'teacher':17
-514	Lebowski Soldiers	A Beautiful Epistle of a Secret Agent And a Pioneer who must Chase a Astronaut in Ancient China	2006	1	6	2.99	69	17.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'agent':9 'ancient':19 'astronaut':17 'beauti':4 'chase':15 'china':20 'epistl':5 'lebowski':1 'must':14 'pioneer':12 'secret':8 'soldier':2
-515	Legally Secretary	A Astounding Tale of a A Shark And a Moose who must Meet a Womanizer in The Sahara Desert	2006	1	7	4.99	113	14.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'astound':4 'desert':21 'legal':1 'meet':15 'moos':12 'must':14 'sahara':20 'secretari':2 'shark':9 'tale':5 'woman':17
-516	Legend Jedi	A Awe-Inspiring Epistle of a Pioneer And a Student who must Outgun a Crocodile in The Outback	2006	1	7	0.99	59	18.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'crocodil':18 'epistl':7 'inspir':6 'jedi':2 'legend':1 'must':15 'outback':21 'outgun':16 'pioneer':10 'student':13
-517	Lesson Cleopatra	A Emotional Display of a Man And a Explorer who must Build a Boy in A Manhattan Penthouse	2006	1	3	0.99	167	28.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'build':14 'cleopatra':2 'display':5 'emot':4 'explor':11 'lesson':1 'man':8 'manhattan':19 'must':13 'penthous':20
-518	Liaisons Sweet	A Boring Drama of a A Shark And a Explorer who must Redeem a Waitress in The Canadian Rockies	2006	1	5	4.99	140	15.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'bore':4 'canadian':20 'drama':5 'explor':12 'liaison':1 'must':14 'redeem':15 'rocki':21 'shark':9 'sweet':2 'waitress':17
-519	Liberty Magnificent	A Boring Drama of a Student And a Cat who must Sink a Technical Writer in A Baloon	2006	1	3	2.99	138	27.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'baloon':20 'bore':4 'cat':11 'drama':5 'liberti':1 'magnific':2 'must':13 'sink':14 'student':8 'technic':16 'writer':17
-520	License Weekend	A Insightful Story of a Man And a Husband who must Overcome a Madman in A Monastery	2006	1	7	2.99	91	28.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'husband':11 'insight':4 'licens':1 'madman':16 'man':8 'monasteri':19 'must':13 'overcom':14 'stori':5 'weekend':2
-521	Lies Treatment	A Fast-Paced Character Study of a Dentist And a Moose who must Defeat a Composer in The First Manned Space Station	2006	1	7	4.99	147	28.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'charact':7 'compos':19 'defeat':17 'dentist':11 'fast':5 'fast-pac':4 'first':22 'lie':1 'man':23 'moos':14 'must':16 'pace':6 'space':24 'station':25 'studi':8 'treatment':2
-522	Life Twisted	A Thrilling Reflection of a Teacher And a Composer who must Find a Man in The First Manned Space Station	2006	1	4	2.99	137	9.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'compos':11 'find':14 'first':19 'life':1 'man':16,20 'must':13 'reflect':5 'space':21 'station':22 'teacher':8 'thrill':4 'twist':2
-523	Lights Deer	A Unbelieveable Epistle of a Dog And a Woman who must Confront a Moose in The Gulf of Mexico	2006	1	7	0.99	174	21.99	R	2013-05-26 14:50:58.951	{Commentaries}	'confront':14 'deer':2 'dog':8 'epistl':5 'gulf':19 'light':1 'mexico':21 'moos':16 'must':13 'unbeliev':4 'woman':11
-560	Mars Roman	A Boring Drama of a Car And a Dog who must Succumb a Madman in Soviet Georgia	2006	1	6	0.99	62	21.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'bore':4 'car':8 'dog':11 'drama':5 'georgia':19 'madman':16 'mar':1 'must':13 'roman':2 'soviet':18 'succumb':14
-524	Lion Uncut	A Intrepid Display of a Pastry Chef And a Cat who must Kill a A Shark in Ancient China	2006	1	6	0.99	50	13.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':20 'cat':12 'chef':9 'china':21 'display':5 'intrepid':4 'kill':15 'lion':1 'must':14 'pastri':8 'shark':18 'uncut':2
-525	Loathing Legally	A Boring Epistle of a Pioneer And a Mad Scientist who must Escape a Frisbee in The Gulf of Mexico	2006	1	4	0.99	140	29.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'bore':4 'epistl':5 'escap':15 'frisbe':17 'gulf':20 'legal':2 'loath':1 'mad':11 'mexico':22 'must':14 'pioneer':8 'scientist':12
-526	Lock Rear	A Thoughtful Character Study of a Squirrel And a Technical Writer who must Outrace a Student in Ancient Japan	2006	1	7	2.99	120	10.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':20 'charact':5 'japan':21 'lock':1 'must':15 'outrac':16 'rear':2 'squirrel':9 'student':18 'studi':6 'technic':12 'thought':4 'writer':13
-527	Lola Agent	A Astounding Tale of a Mad Scientist And a Husband who must Redeem a Database Administrator in Ancient Japan	2006	1	4	4.99	85	24.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'administr':18 'agent':2 'ancient':20 'astound':4 'databas':17 'husband':12 'japan':21 'lola':1 'mad':8 'must':14 'redeem':15 'scientist':9 'tale':5
-528	Lolita World	A Thrilling Drama of a Girl And a Robot who must Redeem a Waitress in An Abandoned Mine Shaft	2006	1	4	2.99	155	25.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':19 'drama':5 'girl':8 'lolita':1 'mine':20 'must':13 'redeem':14 'robot':11 'shaft':21 'thrill':4 'waitress':16 'world':2
-529	Lonely Elephant	A Intrepid Story of a Student And a Dog who must Challenge a Explorer in Soviet Georgia	2006	1	3	2.99	67	12.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'challeng':14 'dog':11 'eleph':2 'explor':16 'georgia':19 'intrepid':4 'lone':1 'must':13 'soviet':18 'stori':5 'student':8
-530	Lord Arizona	A Action-Packed Display of a Frisbee And a Pastry Chef who must Pursue a Crocodile in A Jet Boat	2006	1	5	2.99	108	27.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'action':5 'action-pack':4 'arizona':2 'boat':23 'chef':14 'crocodil':19 'display':7 'frisbe':10 'jet':22 'lord':1 'must':16 'pack':6 'pastri':13 'pursu':17
-531	Lose Inch	A Stunning Reflection of a Student And a Technical Writer who must Battle a Butler in The First Manned Space Station	2006	1	3	0.99	137	18.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'battl':15 'butler':17 'first':20 'inch':2 'lose':1 'man':21 'must':14 'reflect':5 'space':22 'station':23 'student':8 'stun':4 'technic':11 'writer':12
-532	Loser Hustler	A Stunning Drama of a Robot And a Feminist who must Outgun a Butler in Nigeria	2006	1	5	4.99	80	28.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'butler':16 'drama':5 'feminist':11 'hustler':2 'loser':1 'must':13 'nigeria':18 'outgun':14 'robot':8 'stun':4
-533	Lost Bird	A Emotional Character Study of a Robot And a A Shark who must Defeat a Technical Writer in A Manhattan Penthouse	2006	1	4	2.99	98	21.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'bird':2 'charact':5 'defeat':16 'emot':4 'lost':1 'manhattan':22 'must':15 'penthous':23 'robot':9 'shark':13 'studi':6 'technic':18 'writer':19
-534	Louisiana Harry	A Lacklusture Drama of a Girl And a Technical Writer who must Redeem a Monkey in A Shark Tank	2006	1	5	0.99	70	18.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'drama':5 'girl':8 'harri':2 'lacklustur':4 'louisiana':1 'monkey':17 'must':14 'redeem':15 'shark':20 'tank':21 'technic':11 'writer':12
-535	Love Suicides	A Brilliant Panorama of a Hunter And a Explorer who must Pursue a Dentist in An Abandoned Fun House	2006	1	6	0.99	181	21.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':19 'brilliant':4 'dentist':16 'explor':11 'fun':20 'hous':21 'hunter':8 'love':1 'must':13 'panorama':5 'pursu':14 'suicid':2
-536	Lovely Jingle	A Fanciful Yarn of a Crocodile And a Forensic Psychologist who must Discover a Crocodile in The Outback	2006	1	3	2.99	65	18.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'crocodil':8,17 'discov':15 'fanci':4 'forens':11 'jingl':2 'love':1 'must':14 'outback':20 'psychologist':12 'yarn':5
-537	Lover Truman	A Emotional Yarn of a Robot And a Boy who must Outgun a Technical Writer in A U-Boat	2006	1	3	2.99	75	29.99	G	2013-05-26 14:50:58.951	{Trailers}	'boat':22 'boy':11 'emot':4 'lover':1 'must':13 'outgun':14 'robot':8 'technic':16 'truman':2 'u':21 'u-boat':20 'writer':17 'yarn':5
-538	Loverboy Attacks	A Boring Story of a Car And a Butler who must Build a Girl in Soviet Georgia	2006	1	7	0.99	162	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'attack':2 'bore':4 'build':14 'butler':11 'car':8 'georgia':19 'girl':16 'loverboy':1 'must':13 'soviet':18 'stori':5
-539	Luck Opus	A Boring Display of a Moose And a Squirrel who must Outrace a Teacher in A Shark Tank	2006	1	7	2.99	152	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'bore':4 'display':5 'luck':1 'moos':8 'must':13 'opus':2 'outrac':14 'shark':19 'squirrel':11 'tank':20 'teacher':16
-540	Lucky Flying	A Lacklusture Character Study of a A Shark And a Man who must Find a Forensic Psychologist in A U-Boat	2006	1	7	2.99	97	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'boat':24 'charact':5 'find':16 'fli':2 'forens':18 'lacklustur':4 'lucki':1 'man':13 'must':15 'psychologist':19 'shark':10 'studi':6 'u':23 'u-boat':22
-541	Luke Mummy	A Taut Character Study of a Boy And a Robot who must Redeem a Mad Scientist in Ancient India	2006	1	5	2.99	74	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'ancient':20 'boy':9 'charact':5 'india':21 'luke':1 'mad':17 'mummi':2 'must':14 'redeem':15 'robot':12 'scientist':18 'studi':6 'taut':4
-561	Mask Peach	A Boring Character Study of a Student And a Robot who must Meet a Woman in California	2006	1	6	2.99	123	26.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'bore':4 'california':19 'charact':5 'mask':1 'meet':15 'must':14 'peach':2 'robot':12 'student':9 'studi':6 'woman':17
-542	Lust Lock	A Fanciful Panorama of a Hunter And a Dentist who must Meet a Secret Agent in The Sahara Desert	2006	1	3	2.99	52	28.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'agent':17 'dentist':11 'desert':21 'fanci':4 'hunter':8 'lock':2 'lust':1 'meet':14 'must':13 'panorama':5 'sahara':20 'secret':16
-543	Madigan Dorado	A Astounding Character Study of a A Shark And a A Shark who must Discover a Crocodile in The Outback	2006	1	5	4.99	116	20.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'astound':4 'charact':5 'crocodil':19 'discov':17 'dorado':2 'madigan':1 'must':16 'outback':22 'shark':10,14 'studi':6
-544	Madison Trap	A Awe-Inspiring Reflection of a Monkey And a Dentist who must Overcome a Pioneer in A U-Boat	2006	1	4	2.99	147	11.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'boat':23 'dentist':13 'inspir':6 'madison':1 'monkey':10 'must':15 'overcom':16 'pioneer':18 'reflect':7 'trap':2 'u':22 'u-boat':21
-545	Madness Attacks	A Fanciful Tale of a Squirrel And a Boat who must Defeat a Crocodile in The Gulf of Mexico	2006	1	4	0.99	178	14.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'attack':2 'boat':11 'crocodil':16 'defeat':14 'fanci':4 'gulf':19 'mad':1 'mexico':21 'must':13 'squirrel':8 'tale':5
-546	Madre Gables	A Intrepid Panorama of a Sumo Wrestler And a Forensic Psychologist who must Discover a Moose in The First Manned Space Station	2006	1	7	2.99	98	27.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'discov':16 'first':21 'forens':12 'gabl':2 'intrepid':4 'madr':1 'man':22 'moos':18 'must':15 'panorama':5 'psychologist':13 'space':23 'station':24 'sumo':8 'wrestler':9
-547	Magic Mallrats	A Touching Documentary of a Pastry Chef And a Pastry Chef who must Build a Mad Scientist in California	2006	1	3	0.99	117	19.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'build':16 'california':21 'chef':9,13 'documentari':5 'mad':18 'magic':1 'mallrat':2 'must':15 'pastri':8,12 'scientist':19 'touch':4
-548	Magnificent Chitty	A Insightful Story of a Teacher And a Hunter who must Face a Mad Cow in California	2006	1	3	2.99	53	27.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'california':19 'chitti':2 'cow':17 'face':14 'hunter':11 'insight':4 'mad':16 'magnific':1 'must':13 'stori':5 'teacher':8
-549	Magnolia Forrester	A Thoughtful Documentary of a Composer And a Explorer who must Conquer a Dentist in New Orleans	2006	1	4	0.99	171	28.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'compos':8 'conquer':14 'dentist':16 'documentari':5 'explor':11 'forrest':2 'magnolia':1 'must':13 'new':18 'orlean':19 'thought':4
-550	Maguire Apache	A Fast-Paced Reflection of a Waitress And a Hunter who must Defeat a Forensic Psychologist in A Baloon	2006	1	6	2.99	74	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'apach':2 'baloon':22 'defeat':16 'fast':5 'fast-pac':4 'forens':18 'hunter':13 'maguir':1 'must':15 'pace':6 'psychologist':19 'reflect':7 'waitress':10
-551	Maiden Home	A Lacklusture Saga of a Moose And a Teacher who must Kill a Forensic Psychologist in A MySQL Convention	2006	1	3	4.99	138	9.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'convent':21 'forens':16 'home':2 'kill':14 'lacklustur':4 'maiden':1 'moos':8 'must':13 'mysql':20 'psychologist':17 'saga':5 'teacher':11
-552	Majestic Floats	A Thrilling Character Study of a Moose And a Student who must Escape a Butler in The First Manned Space Station	2006	1	5	0.99	130	15.99	PG	2013-05-26 14:50:58.951	{Trailers}	'butler':17 'charact':5 'escap':15 'first':20 'float':2 'majest':1 'man':21 'moos':9 'must':14 'space':22 'station':23 'student':12 'studi':6 'thrill':4
-553	Maker Gables	A Stunning Display of a Moose And a Database Administrator who must Pursue a Composer in A Jet Boat	2006	1	4	0.99	136	12.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'administr':12 'boat':21 'compos':17 'databas':11 'display':5 'gabl':2 'jet':20 'maker':1 'moos':8 'must':14 'pursu':15 'stun':4
-554	Malkovich Pet	A Intrepid Reflection of a Waitress And a A Shark who must Kill a Squirrel in The Outback	2006	1	6	2.99	159	22.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'intrepid':4 'kill':15 'malkovich':1 'must':14 'outback':20 'pet':2 'reflect':5 'shark':12 'squirrel':17 'waitress':8
-555	Mallrats United	A Thrilling Yarn of a Waitress And a Dentist who must Find a Hunter in A Monastery	2006	1	4	0.99	133	25.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'dentist':11 'find':14 'hunter':16 'mallrat':1 'monasteri':19 'must':13 'thrill':4 'unit':2 'waitress':8 'yarn':5
-556	Maltese Hope	A Fast-Paced Documentary of a Crocodile And a Sumo Wrestler who must Conquer a Explorer in California	2006	1	6	4.99	127	26.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'california':21 'conquer':17 'crocodil':10 'documentari':7 'explor':19 'fast':5 'fast-pac':4 'hope':2 'maltes':1 'must':16 'pace':6 'sumo':13 'wrestler':14
-557	Manchurian Curtain	A Stunning Tale of a Mad Cow And a Boy who must Battle a Boy in Berlin	2006	1	5	2.99	177	27.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'battl':15 'berlin':19 'boy':12,17 'cow':9 'curtain':2 'mad':8 'manchurian':1 'must':14 'stun':4 'tale':5
-558	Mannequin Worst	A Astounding Saga of a Mad Cow And a Pastry Chef who must Discover a Husband in Ancient India	2006	1	3	2.99	71	18.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'ancient':20 'astound':4 'chef':13 'cow':9 'discov':16 'husband':18 'india':21 'mad':8 'mannequin':1 'must':15 'pastri':12 'saga':5 'worst':2
-559	Married Go	A Fanciful Story of a Womanizer And a Dog who must Face a Forensic Psychologist in The Sahara Desert	2006	1	7	2.99	114	22.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'desert':21 'dog':11 'face':14 'fanci':4 'forens':16 'go':2 'marri':1 'must':13 'psychologist':17 'sahara':20 'stori':5 'woman':8
-562	Masked Bubble	A Fanciful Documentary of a Pioneer And a Boat who must Pursue a Pioneer in An Abandoned Mine Shaft	2006	1	6	0.99	151	12.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'abandon':19 'boat':11 'bubbl':2 'documentari':5 'fanci':4 'mask':1 'mine':20 'must':13 'pioneer':8,16 'pursu':14 'shaft':21
-563	Massacre Usual	A Fateful Reflection of a Waitress And a Crocodile who must Challenge a Forensic Psychologist in California	2006	1	6	4.99	165	16.99	R	2013-05-26 14:50:58.951	{Commentaries}	'california':19 'challeng':14 'crocodil':11 'fate':4 'forens':16 'massacr':1 'must':13 'psychologist':17 'reflect':5 'usual':2 'waitress':8
-564	Massage Image	A Fateful Drama of a Frisbee And a Crocodile who must Vanquish a Dog in The First Manned Space Station	2006	1	4	2.99	161	11.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'crocodil':11 'dog':16 'drama':5 'fate':4 'first':19 'frisbe':8 'imag':2 'man':20 'massag':1 'must':13 'space':21 'station':22 'vanquish':14
-565	Matrix Snowman	A Action-Packed Saga of a Womanizer And a Woman who must Overcome a Student in California	2006	1	6	4.99	56	9.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'action':5 'action-pack':4 'california':20 'matrix':1 'must':15 'overcom':16 'pack':6 'saga':7 'snowman':2 'student':18 'woman':10,13
-566	Maude Mod	A Beautiful Documentary of a Forensic Psychologist And a Cat who must Reach a Astronaut in Nigeria	2006	1	6	0.99	72	20.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'astronaut':17 'beauti':4 'cat':12 'documentari':5 'forens':8 'maud':1 'mod':2 'must':14 'nigeria':19 'psychologist':9 'reach':15
-567	Meet Chocolate	A Boring Documentary of a Dentist And a Butler who must Confront a Monkey in A MySQL Convention	2006	1	3	2.99	80	26.99	G	2013-05-26 14:50:58.951	{Trailers}	'bore':4 'butler':11 'chocol':2 'confront':14 'convent':20 'dentist':8 'documentari':5 'meet':1 'monkey':16 'must':13 'mysql':19
-568	Memento Zoolander	A Touching Epistle of a Squirrel And a Explorer who must Redeem a Pastry Chef in The Sahara Desert	2006	1	4	4.99	77	11.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'chef':17 'desert':21 'epistl':5 'explor':11 'memento':1 'must':13 'pastri':16 'redeem':14 'sahara':20 'squirrel':8 'touch':4 'zooland':2
-569	Menagerie Rushmore	A Unbelieveable Panorama of a Composer And a Butler who must Overcome a Database Administrator in The First Manned Space Station	2006	1	7	2.99	147	18.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'administr':17 'butler':11 'compos':8 'databas':16 'first':20 'man':21 'menageri':1 'must':13 'overcom':14 'panorama':5 'rushmor':2 'space':22 'station':23 'unbeliev':4
-570	Mermaid Insects	A Lacklusture Drama of a Waitress And a Husband who must Fight a Husband in California	2006	1	5	4.99	104	20.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'california':18 'drama':5 'fight':14 'husband':11,16 'insect':2 'lacklustur':4 'mermaid':1 'must':13 'waitress':8
-571	Metal Armageddon	A Thrilling Display of a Lumberjack And a Crocodile who must Meet a Monkey in A Baloon Factory	2006	1	6	2.99	161	26.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'armageddon':2 'baloon':19 'crocodil':11 'display':5 'factori':20 'lumberjack':8 'meet':14 'metal':1 'monkey':16 'must':13 'thrill':4
-572	Metropolis Coma	A Emotional Saga of a Database Administrator And a Pastry Chef who must Confront a Teacher in A Baloon Factory	2006	1	4	2.99	64	9.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'administr':9 'baloon':21 'chef':13 'coma':2 'confront':16 'databas':8 'emot':4 'factori':22 'metropoli':1 'must':15 'pastri':12 'saga':5 'teacher':18
-573	Microcosmos Paradise	A Touching Character Study of a Boat And a Student who must Sink a A Shark in Nigeria	2006	1	6	2.99	105	22.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'boat':9 'charact':5 'microcosmo':1 'must':14 'nigeria':20 'paradis':2 'shark':18 'sink':15 'student':12 'studi':6 'touch':4
-574	Midnight Westward	A Taut Reflection of a Husband And a A Shark who must Redeem a Pastry Chef in A Monastery	2006	1	3	0.99	86	19.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'chef':18 'husband':8 'midnight':1 'monasteri':21 'must':14 'pastri':17 'redeem':15 'reflect':5 'shark':12 'taut':4 'westward':2
-575	Midsummer Groundhog	A Fateful Panorama of a Moose And a Dog who must Chase a Crocodile in Ancient Japan	2006	1	3	4.99	48	27.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':18 'chase':14 'crocodil':16 'dog':11 'fate':4 'groundhog':2 'japan':19 'midsumm':1 'moos':8 'must':13 'panorama':5
-576	Mighty Luck	A Astounding Epistle of a Mad Scientist And a Pioneer who must Escape a Database Administrator in A MySQL Convention	2006	1	7	2.99	122	13.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'administr':18 'astound':4 'convent':22 'databas':17 'epistl':5 'escap':15 'luck':2 'mad':8 'mighti':1 'must':14 'mysql':21 'pioneer':12 'scientist':9
-577	Mile Mulan	A Lacklusture Epistle of a Cat And a Husband who must Confront a Boy in A MySQL Convention	2006	1	4	0.99	64	10.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'cat':8 'confront':14 'convent':20 'epistl':5 'husband':11 'lacklustur':4 'mile':1 'mulan':2 'must':13 'mysql':19
-578	Million Ace	A Brilliant Documentary of a Womanizer And a Squirrel who must Find a Technical Writer in The Sahara Desert	2006	1	4	4.99	142	16.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'ace':2 'brilliant':4 'desert':21 'documentari':5 'find':14 'million':1 'must':13 'sahara':20 'squirrel':11 'technic':16 'woman':8 'writer':17
-579	Minds Truman	A Taut Yarn of a Mad Scientist And a Crocodile who must Outgun a Database Administrator in A Monastery	2006	1	3	4.99	149	22.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'administr':18 'crocodil':12 'databas':17 'mad':8 'mind':1 'monasteri':21 'must':14 'outgun':15 'scientist':9 'taut':4 'truman':2 'yarn':5
-580	Mine Titans	A Amazing Yarn of a Robot And a Womanizer who must Discover a Forensic Psychologist in Berlin	2006	1	3	4.99	166	12.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'amaz':4 'berlin':19 'discov':14 'forens':16 'mine':1 'must':13 'psychologist':17 'robot':8 'titan':2 'woman':11 'yarn':5
-581	Minority Kiss	A Insightful Display of a Lumberjack And a Sumo Wrestler who must Meet a Man in The Outback	2006	1	4	0.99	59	16.99	G	2013-05-26 14:50:58.951	{Trailers}	'display':5 'insight':4 'kiss':2 'lumberjack':8 'man':17 'meet':15 'minor':1 'must':14 'outback':20 'sumo':11 'wrestler':12
-582	Miracle Virtual	A Touching Epistle of a Butler And a Boy who must Find a Mad Scientist in The Sahara Desert	2006	1	3	2.99	162	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'boy':11 'butler':8 'desert':21 'epistl':5 'find':14 'mad':16 'miracl':1 'must':13 'sahara':20 'scientist':17 'touch':4 'virtual':2
-583	Mission Zoolander	A Intrepid Story of a Sumo Wrestler And a Teacher who must Meet a A Shark in An Abandoned Fun House	2006	1	3	4.99	164	26.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'abandon':21 'fun':22 'hous':23 'intrepid':4 'meet':15 'mission':1 'must':14 'shark':18 'stori':5 'sumo':8 'teacher':12 'wrestler':9 'zooland':2
-584	Mixed Doors	A Taut Drama of a Womanizer And a Lumberjack who must Succumb a Pioneer in Ancient India	2006	1	6	2.99	180	26.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'ancient':18 'door':2 'drama':5 'india':19 'lumberjack':11 'mix':1 'must':13 'pioneer':16 'succumb':14 'taut':4 'woman':8
-585	Mob Duffel	A Unbelieveable Documentary of a Frisbee And a Boat who must Meet a Boy in The Canadian Rockies	2006	1	4	0.99	105	25.99	G	2013-05-26 14:50:58.951	{Trailers}	'boat':11 'boy':16 'canadian':19 'documentari':5 'duffel':2 'frisbe':8 'meet':14 'mob':1 'must':13 'rocki':20 'unbeliev':4
-586	Mockingbird Hollywood	A Thoughtful Panorama of a Man And a Car who must Sink a Composer in Berlin	2006	1	4	0.99	60	27.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'berlin':18 'car':11 'compos':16 'hollywood':2 'man':8 'mockingbird':1 'must':13 'panorama':5 'sink':14 'thought':4
-587	Mod Secretary	A Boring Documentary of a Mad Cow And a Cat who must Build a Lumberjack in New Orleans	2006	1	6	4.99	77	20.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'bore':4 'build':15 'cat':12 'cow':9 'documentari':5 'lumberjack':17 'mad':8 'mod':1 'must':14 'new':19 'orlean':20 'secretari':2
-588	Model Fish	A Beautiful Panorama of a Boat And a Crocodile who must Outrace a Dog in Australia	2006	1	4	4.99	175	11.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'australia':18 'beauti':4 'boat':8 'crocodil':11 'dog':16 'fish':2 'model':1 'must':13 'outrac':14 'panorama':5
-589	Modern Dorado	A Awe-Inspiring Story of a Butler And a Sumo Wrestler who must Redeem a Boy in New Orleans	2006	1	3	0.99	74	20.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'boy':19 'butler':10 'dorado':2 'inspir':6 'modern':1 'must':16 'new':21 'orlean':22 'redeem':17 'stori':7 'sumo':13 'wrestler':14
-590	Money Harold	A Touching Tale of a Explorer And a Boat who must Defeat a Robot in Australia	2006	1	3	2.99	135	17.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'australia':18 'boat':11 'defeat':14 'explor':8 'harold':2 'money':1 'must':13 'robot':16 'tale':5 'touch':4
-591	Monsoon Cause	A Astounding Tale of a Crocodile And a Car who must Outrace a Squirrel in A U-Boat	2006	1	6	4.99	182	20.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'astound':4 'boat':21 'car':11 'caus':2 'crocodil':8 'monsoon':1 'must':13 'outrac':14 'squirrel':16 'tale':5 'u':20 'u-boat':19
-592	Monster Spartacus	A Fast-Paced Story of a Waitress And a Cat who must Fight a Girl in Australia	2006	1	6	2.99	107	28.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'australia':20 'cat':13 'fast':5 'fast-pac':4 'fight':16 'girl':18 'monster':1 'must':15 'pace':6 'spartacus':2 'stori':7 'waitress':10
-593	Monterey Labyrinth	A Awe-Inspiring Drama of a Monkey And a Composer who must Escape a Feminist in A U-Boat	2006	1	6	0.99	158	13.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'awe':5 'awe-inspir':4 'boat':23 'compos':13 'drama':7 'escap':16 'feminist':18 'inspir':6 'labyrinth':2 'monkey':10 'monterey':1 'must':15 'u':22 'u-boat':21
-594	Montezuma Command	A Thrilling Reflection of a Waitress And a Butler who must Battle a Butler in A Jet Boat	2006	1	6	0.99	126	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'battl':14 'boat':20 'butler':11,16 'command':2 'jet':19 'montezuma':1 'must':13 'reflect':5 'thrill':4 'waitress':8
-595	Moon Bunch	A Beautiful Tale of a Astronaut And a Mad Cow who must Challenge a Cat in A Baloon Factory	2006	1	7	0.99	83	20.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'astronaut':8 'baloon':20 'beauti':4 'bunch':2 'cat':17 'challeng':15 'cow':12 'factori':21 'mad':11 'moon':1 'must':14 'tale':5
-596	Moonshine Cabin	A Thoughtful Display of a Astronaut And a Feminist who must Chase a Frisbee in A Jet Boat	2006	1	4	4.99	171	25.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'astronaut':8 'boat':20 'cabin':2 'chase':14 'display':5 'feminist':11 'frisbe':16 'jet':19 'moonshin':1 'must':13 'thought':4
-597	Moonwalker Fool	A Epic Drama of a Feminist And a Pioneer who must Sink a Composer in New Orleans	2006	1	5	4.99	184	12.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'compos':16 'drama':5 'epic':4 'feminist':8 'fool':2 'moonwalk':1 'must':13 'new':18 'orlean':19 'pioneer':11 'sink':14
-598	Mosquito Armageddon	A Thoughtful Character Study of a Waitress And a Feminist who must Build a Teacher in Ancient Japan	2006	1	6	0.99	57	22.99	G	2013-05-26 14:50:58.951	{Trailers}	'ancient':19 'armageddon':2 'build':15 'charact':5 'feminist':12 'japan':20 'mosquito':1 'must':14 'studi':6 'teacher':17 'thought':4 'waitress':9
-599	Mother Oleander	A Boring Tale of a Husband And a Boy who must Fight a Squirrel in Ancient China	2006	1	3	0.99	103	20.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':18 'bore':4 'boy':11 'china':19 'fight':14 'husband':8 'mother':1 'must':13 'oleand':2 'squirrel':16 'tale':5
-600	Motions Details	A Awe-Inspiring Reflection of a Dog And a Student who must Kill a Car in An Abandoned Fun House	2006	1	5	0.99	166	16.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'abandon':21 'awe':5 'awe-inspir':4 'car':18 'detail':2 'dog':10 'fun':22 'hous':23 'inspir':6 'kill':16 'motion':1 'must':15 'reflect':7 'student':13
-601	Moulin Wake	A Astounding Story of a Forensic Psychologist And a Cat who must Battle a Teacher in An Abandoned Mine Shaft	2006	1	4	0.99	79	20.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'abandon':20 'astound':4 'battl':15 'cat':12 'forens':8 'mine':21 'moulin':1 'must':14 'psychologist':9 'shaft':22 'stori':5 'teacher':17 'wake':2
-602	Mourning Purple	A Lacklusture Display of a Waitress And a Lumberjack who must Chase a Pioneer in New Orleans	2006	1	5	0.99	146	14.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'chase':14 'display':5 'lacklustur':4 'lumberjack':11 'mourn':1 'must':13 'new':18 'orlean':19 'pioneer':16 'purpl':2 'waitress':8
-603	Movie Shakespeare	A Insightful Display of a Database Administrator And a Student who must Build a Hunter in Berlin	2006	1	6	4.99	53	27.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':9 'berlin':19 'build':15 'databas':8 'display':5 'hunter':17 'insight':4 'movi':1 'must':14 'shakespear':2 'student':12
-604	Mulan Moon	A Emotional Saga of a Womanizer And a Pioneer who must Overcome a Dentist in A Baloon	2006	1	4	0.99	160	10.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'baloon':19 'dentist':16 'emot':4 'moon':2 'mulan':1 'must':13 'overcom':14 'pioneer':11 'saga':5 'woman':8
-605	Mulholland Beast	A Awe-Inspiring Display of a Husband And a Squirrel who must Battle a Sumo Wrestler in A Jet Boat	2006	1	7	2.99	157	13.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'battl':16 'beast':2 'boat':23 'display':7 'husband':10 'inspir':6 'jet':22 'mulholland':1 'must':15 'squirrel':13 'sumo':18 'wrestler':19
-606	Mummy Creatures	A Fateful Character Study of a Crocodile And a Monkey who must Meet a Dentist in Australia	2006	1	3	0.99	160	15.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'australia':19 'charact':5 'creatur':2 'crocodil':9 'dentist':17 'fate':4 'meet':15 'monkey':12 'mummi':1 'must':14 'studi':6
-607	Muppet Mile	A Lacklusture Story of a Madman And a Teacher who must Kill a Frisbee in The Gulf of Mexico	2006	1	5	4.99	50	18.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'frisbe':16 'gulf':19 'kill':14 'lacklustur':4 'madman':8 'mexico':21 'mile':2 'muppet':1 'must':13 'stori':5 'teacher':11
-608	Murder Antitrust	A Brilliant Yarn of a Car And a Database Administrator who must Escape a Boy in A MySQL Convention	2006	1	6	2.99	166	11.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'administr':12 'antitrust':2 'boy':17 'brilliant':4 'car':8 'convent':21 'databas':11 'escap':15 'murder':1 'must':14 'mysql':20 'yarn':5
-609	Muscle Bright	A Stunning Panorama of a Sumo Wrestler And a Husband who must Redeem a Madman in Ancient India	2006	1	7	2.99	185	23.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'ancient':19 'bright':2 'husband':12 'india':20 'madman':17 'muscl':1 'must':14 'panorama':5 'redeem':15 'stun':4 'sumo':8 'wrestler':9
-610	Music Boondock	A Thrilling Tale of a Butler And a Astronaut who must Battle a Explorer in The First Manned Space Station	2006	1	7	0.99	129	17.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'astronaut':11 'battl':14 'boondock':2 'butler':8 'explor':16 'first':19 'man':20 'music':1 'must':13 'space':21 'station':22 'tale':5 'thrill':4
-611	Musketeers Wait	A Touching Yarn of a Student And a Moose who must Fight a Mad Cow in Australia	2006	1	7	4.99	73	17.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'australia':19 'cow':17 'fight':14 'mad':16 'moos':11 'musket':1 'must':13 'student':8 'touch':4 'wait':2 'yarn':5
-612	Mussolini Spoilers	A Thrilling Display of a Boat And a Monkey who must Meet a Composer in Ancient China	2006	1	6	2.99	180	10.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'ancient':18 'boat':8 'china':19 'compos':16 'display':5 'meet':14 'monkey':11 'mussolini':1 'must':13 'spoiler':2 'thrill':4
-613	Mystic Truman	A Epic Yarn of a Teacher And a Hunter who must Outgun a Explorer in Soviet Georgia	2006	1	5	0.99	92	19.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'epic':4 'explor':16 'georgia':19 'hunter':11 'must':13 'mystic':1 'outgun':14 'soviet':18 'teacher':8 'truman':2 'yarn':5
-614	Name Detective	A Touching Saga of a Sumo Wrestler And a Cat who must Pursue a Mad Scientist in Nigeria	2006	1	5	4.99	178	11.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'cat':12 'detect':2 'mad':17 'must':14 'name':1 'nigeria':20 'pursu':15 'saga':5 'scientist':18 'sumo':8 'touch':4 'wrestler':9
-615	Nash Chocolat	A Epic Reflection of a Monkey And a Mad Cow who must Kill a Forensic Psychologist in An Abandoned Mine Shaft	2006	1	6	2.99	180	21.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'abandon':21 'chocolat':2 'cow':12 'epic':4 'forens':17 'kill':15 'mad':11 'mine':22 'monkey':8 'must':14 'nash':1 'psychologist':18 'reflect':5 'shaft':23
-616	National Story	A Taut Epistle of a Mad Scientist And a Girl who must Escape a Monkey in California	2006	1	4	2.99	92	19.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'california':19 'epistl':5 'escap':15 'girl':12 'mad':8 'monkey':17 'must':14 'nation':1 'scientist':9 'stori':2 'taut':4
-617	Natural Stock	A Fast-Paced Story of a Sumo Wrestler And a Girl who must Defeat a Car in A Baloon Factory	2006	1	4	0.99	50	24.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'baloon':22 'car':19 'defeat':17 'factori':23 'fast':5 'fast-pac':4 'girl':14 'must':16 'natur':1 'pace':6 'stock':2 'stori':7 'sumo':10 'wrestler':11
-618	Necklace Outbreak	A Astounding Epistle of a Database Administrator And a Mad Scientist who must Pursue a Cat in California	2006	1	3	0.99	132	21.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'administr':9 'astound':4 'california':20 'cat':18 'databas':8 'epistl':5 'mad':12 'must':15 'necklac':1 'outbreak':2 'pursu':16 'scientist':13
-619	Neighbors Charade	A Fanciful Reflection of a Crocodile And a Astronaut who must Outrace a Feminist in An Abandoned Amusement Park	2006	1	3	0.99	161	20.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':19 'amus':20 'astronaut':11 'charad':2 'crocodil':8 'fanci':4 'feminist':16 'must':13 'neighbor':1 'outrac':14 'park':21 'reflect':5
-620	Nemo Campus	A Lacklusture Reflection of a Monkey And a Squirrel who must Outrace a Womanizer in A Manhattan Penthouse	2006	1	5	2.99	131	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'campus':2 'lacklustur':4 'manhattan':19 'monkey':8 'must':13 'nemo':1 'outrac':14 'penthous':20 'reflect':5 'squirrel':11 'woman':16
-621	Network Peak	A Unbelieveable Reflection of a Butler And a Boat who must Outgun a Mad Scientist in California	2006	1	5	2.99	75	23.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':11 'butler':8 'california':19 'mad':16 'must':13 'network':1 'outgun':14 'peak':2 'reflect':5 'scientist':17 'unbeliev':4
-622	Newsies Story	A Action-Packed Character Study of a Dog And a Lumberjack who must Outrace a Moose in The Gulf of Mexico	2006	1	4	0.99	159	25.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'action':5 'action-pack':4 'charact':7 'dog':11 'gulf':22 'lumberjack':14 'mexico':24 'moos':19 'must':16 'newsi':1 'outrac':17 'pack':6 'stori':2 'studi':8
-623	Newton Labyrinth	A Intrepid Character Study of a Moose And a Waitress who must Find a A Shark in Ancient India	2006	1	4	0.99	75	9.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':20 'charact':5 'find':15 'india':21 'intrepid':4 'labyrinth':2 'moos':9 'must':14 'newton':1 'shark':18 'studi':6 'waitress':12
-624	Nightmare Chill	A Brilliant Display of a Robot And a Butler who must Fight a Waitress in An Abandoned Mine Shaft	2006	1	3	4.99	149	25.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'abandon':19 'brilliant':4 'butler':11 'chill':2 'display':5 'fight':14 'mine':20 'must':13 'nightmar':1 'robot':8 'shaft':21 'waitress':16
-625	None Spiking	A Boring Reflection of a Secret Agent And a Astronaut who must Face a Composer in A Manhattan Penthouse	2006	1	3	0.99	83	18.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'agent':9 'astronaut':12 'bore':4 'compos':17 'face':15 'manhattan':20 'must':14 'none':1 'penthous':21 'reflect':5 'secret':8 'spike':2
-626	Noon Papi	A Unbelieveable Character Study of a Mad Scientist And a Astronaut who must Find a Pioneer in A Manhattan Penthouse	2006	1	5	2.99	57	12.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'astronaut':13 'charact':5 'find':16 'mad':9 'manhattan':21 'must':15 'noon':1 'papi':2 'penthous':22 'pioneer':18 'scientist':10 'studi':6 'unbeliev':4
-627	North Tequila	A Beautiful Character Study of a Mad Cow And a Robot who must Reach a Womanizer in New Orleans	2006	1	4	4.99	67	9.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'beauti':4 'charact':5 'cow':10 'mad':9 'must':15 'new':20 'north':1 'orlean':21 'reach':16 'robot':13 'studi':6 'tequila':2 'woman':18
-628	Northwest Polish	A Boring Character Study of a Boy And a A Shark who must Outrace a Womanizer in The Outback	2006	1	5	2.99	172	24.99	PG	2013-05-26 14:50:58.951	{Trailers}	'bore':4 'boy':9 'charact':5 'must':15 'northwest':1 'outback':21 'outrac':16 'polish':2 'shark':13 'studi':6 'woman':18
-629	Notorious Reunion	A Amazing Epistle of a Woman And a Squirrel who must Fight a Hunter in A Baloon	2006	1	7	0.99	128	9.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'amaz':4 'baloon':19 'epistl':5 'fight':14 'hunter':16 'must':13 'notori':1 'reunion':2 'squirrel':11 'woman':8
-630	Notting Speakeasy	A Thoughtful Display of a Butler And a Womanizer who must Find a Waitress in The Canadian Rockies	2006	1	7	0.99	48	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'butler':8 'canadian':19 'display':5 'find':14 'must':13 'not':1 'rocki':20 'speakeasi':2 'thought':4 'waitress':16 'woman':11
-631	Novocaine Flight	A Fanciful Display of a Student And a Teacher who must Outgun a Crocodile in Nigeria	2006	1	4	0.99	64	11.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'crocodil':16 'display':5 'fanci':4 'flight':2 'must':13 'nigeria':18 'novocain':1 'outgun':14 'student':8 'teacher':11
-632	Nuts Ties	A Thoughtful Drama of a Explorer And a Womanizer who must Meet a Teacher in California	2006	1	5	4.99	145	10.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'california':18 'drama':5 'explor':8 'meet':14 'must':13 'nut':1 'teacher':16 'thought':4 'tie':2 'woman':11
-633	October Submarine	A Taut Epistle of a Monkey And a Boy who must Confront a Husband in A Jet Boat	2006	1	6	4.99	54	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'boat':20 'boy':11 'confront':14 'epistl':5 'husband':16 'jet':19 'monkey':8 'must':13 'octob':1 'submarin':2 'taut':4
-634	Odds Boogie	A Thrilling Yarn of a Feminist And a Madman who must Battle a Hunter in Berlin	2006	1	6	0.99	48	14.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'battl':14 'berlin':18 'boogi':2 'feminist':8 'hunter':16 'madman':11 'must':13 'odd':1 'thrill':4 'yarn':5
-635	Oklahoma Jumanji	A Thoughtful Drama of a Dentist And a Womanizer who must Meet a Husband in The Sahara Desert	2006	1	7	0.99	58	15.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'dentist':8 'desert':20 'drama':5 'husband':16 'jumanji':2 'meet':14 'must':13 'oklahoma':1 'sahara':19 'thought':4 'woman':11
-636	Oleander Clue	A Boring Story of a Teacher And a Monkey who must Succumb a Forensic Psychologist in A Jet Boat	2006	1	5	0.99	161	12.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'boat':21 'bore':4 'clue':2 'forens':16 'jet':20 'monkey':11 'must':13 'oleand':1 'psychologist':17 'stori':5 'succumb':14 'teacher':8
-637	Open African	A Lacklusture Drama of a Secret Agent And a Explorer who must Discover a Car in A U-Boat	2006	1	7	4.99	131	16.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'african':2 'agent':9 'boat':22 'car':17 'discov':15 'drama':5 'explor':12 'lacklustur':4 'must':14 'open':1 'secret':8 'u':21 'u-boat':20
-638	Operation Operation	A Intrepid Character Study of a Man And a Frisbee who must Overcome a Madman in Ancient China	2006	1	7	2.99	156	23.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':19 'charact':5 'china':20 'frisbe':12 'intrepid':4 'madman':17 'man':9 'must':14 'oper':1,2 'overcom':15 'studi':6
-639	Opposite Necklace	A Fateful Epistle of a Crocodile And a Moose who must Kill a Explorer in Nigeria	2006	1	7	4.99	92	9.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'crocodil':8 'epistl':5 'explor':16 'fate':4 'kill':14 'moos':11 'must':13 'necklac':2 'nigeria':18 'opposit':1
-640	Opus Ice	A Fast-Paced Drama of a Hunter And a Boy who must Discover a Feminist in The Sahara Desert	2006	1	5	4.99	102	21.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'boy':13 'desert':22 'discov':16 'drama':7 'fast':5 'fast-pac':4 'feminist':18 'hunter':10 'ice':2 'must':15 'opus':1 'pace':6 'sahara':21
-641	Orange Grapes	A Astounding Documentary of a Butler And a Womanizer who must Face a Dog in A U-Boat	2006	1	4	0.99	76	21.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'astound':4 'boat':21 'butler':8 'documentari':5 'dog':16 'face':14 'grape':2 'must':13 'orang':1 'u':20 'u-boat':19 'woman':11
-642	Order Betrayed	A Amazing Saga of a Dog And a A Shark who must Challenge a Cat in The Sahara Desert	2006	1	7	2.99	120	13.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'amaz':4 'betray':2 'cat':17 'challeng':15 'desert':21 'dog':8 'must':14 'order':1 'saga':5 'sahara':20 'shark':12
-643	Orient Closer	A Astounding Epistle of a Technical Writer And a Teacher who must Fight a Squirrel in The Sahara Desert	2006	1	3	2.99	118	22.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'astound':4 'closer':2 'desert':21 'epistl':5 'fight':15 'must':14 'orient':1 'sahara':20 'squirrel':17 'teacher':12 'technic':8 'writer':9
-644	Oscar Gold	A Insightful Tale of a Database Administrator And a Dog who must Face a Madman in Soviet Georgia	2006	1	7	2.99	115	29.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'administr':9 'databas':8 'dog':12 'face':15 'georgia':20 'gold':2 'insight':4 'madman':17 'must':14 'oscar':1 'soviet':19 'tale':5
-645	Others Soup	A Lacklusture Documentary of a Mad Cow And a Madman who must Sink a Moose in The Gulf of Mexico	2006	1	7	2.99	118	18.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'cow':9 'documentari':5 'gulf':20 'lacklustur':4 'mad':8 'madman':12 'mexico':22 'moos':17 'must':14 'other':1 'sink':15 'soup':2
-646	Outbreak Divine	A Unbelieveable Yarn of a Database Administrator And a Woman who must Succumb a A Shark in A U-Boat	2006	1	6	0.99	169	12.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'administr':9 'boat':23 'databas':8 'divin':2 'must':14 'outbreak':1 'shark':18 'succumb':15 'u':22 'u-boat':21 'unbeliev':4 'woman':12 'yarn':5
-647	Outfield Massacre	A Thoughtful Drama of a Husband And a Secret Agent who must Pursue a Database Administrator in Ancient India	2006	1	4	0.99	129	18.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'administr':18 'agent':12 'ancient':20 'databas':17 'drama':5 'husband':8 'india':21 'massacr':2 'must':14 'outfield':1 'pursu':15 'secret':11 'thought':4
-648	Outlaw Hanky	A Thoughtful Story of a Astronaut And a Composer who must Conquer a Dog in The Sahara Desert	2006	1	7	4.99	148	17.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'astronaut':8 'compos':11 'conquer':14 'desert':20 'dog':16 'hanki':2 'must':13 'outlaw':1 'sahara':19 'stori':5 'thought':4
-649	Oz Liaisons	A Epic Yarn of a Mad Scientist And a Cat who must Confront a Womanizer in A Baloon Factory	2006	1	4	2.99	85	14.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'baloon':20 'cat':12 'confront':15 'epic':4 'factori':21 'liaison':2 'mad':8 'must':14 'oz':1 'scientist':9 'woman':17 'yarn':5
-650	Pacific Amistad	A Thrilling Yarn of a Dog And a Moose who must Kill a Pastry Chef in A Manhattan Penthouse	2006	1	3	0.99	144	27.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'amistad':2 'chef':17 'dog':8 'kill':14 'manhattan':20 'moos':11 'must':13 'pacif':1 'pastri':16 'penthous':21 'thrill':4 'yarn':5
-651	Packer Madigan	A Epic Display of a Sumo Wrestler And a Forensic Psychologist who must Build a Woman in An Abandoned Amusement Park	2006	1	3	0.99	84	20.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'abandon':21 'amus':22 'build':16 'display':5 'epic':4 'forens':12 'madigan':2 'must':15 'packer':1 'park':23 'psychologist':13 'sumo':8 'woman':18 'wrestler':9
-652	Pajama Jawbreaker	A Emotional Drama of a Boy And a Technical Writer who must Redeem a Sumo Wrestler in California	2006	1	3	0.99	126	14.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'boy':8 'california':20 'drama':5 'emot':4 'jawbreak':2 'must':14 'pajama':1 'redeem':15 'sumo':17 'technic':11 'wrestler':18 'writer':12
-653	Panic Club	A Fanciful Display of a Teacher And a Crocodile who must Succumb a Girl in A Baloon	2006	1	3	4.99	102	15.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'baloon':19 'club':2 'crocodil':11 'display':5 'fanci':4 'girl':16 'must':13 'panic':1 'succumb':14 'teacher':8
-654	Panky Submarine	A Touching Documentary of a Dentist And a Sumo Wrestler who must Overcome a Boy in The Gulf of Mexico	2006	1	4	4.99	93	19.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':17 'dentist':8 'documentari':5 'gulf':20 'mexico':22 'must':14 'overcom':15 'panki':1 'submarin':2 'sumo':11 'touch':4 'wrestler':12
-655	Panther Reds	A Brilliant Panorama of a Moose And a Man who must Reach a Teacher in The Gulf of Mexico	2006	1	5	4.99	109	22.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'brilliant':4 'gulf':19 'man':11 'mexico':21 'moos':8 'must':13 'panorama':5 'panther':1 'reach':14 'red':2 'teacher':16
-656	Papi Necklace	A Fanciful Display of a Car And a Monkey who must Escape a Squirrel in Ancient Japan	2006	1	3	0.99	128	9.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'ancient':18 'car':8 'display':5 'escap':14 'fanci':4 'japan':19 'monkey':11 'must':13 'necklac':2 'papi':1 'squirrel':16
-657	Paradise Sabrina	A Intrepid Yarn of a Car And a Moose who must Outrace a Crocodile in A Manhattan Penthouse	2006	1	5	2.99	48	12.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'car':8 'crocodil':16 'intrepid':4 'manhattan':19 'moos':11 'must':13 'outrac':14 'paradis':1 'penthous':20 'sabrina':2 'yarn':5
-658	Paris Weekend	A Intrepid Story of a Squirrel And a Crocodile who must Defeat a Monkey in The Outback	2006	1	7	2.99	121	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'crocodil':11 'defeat':14 'intrepid':4 'monkey':16 'must':13 'outback':19 'pari':1 'squirrel':8 'stori':5 'weekend':2
-659	Park Citizen	A Taut Epistle of a Sumo Wrestler And a Girl who must Face a Husband in Ancient Japan	2006	1	3	4.99	109	14.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':19 'citizen':2 'epistl':5 'face':15 'girl':12 'husband':17 'japan':20 'must':14 'park':1 'sumo':8 'taut':4 'wrestler':9
-660	Party Knock	A Fateful Display of a Technical Writer And a Butler who must Battle a Sumo Wrestler in An Abandoned Mine Shaft	2006	1	7	2.99	107	11.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':21 'battl':15 'butler':12 'display':5 'fate':4 'knock':2 'mine':22 'must':14 'parti':1 'shaft':23 'sumo':17 'technic':8 'wrestler':18 'writer':9
-661	Past Suicides	A Intrepid Tale of a Madman And a Astronaut who must Challenge a Hunter in A Monastery	2006	1	5	4.99	157	17.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'astronaut':11 'challeng':14 'hunter':16 'intrepid':4 'madman':8 'monasteri':19 'must':13 'past':1 'suicid':2 'tale':5
-662	Paths Control	A Astounding Documentary of a Butler And a Cat who must Find a Frisbee in Ancient China	2006	1	3	4.99	118	9.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'ancient':18 'astound':4 'butler':8 'cat':11 'china':19 'control':2 'documentari':5 'find':14 'frisbe':16 'must':13 'path':1
-663	Patient Sister	A Emotional Epistle of a Squirrel And a Robot who must Confront a Lumberjack in Soviet Georgia	2006	1	7	0.99	99	29.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'confront':14 'emot':4 'epistl':5 'georgia':19 'lumberjack':16 'must':13 'patient':1 'robot':11 'sister':2 'soviet':18 'squirrel':8
-664	Patriot Roman	A Taut Saga of a Robot And a Database Administrator who must Challenge a Astronaut in California	2006	1	6	2.99	65	12.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'administr':12 'astronaut':17 'california':19 'challeng':15 'databas':11 'must':14 'patriot':1 'robot':8 'roman':2 'saga':5 'taut':4
-665	Patton Interview	A Thrilling Documentary of a Composer And a Secret Agent who must Succumb a Cat in Berlin	2006	1	4	2.99	175	22.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'agent':12 'berlin':19 'cat':17 'compos':8 'documentari':5 'interview':2 'must':14 'patton':1 'secret':11 'succumb':15 'thrill':4
-666	Paycheck Wait	A Awe-Inspiring Reflection of a Boy And a Man who must Discover a Moose in The Sahara Desert	2006	1	4	4.99	145	27.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'boy':10 'desert':22 'discov':16 'inspir':6 'man':13 'moos':18 'must':15 'paycheck':1 'reflect':7 'sahara':21 'wait':2
-667	Peach Innocent	A Action-Packed Drama of a Monkey And a Dentist who must Chase a Butler in Berlin	2006	1	3	2.99	160	20.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'berlin':20 'butler':18 'chase':16 'dentist':13 'drama':7 'innoc':2 'monkey':10 'must':15 'pack':6 'peach':1
-668	Peak Forever	A Insightful Reflection of a Boat And a Secret Agent who must Vanquish a Astronaut in An Abandoned Mine Shaft	2006	1	7	4.99	80	25.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':20 'agent':12 'astronaut':17 'boat':8 'forev':2 'insight':4 'mine':21 'must':14 'peak':1 'reflect':5 'secret':11 'shaft':22 'vanquish':15
-669	Pearl Destiny	A Lacklusture Yarn of a Astronaut And a Pastry Chef who must Sink a Dog in A U-Boat	2006	1	3	2.99	74	10.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'astronaut':8 'boat':22 'chef':12 'destini':2 'dog':17 'lacklustur':4 'must':14 'pastri':11 'pearl':1 'sink':15 'u':21 'u-boat':20 'yarn':5
-670	Pelican Comforts	A Epic Documentary of a Boy And a Monkey who must Pursue a Astronaut in Berlin	2006	1	4	4.99	48	17.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'astronaut':16 'berlin':18 'boy':8 'comfort':2 'documentari':5 'epic':4 'monkey':11 'must':13 'pelican':1 'pursu':14
-671	Perdition Fargo	A Fast-Paced Story of a Car And a Cat who must Outgun a Hunter in Berlin	2006	1	7	4.99	99	27.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'berlin':20 'car':10 'cat':13 'fargo':2 'fast':5 'fast-pac':4 'hunter':18 'must':15 'outgun':16 'pace':6 'perdit':1 'stori':7
-672	Perfect Groove	A Thrilling Yarn of a Dog And a Dog who must Build a Husband in A Baloon	2006	1	7	2.99	82	17.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'baloon':19 'build':14 'dog':8,11 'groov':2 'husband':16 'must':13 'perfect':1 'thrill':4 'yarn':5
-673	Personal Ladybugs	A Epic Saga of a Hunter And a Technical Writer who must Conquer a Cat in Ancient Japan	2006	1	3	0.99	118	19.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'ancient':19 'cat':17 'conquer':15 'epic':4 'hunter':8 'japan':20 'ladybug':2 'must':14 'person':1 'saga':5 'technic':11 'writer':12
-674	Pet Haunting	A Unbelieveable Reflection of a Explorer And a Boat who must Conquer a Woman in California	2006	1	3	0.99	99	11.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'boat':11 'california':18 'conquer':14 'explor':8 'haunt':2 'must':13 'pet':1 'reflect':5 'unbeliev':4 'woman':16
-675	Phantom Glory	A Beautiful Documentary of a Astronaut And a Crocodile who must Discover a Madman in A Monastery	2006	1	6	2.99	60	17.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'astronaut':8 'beauti':4 'crocodil':11 'discov':14 'documentari':5 'glori':2 'madman':16 'monasteri':19 'must':13 'phantom':1
-676	Philadelphia Wife	A Taut Yarn of a Hunter And a Astronaut who must Conquer a Database Administrator in The Sahara Desert	2006	1	7	4.99	137	16.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'administr':17 'astronaut':11 'conquer':14 'databas':16 'desert':21 'hunter':8 'must':13 'philadelphia':1 'sahara':20 'taut':4 'wife':2 'yarn':5
-677	Pianist Outfield	A Intrepid Story of a Boy And a Technical Writer who must Pursue a Lumberjack in A Monastery	2006	1	6	0.99	136	25.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'boy':8 'intrepid':4 'lumberjack':17 'monasteri':20 'must':14 'outfield':2 'pianist':1 'pursu':15 'stori':5 'technic':11 'writer':12
-678	Pickup Driving	A Touching Documentary of a Husband And a Boat who must Meet a Pastry Chef in A Baloon Factory	2006	1	3	2.99	77	23.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'baloon':20 'boat':11 'chef':17 'documentari':5 'drive':2 'factori':21 'husband':8 'meet':14 'must':13 'pastri':16 'pickup':1 'touch':4
-679	Pilot Hoosiers	A Awe-Inspiring Reflection of a Crocodile And a Sumo Wrestler who must Meet a Forensic Psychologist in An Abandoned Mine Shaft	2006	1	6	2.99	50	17.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':23 'awe':5 'awe-inspir':4 'crocodil':10 'forens':19 'hoosier':2 'inspir':6 'meet':17 'mine':24 'must':16 'pilot':1 'psychologist':20 'reflect':7 'shaft':25 'sumo':13 'wrestler':14
-680	Pinocchio Simon	A Action-Packed Reflection of a Mad Scientist And a A Shark who must Find a Feminist in California	2006	1	4	4.99	103	21.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'california':22 'feminist':20 'find':18 'mad':10 'must':17 'pack':6 'pinocchio':1 'reflect':7 'scientist':11 'shark':15 'simon':2
-681	Pirates Roxanne	A Stunning Drama of a Woman And a Lumberjack who must Overcome a A Shark in The Canadian Rockies	2006	1	4	0.99	100	20.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'canadian':20 'drama':5 'lumberjack':11 'must':13 'overcom':14 'pirat':1 'rocki':21 'roxann':2 'shark':17 'stun':4 'woman':8
-682	Pittsburgh Hunchback	A Thrilling Epistle of a Boy And a Boat who must Find a Student in Soviet Georgia	2006	1	4	4.99	134	17.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'boat':11 'boy':8 'epistl':5 'find':14 'georgia':19 'hunchback':2 'must':13 'pittsburgh':1 'soviet':18 'student':16 'thrill':4
-683	Pity Bound	A Boring Panorama of a Feminist And a Moose who must Defeat a Database Administrator in Nigeria	2006	1	5	4.99	60	19.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'administr':17 'bore':4 'bound':2 'databas':16 'defeat':14 'feminist':8 'moos':11 'must':13 'nigeria':19 'panorama':5 'piti':1
-684	Pizza Jumanji	A Epic Saga of a Cat And a Squirrel who must Outgun a Robot in A U-Boat	2006	1	4	2.99	173	11.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'boat':21 'cat':8 'epic':4 'jumanji':2 'must':13 'outgun':14 'pizza':1 'robot':16 'saga':5 'squirrel':11 'u':20 'u-boat':19
-685	Platoon Instinct	A Thrilling Panorama of a Man And a Woman who must Reach a Woman in Australia	2006	1	6	4.99	132	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'australia':18 'instinct':2 'man':8 'must':13 'panorama':5 'platoon':1 'reach':14 'thrill':4 'woman':11,16
-686	Pluto Oleander	A Action-Packed Reflection of a Car And a Moose who must Outgun a Car in A Shark Tank	2006	1	5	4.99	84	9.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'action':5 'action-pack':4 'car':10,18 'moos':13 'must':15 'oleand':2 'outgun':16 'pack':6 'pluto':1 'reflect':7 'shark':21 'tank':22
-687	Pocus Pulp	A Intrepid Yarn of a Frisbee And a Dog who must Build a Astronaut in A Baloon Factory	2006	1	6	0.99	138	15.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'astronaut':16 'baloon':19 'build':14 'dog':11 'factori':20 'frisbe':8 'intrepid':4 'must':13 'pocus':1 'pulp':2 'yarn':5
-688	Polish Brooklyn	A Boring Character Study of a Database Administrator And a Lumberjack who must Reach a Madman in The Outback	2006	1	6	0.99	61	12.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':10 'bore':4 'brooklyn':2 'charact':5 'databas':9 'lumberjack':13 'madman':18 'must':15 'outback':21 'polish':1 'reach':16 'studi':6
-689	Pollock Deliverance	A Intrepid Story of a Madman And a Frisbee who must Outgun a Boat in The Sahara Desert	2006	1	5	2.99	137	14.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'boat':16 'deliver':2 'desert':20 'frisbe':11 'intrepid':4 'madman':8 'must':13 'outgun':14 'pollock':1 'sahara':19 'stori':5
-690	Pond Seattle	A Stunning Drama of a Teacher And a Boat who must Battle a Feminist in Ancient China	2006	1	7	2.99	185	25.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':18 'battl':14 'boat':11 'china':19 'drama':5 'feminist':16 'must':13 'pond':1 'seattl':2 'stun':4 'teacher':8
-691	Poseidon Forever	A Thoughtful Epistle of a Womanizer And a Monkey who must Vanquish a Dentist in A Monastery	2006	1	6	4.99	159	29.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'dentist':16 'epistl':5 'forev':2 'monasteri':19 'monkey':11 'must':13 'poseidon':1 'thought':4 'vanquish':14 'woman':8
-692	Potluck Mixed	A Beautiful Story of a Dog And a Technical Writer who must Outgun a Student in A Baloon	2006	1	3	2.99	179	10.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'baloon':20 'beauti':4 'dog':8 'mix':2 'must':14 'outgun':15 'potluck':1 'stori':5 'student':17 'technic':11 'writer':12
-693	Potter Connecticut	A Thrilling Epistle of a Frisbee And a Cat who must Fight a Technical Writer in Berlin	2006	1	5	2.99	115	16.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'berlin':19 'cat':11 'connecticut':2 'epistl':5 'fight':14 'frisbe':8 'must':13 'potter':1 'technic':16 'thrill':4 'writer':17
-694	Prejudice Oleander	A Epic Saga of a Boy And a Dentist who must Outrace a Madman in A U-Boat	2006	1	6	4.99	98	15.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'boat':21 'boy':8 'dentist':11 'epic':4 'madman':16 'must':13 'oleand':2 'outrac':14 'prejudic':1 'saga':5 'u':20 'u-boat':19
-695	President Bang	A Fateful Panorama of a Technical Writer And a Moose who must Battle a Robot in Soviet Georgia	2006	1	6	4.99	144	12.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'bang':2 'battl':15 'fate':4 'georgia':20 'moos':12 'must':14 'panorama':5 'presid':1 'robot':17 'soviet':19 'technic':8 'writer':9
-696	Pride Alamo	A Thoughtful Drama of a A Shark And a Forensic Psychologist who must Vanquish a Student in Ancient India	2006	1	6	0.99	114	20.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'alamo':2 'ancient':20 'drama':5 'forens':12 'india':21 'must':15 'pride':1 'psychologist':13 'shark':9 'student':18 'thought':4 'vanquish':16
-697	Primary Glass	A Fateful Documentary of a Pastry Chef And a Butler who must Build a Dog in The Canadian Rockies	2006	1	7	0.99	53	16.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'build':15 'butler':12 'canadian':20 'chef':9 'documentari':5 'dog':17 'fate':4 'glass':2 'must':14 'pastri':8 'primari':1 'rocki':21
-698	Princess Giant	A Thrilling Yarn of a Pastry Chef And a Monkey who must Battle a Monkey in A Shark Tank	2006	1	3	2.99	71	29.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'battl':15 'chef':9 'giant':2 'monkey':12,17 'must':14 'pastri':8 'princess':1 'shark':20 'tank':21 'thrill':4 'yarn':5
-699	Private Drop	A Stunning Story of a Technical Writer And a Hunter who must Succumb a Secret Agent in A Baloon	2006	1	7	4.99	106	26.99	PG	2013-05-26 14:50:58.951	{Trailers}	'agent':18 'baloon':21 'drop':2 'hunter':12 'must':14 'privat':1 'secret':17 'stori':5 'stun':4 'succumb':15 'technic':8 'writer':9
-700	Prix Undefeated	A Stunning Saga of a Mad Scientist And a Boat who must Overcome a Dentist in Ancient China	2006	1	4	2.99	115	13.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':19 'boat':12 'china':20 'dentist':17 'mad':8 'must':14 'overcom':15 'prix':1 'saga':5 'scientist':9 'stun':4 'undef':2
-701	Psycho Shrunk	A Amazing Panorama of a Crocodile And a Explorer who must Fight a Husband in Nigeria	2006	1	5	2.99	155	11.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'amaz':4 'crocodil':8 'explor':11 'fight':14 'husband':16 'must':13 'nigeria':18 'panorama':5 'psycho':1 'shrunk':2
-702	Pulp Beverly	A Unbelieveable Display of a Dog And a Crocodile who must Outrace a Man in Nigeria	2006	1	4	2.99	89	12.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'bever':2 'crocodil':11 'display':5 'dog':8 'man':16 'must':13 'nigeria':18 'outrac':14 'pulp':1 'unbeliev':4
-703	Punk Divorce	A Fast-Paced Tale of a Pastry Chef And a Boat who must Face a Frisbee in The Canadian Rockies	2006	1	6	4.99	100	18.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'boat':14 'canadian':22 'chef':11 'divorc':2 'face':17 'fast':5 'fast-pac':4 'frisbe':19 'must':16 'pace':6 'pastri':10 'punk':1 'rocki':23 'tale':7
-704	Pure Runner	A Thoughtful Documentary of a Student And a Madman who must Challenge a Squirrel in A Manhattan Penthouse	2006	1	3	2.99	121	25.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'challeng':14 'documentari':5 'madman':11 'manhattan':19 'must':13 'penthous':20 'pure':1 'runner':2 'squirrel':16 'student':8 'thought':4
-705	Purple Movie	A Boring Display of a Pastry Chef And a Sumo Wrestler who must Discover a Frisbee in An Abandoned Amusement Park	2006	1	4	2.99	88	9.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'abandon':21 'amus':22 'bore':4 'chef':9 'discov':16 'display':5 'frisbe':18 'movi':2 'must':15 'park':23 'pastri':8 'purpl':1 'sumo':12 'wrestler':13
-706	Queen Luke	A Astounding Story of a Girl And a Boy who must Challenge a Composer in New Orleans	2006	1	5	4.99	163	22.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'astound':4 'boy':11 'challeng':14 'compos':16 'girl':8 'luke':2 'must':13 'new':18 'orlean':19 'queen':1 'stori':5
-707	Quest Mussolini	A Fateful Drama of a Husband And a Sumo Wrestler who must Battle a Pastry Chef in A Baloon Factory	2006	1	5	2.99	177	29.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'baloon':21 'battl':15 'chef':18 'drama':5 'factori':22 'fate':4 'husband':8 'mussolini':2 'must':14 'pastri':17 'quest':1 'sumo':11 'wrestler':12
-708	Quills Bull	A Thoughtful Story of a Pioneer And a Woman who must Reach a Moose in Australia	2006	1	4	4.99	112	19.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'australia':18 'bull':2 'moos':16 'must':13 'pioneer':8 'quill':1 'reach':14 'stori':5 'thought':4 'woman':11
-709	Racer Egg	A Emotional Display of a Monkey And a Waitress who must Reach a Secret Agent in California	2006	1	7	2.99	147	19.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'agent':17 'california':19 'display':5 'egg':2 'emot':4 'monkey':8 'must':13 'racer':1 'reach':14 'secret':16 'waitress':11
-710	Rage Games	A Fast-Paced Saga of a Astronaut And a Secret Agent who must Escape a Hunter in An Abandoned Amusement Park	2006	1	4	4.99	120	18.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':22 'agent':14 'amus':23 'astronaut':10 'escap':17 'fast':5 'fast-pac':4 'game':2 'hunter':19 'must':16 'pace':6 'park':24 'rage':1 'saga':7 'secret':13
-711	Raging Airplane	A Astounding Display of a Secret Agent And a Technical Writer who must Escape a Mad Scientist in A Jet Boat	2006	1	4	4.99	154	18.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'agent':9 'airplan':2 'astound':4 'boat':23 'display':5 'escap':16 'jet':22 'mad':18 'must':15 'rage':1 'scientist':19 'secret':8 'technic':12 'writer':13
-712	Raiders Antitrust	A Amazing Drama of a Teacher And a Feminist who must Meet a Woman in The First Manned Space Station	2006	1	4	0.99	82	11.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'amaz':4 'antitrust':2 'drama':5 'feminist':11 'first':19 'man':20 'meet':14 'must':13 'raider':1 'space':21 'station':22 'teacher':8 'woman':16
-713	Rainbow Shock	A Action-Packed Story of a Hunter And a Boy who must Discover a Lumberjack in Ancient India	2006	1	3	4.99	74	14.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'action':5 'action-pack':4 'ancient':20 'boy':13 'discov':16 'hunter':10 'india':21 'lumberjack':18 'must':15 'pack':6 'rainbow':1 'shock':2 'stori':7
-714	Random Go	A Fateful Drama of a Frisbee And a Student who must Confront a Cat in A Shark Tank	2006	1	6	2.99	73	29.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'cat':16 'confront':14 'drama':5 'fate':4 'frisbe':8 'go':2 'must':13 'random':1 'shark':19 'student':11 'tank':20
-715	Range Moonwalker	A Insightful Documentary of a Hunter And a Dentist who must Confront a Crocodile in A Baloon	2006	1	3	4.99	147	25.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'baloon':19 'confront':14 'crocodil':16 'dentist':11 'documentari':5 'hunter':8 'insight':4 'moonwalk':2 'must':13 'rang':1
-716	Reap Unfaithful	A Thrilling Epistle of a Composer And a Sumo Wrestler who must Challenge a Mad Cow in A MySQL Convention	2006	1	6	2.99	136	26.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'challeng':15 'compos':8 'convent':22 'cow':18 'epistl':5 'mad':17 'must':14 'mysql':21 'reap':1 'sumo':11 'thrill':4 'unfaith':2 'wrestler':12
-717	Rear Trading	A Awe-Inspiring Reflection of a Forensic Psychologist And a Secret Agent who must Succumb a Pastry Chef in Soviet Georgia	2006	1	6	0.99	97	23.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'agent':15 'awe':5 'awe-inspir':4 'chef':21 'forens':10 'georgia':24 'inspir':6 'must':17 'pastri':20 'psychologist':11 'rear':1 'reflect':7 'secret':14 'soviet':23 'succumb':18 'trade':2
-718	Rebel Airport	A Intrepid Yarn of a Database Administrator And a Boat who must Outrace a Husband in Ancient India	2006	1	7	0.99	73	24.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'administr':9 'airport':2 'ancient':19 'boat':12 'databas':8 'husband':17 'india':20 'intrepid':4 'must':14 'outrac':15 'rebel':1 'yarn':5
-719	Records Zorro	A Amazing Drama of a Mad Scientist And a Composer who must Build a Husband in The Outback	2006	1	7	4.99	182	11.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'amaz':4 'build':15 'compos':12 'drama':5 'husband':17 'mad':8 'must':14 'outback':20 'record':1 'scientist':9 'zorro':2
-720	Redemption Comforts	A Emotional Documentary of a Dentist And a Woman who must Battle a Mad Scientist in Ancient China	2006	1	3	2.99	179	20.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'ancient':19 'battl':14 'china':20 'comfort':2 'dentist':8 'documentari':5 'emot':4 'mad':16 'must':13 'redempt':1 'scientist':17 'woman':11
-721	Reds Pocus	A Lacklusture Yarn of a Sumo Wrestler And a Squirrel who must Redeem a Monkey in Soviet Georgia	2006	1	7	4.99	182	23.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'georgia':20 'lacklustur':4 'monkey':17 'must':14 'pocus':2 'red':1 'redeem':15 'soviet':19 'squirrel':12 'sumo':8 'wrestler':9 'yarn':5
-722	Reef Salute	A Action-Packed Saga of a Teacher And a Lumberjack who must Battle a Dentist in A Baloon	2006	1	5	0.99	123	26.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'action':5 'action-pack':4 'baloon':21 'battl':16 'dentist':18 'lumberjack':13 'must':15 'pack':6 'reef':1 'saga':7 'salut':2 'teacher':10
-723	Reign Gentlemen	A Emotional Yarn of a Composer And a Man who must Escape a Butler in The Gulf of Mexico	2006	1	3	2.99	82	29.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'butler':16 'compos':8 'emot':4 'escap':14 'gentlemen':2 'gulf':19 'man':11 'mexico':21 'must':13 'reign':1 'yarn':5
-724	Remember Diary	A Insightful Tale of a Technical Writer And a Waitress who must Conquer a Monkey in Ancient India	2006	1	5	2.99	110	15.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':19 'conquer':15 'diari':2 'india':20 'insight':4 'monkey':17 'must':14 'rememb':1 'tale':5 'technic':8 'waitress':12 'writer':9
-725	Requiem Tycoon	A Unbelieveable Character Study of a Cat And a Database Administrator who must Pursue a Teacher in A Monastery	2006	1	6	4.99	167	25.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'administr':13 'cat':9 'charact':5 'databas':12 'monasteri':21 'must':15 'pursu':16 'requiem':1 'studi':6 'teacher':18 'tycoon':2 'unbeliev':4
-726	Reservoir Adaptation	A Intrepid Drama of a Teacher And a Moose who must Kill a Car in California	2006	1	7	2.99	61	29.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'adapt':2 'california':18 'car':16 'drama':5 'intrepid':4 'kill':14 'moos':11 'must':13 'reservoir':1 'teacher':8
-727	Resurrection Silverado	A Epic Yarn of a Robot And a Explorer who must Challenge a Girl in A MySQL Convention	2006	1	6	0.99	117	12.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'challeng':14 'convent':20 'epic':4 'explor':11 'girl':16 'must':13 'mysql':19 'resurrect':1 'robot':8 'silverado':2 'yarn':5
-728	Reunion Witches	A Unbelieveable Documentary of a Database Administrator And a Frisbee who must Redeem a Mad Scientist in A Baloon Factory	2006	1	3	0.99	63	26.99	R	2013-05-26 14:50:58.951	{Commentaries}	'administr':9 'baloon':21 'databas':8 'documentari':5 'factori':22 'frisbe':12 'mad':17 'must':14 'redeem':15 'reunion':1 'scientist':18 'unbeliev':4 'witch':2
-729	Rider Caddyshack	A Taut Reflection of a Monkey And a Womanizer who must Chase a Moose in Nigeria	2006	1	5	2.99	177	28.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'caddyshack':2 'chase':14 'monkey':8 'moos':16 'must':13 'nigeria':18 'reflect':5 'rider':1 'taut':4 'woman':11
-730	Ridgemont Submarine	A Unbelieveable Drama of a Waitress And a Composer who must Sink a Mad Cow in Ancient Japan	2006	1	3	0.99	46	28.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':19 'compos':11 'cow':17 'drama':5 'japan':20 'mad':16 'must':13 'ridgemont':1 'sink':14 'submarin':2 'unbeliev':4 'waitress':8
-731	Right Cranes	A Fateful Character Study of a Boat And a Cat who must Find a Database Administrator in A Jet Boat	2006	1	7	4.99	153	29.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'administr':18 'boat':9,22 'cat':12 'charact':5 'crane':2 'databas':17 'fate':4 'find':15 'jet':21 'must':14 'right':1 'studi':6
-732	Rings Heartbreakers	A Amazing Yarn of a Sumo Wrestler And a Boat who must Conquer a Waitress in New Orleans	2006	1	5	0.99	58	17.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'amaz':4 'boat':12 'conquer':15 'heartbreak':2 'must':14 'new':19 'orlean':20 'ring':1 'sumo':8 'waitress':17 'wrestler':9 'yarn':5
-733	River Outlaw	A Thrilling Character Study of a Squirrel And a Lumberjack who must Face a Hunter in A MySQL Convention	2006	1	4	0.99	149	29.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'charact':5 'convent':21 'face':15 'hunter':17 'lumberjack':12 'must':14 'mysql':20 'outlaw':2 'river':1 'squirrel':9 'studi':6 'thrill':4
-734	Road Roxanne	A Boring Character Study of a Waitress And a Astronaut who must Fight a Crocodile in Ancient Japan	2006	1	4	4.99	158	12.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'ancient':19 'astronaut':12 'bore':4 'charact':5 'crocodil':17 'fight':15 'japan':20 'must':14 'road':1 'roxann':2 'studi':6 'waitress':9
-735	Robbers Joon	A Thoughtful Story of a Mad Scientist And a Waitress who must Confront a Forensic Psychologist in Soviet Georgia	2006	1	7	2.99	102	26.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'confront':15 'forens':17 'georgia':21 'joon':2 'mad':8 'must':14 'psychologist':18 'robber':1 'scientist':9 'soviet':20 'stori':5 'thought':4 'waitress':12
-736	Robbery Bright	A Taut Reflection of a Robot And a Squirrel who must Fight a Boat in Ancient Japan	2006	1	4	0.99	134	21.99	R	2013-05-26 14:50:58.951	{Trailers}	'ancient':18 'boat':16 'bright':2 'fight':14 'japan':19 'must':13 'reflect':5 'robberi':1 'robot':8 'squirrel':11 'taut':4
-737	Rock Instinct	A Astounding Character Study of a Robot And a Moose who must Overcome a Astronaut in Ancient India	2006	1	4	0.99	102	28.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':19 'astound':4 'astronaut':17 'charact':5 'india':20 'instinct':2 'moos':12 'must':14 'overcom':15 'robot':9 'rock':1 'studi':6
-738	Rocketeer Mother	A Awe-Inspiring Character Study of a Robot And a Sumo Wrestler who must Discover a Womanizer in A Shark Tank	2006	1	3	0.99	178	27.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'charact':7 'discov':18 'inspir':6 'mother':2 'must':17 'robot':11 'rocket':1 'shark':23 'studi':8 'sumo':14 'tank':24 'woman':20 'wrestler':15
-739	Rocky War	A Fast-Paced Display of a Squirrel And a Explorer who must Outgun a Mad Scientist in Nigeria	2006	1	4	4.99	145	17.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'display':7 'explor':13 'fast':5 'fast-pac':4 'mad':18 'must':15 'nigeria':21 'outgun':16 'pace':6 'rocki':1 'scientist':19 'squirrel':10 'war':2
-740	Rollercoaster Bringing	A Beautiful Drama of a Robot And a Lumberjack who must Discover a Technical Writer in A Shark Tank	2006	1	5	2.99	153	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'beauti':4 'bring':2 'discov':14 'drama':5 'lumberjack':11 'must':13 'robot':8 'rollercoast':1 'shark':20 'tank':21 'technic':16 'writer':17
-741	Roman Punk	A Thoughtful Panorama of a Mad Cow And a Student who must Battle a Forensic Psychologist in Berlin	2006	1	7	0.99	81	28.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'battl':15 'berlin':20 'cow':9 'forens':17 'mad':8 'must':14 'panorama':5 'psychologist':18 'punk':2 'roman':1 'student':12 'thought':4
-742	Roof Champion	A Lacklusture Reflection of a Car And a Explorer who must Find a Monkey in A Baloon	2006	1	7	0.99	101	25.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'baloon':19 'car':8 'champion':2 'explor':11 'find':14 'lacklustur':4 'monkey':16 'must':13 'reflect':5 'roof':1
-743	Room Roman	A Awe-Inspiring Panorama of a Composer And a Secret Agent who must Sink a Composer in A Shark Tank	2006	1	7	0.99	60	27.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'agent':14 'awe':5 'awe-inspir':4 'compos':10,19 'inspir':6 'must':16 'panorama':7 'roman':2 'room':1 'secret':13 'shark':22 'sink':17 'tank':23
-744	Roots Remember	A Brilliant Drama of a Mad Cow And a Hunter who must Escape a Hunter in Berlin	2006	1	4	0.99	89	23.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'berlin':19 'brilliant':4 'cow':9 'drama':5 'escap':15 'hunter':12,17 'mad':8 'must':14 'rememb':2 'root':1
-745	Roses Treasure	A Astounding Panorama of a Monkey And a Secret Agent who must Defeat a Woman in The First Manned Space Station	2006	1	5	4.99	162	23.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'agent':12 'astound':4 'defeat':15 'first':20 'man':21 'monkey':8 'must':14 'panorama':5 'rose':1 'secret':11 'space':22 'station':23 'treasur':2 'woman':17
-746	Rouge Squad	A Awe-Inspiring Drama of a Astronaut And a Frisbee who must Conquer a Mad Scientist in Australia	2006	1	3	0.99	118	10.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'astronaut':10 'australia':21 'awe':5 'awe-inspir':4 'conquer':16 'drama':7 'frisbe':13 'inspir':6 'mad':18 'must':15 'roug':1 'scientist':19 'squad':2
-747	Roxanne Rebel	A Astounding Story of a Pastry Chef And a Database Administrator who must Fight a Man in The Outback	2006	1	5	0.99	171	9.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'administr':13 'astound':4 'chef':9 'databas':12 'fight':16 'man':18 'must':15 'outback':21 'pastri':8 'rebel':2 'roxann':1 'stori':5
-748	Rugrats Shakespeare	A Touching Saga of a Crocodile And a Crocodile who must Discover a Technical Writer in Nigeria	2006	1	4	0.99	109	16.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'crocodil':8,11 'discov':14 'must':13 'nigeria':19 'rugrat':1 'saga':5 'shakespear':2 'technic':16 'touch':4 'writer':17
-749	Rules Human	A Beautiful Epistle of a Astronaut And a Student who must Confront a Monkey in An Abandoned Fun House	2006	1	6	4.99	153	19.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'abandon':19 'astronaut':8 'beauti':4 'confront':14 'epistl':5 'fun':20 'hous':21 'human':2 'monkey':16 'must':13 'rule':1 'student':11
-750	Run Pacific	A Touching Tale of a Cat And a Pastry Chef who must Conquer a Pastry Chef in A MySQL Convention	2006	1	3	0.99	145	25.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':8 'chef':12,18 'conquer':15 'convent':22 'must':14 'mysql':21 'pacif':2 'pastri':11,17 'run':1 'tale':5 'touch':4
-751	Runaway Tenenbaums	A Thoughtful Documentary of a Boat And a Man who must Meet a Boat in An Abandoned Fun House	2006	1	6	0.99	181	17.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'abandon':19 'boat':8,16 'documentari':5 'fun':20 'hous':21 'man':11 'meet':14 'must':13 'runaway':1 'tenenbaum':2 'thought':4
-752	Runner Madigan	A Thoughtful Documentary of a Crocodile And a Robot who must Outrace a Womanizer in The Outback	2006	1	6	0.99	101	27.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'crocodil':8 'documentari':5 'madigan':2 'must':13 'outback':19 'outrac':14 'robot':11 'runner':1 'thought':4 'woman':16
-754	Rushmore Mermaid	A Boring Story of a Woman And a Moose who must Reach a Husband in A Shark Tank	2006	1	6	2.99	150	17.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'bore':4 'husband':16 'mermaid':2 'moos':11 'must':13 'reach':14 'rushmor':1 'shark':19 'stori':5 'tank':20 'woman':8
-755	Sabrina Midnight	A Emotional Story of a Squirrel And a Crocodile who must Succumb a Husband in The Sahara Desert	2006	1	5	4.99	99	11.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'crocodil':11 'desert':20 'emot':4 'husband':16 'midnight':2 'must':13 'sabrina':1 'sahara':19 'squirrel':8 'stori':5 'succumb':14
-756	Saddle Antitrust	A Stunning Epistle of a Feminist And a A Shark who must Battle a Woman in An Abandoned Fun House	2006	1	7	2.99	80	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':20 'antitrust':2 'battl':15 'epistl':5 'feminist':8 'fun':21 'hous':22 'must':14 'saddl':1 'shark':12 'stun':4 'woman':17
-757	Sagebrush Clueless	A Insightful Story of a Lumberjack And a Hunter who must Kill a Boy in Ancient Japan	2006	1	4	2.99	106	28.99	G	2013-05-26 14:50:58.951	{Trailers}	'ancient':18 'boy':16 'clueless':2 'hunter':11 'insight':4 'japan':19 'kill':14 'lumberjack':8 'must':13 'sagebrush':1 'stori':5
-758	Saints Bride	A Fateful Tale of a Technical Writer And a Composer who must Pursue a Explorer in The Gulf of Mexico	2006	1	5	2.99	125	11.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'bride':2 'compos':12 'explor':17 'fate':4 'gulf':20 'mexico':22 'must':14 'pursu':15 'saint':1 'tale':5 'technic':8 'writer':9
-759	Salute Apollo	A Awe-Inspiring Character Study of a Boy And a Feminist who must Sink a Crocodile in Ancient China	2006	1	4	2.99	73	29.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':21 'apollo':2 'awe':5 'awe-inspir':4 'boy':11 'charact':7 'china':22 'crocodil':19 'feminist':14 'inspir':6 'must':16 'salut':1 'sink':17 'studi':8
-760	Samurai Lion	A Fast-Paced Story of a Pioneer And a Astronaut who must Reach a Boat in A Baloon	2006	1	5	2.99	110	21.99	G	2013-05-26 14:50:58.951	{Commentaries}	'astronaut':13 'baloon':21 'boat':18 'fast':5 'fast-pac':4 'lion':2 'must':15 'pace':6 'pioneer':10 'reach':16 'samurai':1 'stori':7
-761	Santa Paris	A Emotional Documentary of a Moose And a Car who must Redeem a Mad Cow in A Baloon Factory	2006	1	7	2.99	154	23.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'baloon':20 'car':11 'cow':17 'documentari':5 'emot':4 'factori':21 'mad':16 'moos':8 'must':13 'pari':2 'redeem':14 'santa':1
-762	Sassy Packer	A Fast-Paced Documentary of a Dog And a Teacher who must Find a Moose in A Manhattan Penthouse	2006	1	6	0.99	154	29.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'documentari':7 'dog':10 'fast':5 'fast-pac':4 'find':16 'manhattan':21 'moos':18 'must':15 'pace':6 'packer':2 'penthous':22 'sassi':1 'teacher':13
-763	Satisfaction Confidential	A Lacklusture Yarn of a Dentist And a Butler who must Meet a Secret Agent in Ancient China	2006	1	3	4.99	75	26.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'agent':17 'ancient':19 'butler':11 'china':20 'confidenti':2 'dentist':8 'lacklustur':4 'meet':14 'must':13 'satisfact':1 'secret':16 'yarn':5
-764	Saturday Lambs	A Thoughtful Reflection of a Mad Scientist And a Moose who must Kill a Husband in A Baloon	2006	1	3	4.99	150	28.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'baloon':20 'husband':17 'kill':15 'lamb':2 'mad':8 'moos':12 'must':14 'reflect':5 'saturday':1 'scientist':9 'thought':4
-765	Saturn Name	A Fateful Epistle of a Butler And a Boy who must Redeem a Teacher in Berlin	2006	1	7	4.99	182	18.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'berlin':18 'boy':11 'butler':8 'epistl':5 'fate':4 'must':13 'name':2 'redeem':14 'saturn':1 'teacher':16
-766	Savannah Town	A Awe-Inspiring Tale of a Astronaut And a Database Administrator who must Chase a Secret Agent in The Gulf of Mexico	2006	1	5	0.99	84	25.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':14 'agent':20 'astronaut':10 'awe':5 'awe-inspir':4 'chase':17 'databas':13 'gulf':23 'inspir':6 'mexico':25 'must':16 'savannah':1 'secret':19 'tale':7 'town':2
-767	Scalawag Duck	A Fateful Reflection of a Car And a Teacher who must Confront a Waitress in A Monastery	2006	1	6	4.99	183	13.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'car':8 'confront':14 'duck':2 'fate':4 'monasteri':19 'must':13 'reflect':5 'scalawag':1 'teacher':11 'waitress':16
-768	Scarface Bang	A Emotional Yarn of a Teacher And a Girl who must Find a Teacher in A Baloon Factory	2006	1	3	4.99	102	11.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'baloon':19 'bang':2 'emot':4 'factori':20 'find':14 'girl':11 'must':13 'scarfac':1 'teacher':8,16 'yarn':5
-769	School Jacket	A Intrepid Yarn of a Monkey And a Boy who must Fight a Composer in A Manhattan Penthouse	2006	1	5	4.99	151	21.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'boy':11 'compos':16 'fight':14 'intrepid':4 'jacket':2 'manhattan':19 'monkey':8 'must':13 'penthous':20 'school':1 'yarn':5
-770	Scissorhands Slums	A Awe-Inspiring Drama of a Girl And a Technical Writer who must Meet a Feminist in The Canadian Rockies	2006	1	5	2.99	147	13.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'canadian':22 'drama':7 'feminist':19 'girl':10 'inspir':6 'meet':17 'must':16 'rocki':23 'scissorhand':1 'slum':2 'technic':13 'writer':14
-788	Ship Wonderland	A Thrilling Saga of a Monkey And a Frisbee who must Escape a Explorer in The Outback	2006	1	5	2.99	104	15.99	R	2013-05-26 14:50:58.951	{Commentaries}	'escap':14 'explor':16 'frisbe':11 'monkey':8 'must':13 'outback':19 'saga':5 'ship':1 'thrill':4 'wonderland':2
-771	Scorpion Apollo	A Awe-Inspiring Documentary of a Technical Writer And a Husband who must Meet a Monkey in An Abandoned Fun House	2006	1	3	4.99	137	23.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'abandon':22 'apollo':2 'awe':5 'awe-inspir':4 'documentari':7 'fun':23 'hous':24 'husband':14 'inspir':6 'meet':17 'monkey':19 'must':16 'scorpion':1 'technic':10 'writer':11
-772	Sea Virgin	A Fast-Paced Documentary of a Technical Writer And a Pastry Chef who must Escape a Moose in A U-Boat	2006	1	4	2.99	80	24.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'boat':25 'chef':15 'documentari':7 'escap':18 'fast':5 'fast-pac':4 'moos':20 'must':17 'pace':6 'pastri':14 'sea':1 'technic':10 'u':24 'u-boat':23 'virgin':2 'writer':11
-773	Seabiscuit Punk	A Insightful Saga of a Man And a Forensic Psychologist who must Discover a Mad Cow in A MySQL Convention	2006	1	6	2.99	112	28.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'convent':22 'cow':18 'discov':15 'forens':11 'insight':4 'mad':17 'man':8 'must':14 'mysql':21 'psychologist':12 'punk':2 'saga':5 'seabiscuit':1
-774	Searchers Wait	A Fast-Paced Tale of a Car And a Mad Scientist who must Kill a Womanizer in Ancient Japan	2006	1	3	2.99	182	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':21 'car':10 'fast':5 'fast-pac':4 'japan':22 'kill':17 'mad':13 'must':16 'pace':6 'scientist':14 'searcher':1 'tale':7 'wait':2 'woman':19
-775	Seattle Expecations	A Insightful Reflection of a Crocodile And a Sumo Wrestler who must Meet a Technical Writer in The Sahara Desert	2006	1	4	4.99	110	18.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'crocodil':8 'desert':22 'expec':2 'insight':4 'meet':15 'must':14 'reflect':5 'sahara':21 'seattl':1 'sumo':11 'technic':17 'wrestler':12 'writer':18
-776	Secret Groundhog	A Astounding Story of a Cat And a Database Administrator who must Build a Technical Writer in New Orleans	2006	1	6	4.99	90	11.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'administr':12 'astound':4 'build':15 'cat':8 'databas':11 'groundhog':2 'must':14 'new':20 'orlean':21 'secret':1 'stori':5 'technic':17 'writer':18
-777	Secretary Rouge	A Action-Packed Panorama of a Mad Cow And a Composer who must Discover a Robot in A Baloon Factory	2006	1	5	4.99	158	10.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'baloon':22 'compos':14 'cow':11 'discov':17 'factori':23 'mad':10 'must':16 'pack':6 'panorama':7 'robot':19 'roug':2 'secretari':1
-778	Secrets Paradise	A Fateful Saga of a Cat And a Frisbee who must Kill a Girl in A Manhattan Penthouse	2006	1	3	4.99	109	24.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'cat':8 'fate':4 'frisbe':11 'girl':16 'kill':14 'manhattan':19 'must':13 'paradis':2 'penthous':20 'saga':5 'secret':1
-779	Sense Greek	A Taut Saga of a Lumberjack And a Pastry Chef who must Escape a Sumo Wrestler in An Abandoned Fun House	2006	1	4	4.99	54	23.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'abandon':21 'chef':12 'escap':15 'fun':22 'greek':2 'hous':23 'lumberjack':8 'must':14 'pastri':11 'saga':5 'sens':1 'sumo':17 'taut':4 'wrestler':18
-780	Sensibility Rear	A Emotional Tale of a Robot And a Sumo Wrestler who must Redeem a Pastry Chef in A Baloon Factory	2006	1	7	4.99	98	15.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'baloon':21 'chef':18 'emot':4 'factori':22 'must':14 'pastri':17 'rear':2 'redeem':15 'robot':8 'sensibl':1 'sumo':11 'tale':5 'wrestler':12
-781	Seven Swarm	A Unbelieveable Character Study of a Dog And a Mad Cow who must Kill a Monkey in Berlin	2006	1	4	4.99	127	15.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'berlin':20 'charact':5 'cow':13 'dog':9 'kill':16 'mad':12 'monkey':18 'must':15 'seven':1 'studi':6 'swarm':2 'unbeliev':4
-782	Shakespeare Saddle	A Fast-Paced Panorama of a Lumberjack And a Database Administrator who must Defeat a Madman in A MySQL Convention	2006	1	6	2.99	60	26.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'administr':14 'convent':23 'databas':13 'defeat':17 'fast':5 'fast-pac':4 'lumberjack':10 'madman':19 'must':16 'mysql':22 'pace':6 'panorama':7 'saddl':2 'shakespear':1
-783	Shane Darkness	A Action-Packed Saga of a Moose And a Lumberjack who must Find a Woman in Berlin	2006	1	5	2.99	93	22.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'action':5 'action-pack':4 'berlin':20 'dark':2 'find':16 'lumberjack':13 'moos':10 'must':15 'pack':6 'saga':7 'shane':1 'woman':18
-784	Shanghai Tycoon	A Fast-Paced Character Study of a Crocodile And a Lumberjack who must Build a Husband in An Abandoned Fun House	2006	1	7	2.99	47	20.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':22 'build':17 'charact':7 'crocodil':11 'fast':5 'fast-pac':4 'fun':23 'hous':24 'husband':19 'lumberjack':14 'must':16 'pace':6 'shanghai':1 'studi':8 'tycoon':2
-785	Shawshank Bubble	A Lacklusture Story of a Moose And a Monkey who must Confront a Butler in An Abandoned Amusement Park	2006	1	6	4.99	80	20.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'abandon':19 'amus':20 'bubbl':2 'butler':16 'confront':14 'lacklustur':4 'monkey':11 'moos':8 'must':13 'park':21 'shawshank':1 'stori':5
-786	Shepherd Midsummer	A Thoughtful Drama of a Robot And a Womanizer who must Kill a Lumberjack in A Baloon	2006	1	7	0.99	113	14.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'baloon':19 'drama':5 'kill':14 'lumberjack':16 'midsumm':2 'must':13 'robot':8 'shepherd':1 'thought':4 'woman':11
-787	Shining Roses	A Awe-Inspiring Character Study of a Astronaut And a Forensic Psychologist who must Challenge a Madman in Ancient India	2006	1	4	0.99	125	12.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':22 'astronaut':11 'awe':5 'awe-inspir':4 'challeng':18 'charact':7 'forens':14 'india':23 'inspir':6 'madman':20 'must':17 'psychologist':15 'rose':2 'shine':1 'studi':8
-789	Shock Cabin	A Fateful Tale of a Mad Cow And a Crocodile who must Meet a Husband in New Orleans	2006	1	7	2.99	79	15.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'cabin':2 'cow':9 'crocodil':12 'fate':4 'husband':17 'mad':8 'meet':15 'must':14 'new':19 'orlean':20 'shock':1 'tale':5
-790	Shootist Superfly	A Fast-Paced Story of a Crocodile And a A Shark who must Sink a Pioneer in Berlin	2006	1	6	0.99	67	22.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'berlin':21 'crocodil':10 'fast':5 'fast-pac':4 'must':16 'pace':6 'pioneer':19 'shark':14 'shootist':1 'sink':17 'stori':7 'superfli':2
-791	Show Lord	A Fanciful Saga of a Student And a Girl who must Find a Butler in Ancient Japan	2006	1	3	4.99	167	24.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'ancient':18 'butler':16 'fanci':4 'find':14 'girl':11 'japan':19 'lord':2 'must':13 'saga':5 'show':1 'student':8
-792	Shrek License	A Fateful Yarn of a Secret Agent And a Feminist who must Find a Feminist in A Jet Boat	2006	1	7	2.99	154	15.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'agent':9 'boat':21 'fate':4 'feminist':12,17 'find':15 'jet':20 'licens':2 'must':14 'secret':8 'shrek':1 'yarn':5
-793	Shrunk Divine	A Fateful Character Study of a Waitress And a Technical Writer who must Battle a Hunter in A Baloon	2006	1	6	2.99	139	14.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'baloon':21 'battl':16 'charact':5 'divin':2 'fate':4 'hunter':18 'must':15 'shrunk':1 'studi':6 'technic':12 'waitress':9 'writer':13
-794	Side Ark	A Stunning Panorama of a Crocodile And a Womanizer who must Meet a Feminist in The Canadian Rockies	2006	1	5	0.99	52	28.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'ark':2 'canadian':19 'crocodil':8 'feminist':16 'meet':14 'must':13 'panorama':5 'rocki':20 'side':1 'stun':4 'woman':11
-795	Siege Madre	A Boring Tale of a Frisbee And a Crocodile who must Vanquish a Moose in An Abandoned Mine Shaft	2006	1	7	0.99	111	23.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':19 'bore':4 'crocodil':11 'frisbe':8 'madr':2 'mine':20 'moos':16 'must':13 'shaft':21 'sieg':1 'tale':5 'vanquish':14
-796	Sierra Divide	A Emotional Character Study of a Frisbee And a Mad Scientist who must Build a Madman in California	2006	1	3	0.99	135	12.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'build':16 'california':20 'charact':5 'divid':2 'emot':4 'frisbe':9 'mad':12 'madman':18 'must':15 'scientist':13 'sierra':1 'studi':6
-797	Silence Kane	A Emotional Drama of a Sumo Wrestler And a Dentist who must Confront a Sumo Wrestler in A Baloon	2006	1	7	0.99	67	23.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'baloon':21 'confront':15 'dentist':12 'drama':5 'emot':4 'kane':2 'must':14 'silenc':1 'sumo':8,17 'wrestler':9,18
-798	Silverado Goldfinger	A Stunning Epistle of a Sumo Wrestler And a Man who must Challenge a Waitress in Ancient India	2006	1	4	4.99	74	11.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':19 'challeng':15 'epistl':5 'goldfing':2 'india':20 'man':12 'must':14 'silverado':1 'stun':4 'sumo':8 'waitress':17 'wrestler':9
-799	Simon North	A Thrilling Documentary of a Technical Writer And a A Shark who must Face a Pioneer in A Shark Tank	2006	1	3	0.99	51	26.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'documentari':5 'face':16 'must':15 'north':2 'pioneer':18 'shark':13,21 'simon':1 'tank':22 'technic':8 'thrill':4 'writer':9
-800	Sinners Atlantis	A Epic Display of a Dog And a Boat who must Succumb a Mad Scientist in An Abandoned Mine Shaft	2006	1	7	2.99	126	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':20 'atlanti':2 'boat':11 'display':5 'dog':8 'epic':4 'mad':16 'mine':21 'must':13 'scientist':17 'shaft':22 'sinner':1 'succumb':14
-801	Sister Freddy	A Stunning Saga of a Butler And a Woman who must Pursue a Explorer in Australia	2006	1	5	4.99	152	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'australia':18 'butler':8 'explor':16 'freddi':2 'must':13 'pursu':14 'saga':5 'sister':1 'stun':4 'woman':11
-802	Sky Miracle	A Epic Drama of a Mad Scientist And a Explorer who must Succumb a Waitress in An Abandoned Fun House	2006	1	7	2.99	132	15.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':20 'drama':5 'epic':4 'explor':12 'fun':21 'hous':22 'mad':8 'miracl':2 'must':14 'scientist':9 'sky':1 'succumb':15 'waitress':17
-803	Slacker Liaisons	A Fast-Paced Tale of a A Shark And a Student who must Meet a Crocodile in Ancient China	2006	1	7	4.99	179	29.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':21 'china':22 'crocodil':19 'fast':5 'fast-pac':4 'liaison':2 'meet':17 'must':16 'pace':6 'shark':11 'slacker':1 'student':14 'tale':7
-804	Sleeping Suspects	A Stunning Reflection of a Sumo Wrestler And a Explorer who must Sink a Frisbee in A MySQL Convention	2006	1	7	4.99	129	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'convent':21 'explor':12 'frisbe':17 'must':14 'mysql':20 'reflect':5 'sink':15 'sleep':1 'stun':4 'sumo':8 'suspect':2 'wrestler':9
-805	Sleepless Monsoon	A Amazing Saga of a Moose And a Pastry Chef who must Escape a Butler in Australia	2006	1	5	4.99	64	12.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'amaz':4 'australia':19 'butler':17 'chef':12 'escap':15 'monsoon':2 'moos':8 'must':14 'pastri':11 'saga':5 'sleepless':1
-806	Sleepy Japanese	A Emotional Epistle of a Moose And a Composer who must Fight a Technical Writer in The Outback	2006	1	4	2.99	137	25.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'compos':11 'emot':4 'epistl':5 'fight':14 'japanes':2 'moos':8 'must':13 'outback':20 'sleepi':1 'technic':16 'writer':17
-807	Sleuth Orient	A Fateful Character Study of a Husband And a Dog who must Find a Feminist in Ancient India	2006	1	4	0.99	87	25.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'ancient':19 'charact':5 'dog':12 'fate':4 'feminist':17 'find':15 'husband':9 'india':20 'must':14 'orient':2 'sleuth':1 'studi':6
-808	Sling Luke	A Intrepid Character Study of a Robot And a Monkey who must Reach a Secret Agent in An Abandoned Amusement Park	2006	1	5	0.99	84	10.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'abandon':21 'agent':18 'amus':22 'charact':5 'intrepid':4 'luke':2 'monkey':12 'must':14 'park':23 'reach':15 'robot':9 'secret':17 'sling':1 'studi':6
-809	Slipper Fidelity	A Taut Reflection of a Secret Agent And a Man who must Redeem a Explorer in A MySQL Convention	2006	1	5	0.99	156	14.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'agent':9 'convent':21 'explor':17 'fidel':2 'man':12 'must':14 'mysql':20 'redeem':15 'reflect':5 'secret':8 'slipper':1 'taut':4
-810	Slums Duck	A Amazing Character Study of a Teacher And a Database Administrator who must Defeat a Waitress in A Jet Boat	2006	1	5	0.99	147	21.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':13 'amaz':4 'boat':22 'charact':5 'databas':12 'defeat':16 'duck':2 'jet':21 'must':15 'slum':1 'studi':6 'teacher':9 'waitress':18
-811	Smile Earring	A Intrepid Drama of a Teacher And a Butler who must Build a Pastry Chef in Berlin	2006	1	4	2.99	60	29.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'berlin':19 'build':14 'butler':11 'chef':17 'drama':5 'earring':2 'intrepid':4 'must':13 'pastri':16 'smile':1 'teacher':8
-812	Smoking Barbarella	A Lacklusture Saga of a Mad Cow And a Mad Scientist who must Sink a Cat in A MySQL Convention	2006	1	7	0.99	50	13.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'barbarella':2 'cat':18 'convent':22 'cow':9 'lacklustur':4 'mad':8,12 'must':15 'mysql':21 'saga':5 'scientist':13 'sink':16 'smoke':1
-813	Smoochy Control	A Thrilling Documentary of a Husband And a Feminist who must Face a Mad Scientist in Ancient China	2006	1	7	0.99	184	18.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'ancient':19 'china':20 'control':2 'documentari':5 'face':14 'feminist':11 'husband':8 'mad':16 'must':13 'scientist':17 'smoochi':1 'thrill':4
-814	Snatch Slipper	A Insightful Panorama of a Woman And a Feminist who must Defeat a Forensic Psychologist in Berlin	2006	1	6	4.99	110	15.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'berlin':19 'defeat':14 'feminist':11 'forens':16 'insight':4 'must':13 'panorama':5 'psychologist':17 'slipper':2 'snatch':1 'woman':8
-815	Snatchers Montezuma	A Boring Epistle of a Sumo Wrestler And a Woman who must Escape a Man in The Canadian Rockies	2006	1	4	2.99	74	14.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'bore':4 'canadian':20 'epistl':5 'escap':15 'man':17 'montezuma':2 'must':14 'rocki':21 'snatcher':1 'sumo':8 'woman':12 'wrestler':9
-816	Snowman Rollercoaster	A Fateful Display of a Lumberjack And a Girl who must Succumb a Mad Cow in A Manhattan Penthouse	2006	1	3	0.99	62	27.99	G	2013-05-26 14:50:58.951	{Trailers}	'cow':17 'display':5 'fate':4 'girl':11 'lumberjack':8 'mad':16 'manhattan':20 'must':13 'penthous':21 'rollercoast':2 'snowman':1 'succumb':14
-817	Soldiers Evolution	A Lacklusture Panorama of a A Shark And a Pioneer who must Confront a Student in The First Manned Space Station	2006	1	7	4.99	185	27.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'confront':15 'evolut':2 'first':20 'lacklustur':4 'man':21 'must':14 'panorama':5 'pioneer':12 'shark':9 'soldier':1 'space':22 'station':23 'student':17
-818	Something Duck	A Boring Character Study of a Car And a Husband who must Outgun a Frisbee in The First Manned Space Station	2006	1	4	4.99	180	17.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'bore':4 'car':9 'charact':5 'duck':2 'first':20 'frisbe':17 'husband':12 'man':21 'must':14 'outgun':15 'someth':1 'space':22 'station':23 'studi':6
-819	Song Hedwig	A Amazing Documentary of a Man And a Husband who must Confront a Squirrel in A MySQL Convention	2006	1	3	0.99	165	29.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'amaz':4 'confront':14 'convent':20 'documentari':5 'hedwig':2 'husband':11 'man':8 'must':13 'mysql':19 'song':1 'squirrel':16
-820	Sons Interview	A Taut Character Study of a Explorer And a Mad Cow who must Battle a Hunter in Ancient China	2006	1	3	2.99	184	11.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'ancient':20 'battl':16 'charact':5 'china':21 'cow':13 'explor':9 'hunter':18 'interview':2 'mad':12 'must':15 'son':1 'studi':6 'taut':4
-821	Sorority Queen	A Fast-Paced Display of a Squirrel And a Composer who must Fight a Forensic Psychologist in A Jet Boat	2006	1	6	0.99	184	17.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'boat':23 'compos':13 'display':7 'fast':5 'fast-pac':4 'fight':16 'forens':18 'jet':22 'must':15 'pace':6 'psychologist':19 'queen':2 'soror':1 'squirrel':10
-822	Soup Wisdom	A Fast-Paced Display of a Robot And a Butler who must Defeat a Butler in A MySQL Convention	2006	1	6	0.99	169	12.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'butler':13,18 'convent':22 'defeat':16 'display':7 'fast':5 'fast-pac':4 'must':15 'mysql':21 'pace':6 'robot':10 'soup':1 'wisdom':2
-823	South Wait	A Amazing Documentary of a Car And a Robot who must Escape a Lumberjack in An Abandoned Amusement Park	2006	1	4	2.99	143	21.99	R	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'abandon':19 'amaz':4 'amus':20 'car':8 'documentari':5 'escap':14 'lumberjack':16 'must':13 'park':21 'robot':11 'south':1 'wait':2
-824	Spartacus Cheaper	A Thrilling Panorama of a Pastry Chef And a Secret Agent who must Overcome a Student in A Manhattan Penthouse	2006	1	4	4.99	52	19.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'agent':13 'cheaper':2 'chef':9 'manhattan':21 'must':15 'overcom':16 'panorama':5 'pastri':8 'penthous':22 'secret':12 'spartacus':1 'student':18 'thrill':4
-825	Speakeasy Date	A Lacklusture Drama of a Forensic Psychologist And a Car who must Redeem a Man in A Manhattan Penthouse	2006	1	6	2.99	165	22.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'car':12 'date':2 'drama':5 'forens':8 'lacklustur':4 'man':17 'manhattan':20 'must':14 'penthous':21 'psychologist':9 'redeem':15 'speakeasi':1
-826	Speed Suit	A Brilliant Display of a Frisbee And a Mad Scientist who must Succumb a Robot in Ancient China	2006	1	7	4.99	124	19.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'ancient':19 'brilliant':4 'china':20 'display':5 'frisbe':8 'mad':11 'must':14 'robot':17 'scientist':12 'speed':1 'succumb':15 'suit':2
-827	Spice Sorority	A Fateful Display of a Pioneer And a Hunter who must Defeat a Husband in An Abandoned Mine Shaft	2006	1	5	4.99	141	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':19 'defeat':14 'display':5 'fate':4 'hunter':11 'husband':16 'mine':20 'must':13 'pioneer':8 'shaft':21 'soror':2 'spice':1
-828	Spiking Element	A Lacklusture Epistle of a Dentist And a Technical Writer who must Find a Dog in A Monastery	2006	1	7	2.99	79	12.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dentist':8 'dog':17 'element':2 'epistl':5 'find':15 'lacklustur':4 'monasteri':20 'must':14 'spike':1 'technic':11 'writer':12
-829	Spinal Rocky	A Lacklusture Epistle of a Sumo Wrestler And a Squirrel who must Defeat a Explorer in California	2006	1	7	2.99	138	12.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'california':19 'defeat':15 'epistl':5 'explor':17 'lacklustur':4 'must':14 'rocki':2 'spinal':1 'squirrel':12 'sumo':8 'wrestler':9
-830	Spirit Flintstones	A Brilliant Yarn of a Cat And a Car who must Confront a Explorer in Ancient Japan	2006	1	7	0.99	149	23.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'ancient':18 'brilliant':4 'car':11 'cat':8 'confront':14 'explor':16 'flintston':2 'japan':19 'must':13 'spirit':1 'yarn':5
-831	Spirited Casualties	A Taut Story of a Waitress And a Man who must Face a Car in A Baloon Factory	2006	1	5	0.99	138	20.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'baloon':19 'car':16 'casualti':2 'face':14 'factori':20 'man':11 'must':13 'spirit':1 'stori':5 'taut':4 'waitress':8
-832	Splash Gump	A Taut Saga of a Crocodile And a Boat who must Conquer a Hunter in A Shark Tank	2006	1	5	0.99	175	16.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':11 'conquer':14 'crocodil':8 'gump':2 'hunter':16 'must':13 'saga':5 'shark':19 'splash':1 'tank':20 'taut':4
-833	Splendor Patton	A Taut Story of a Dog And a Explorer who must Find a Astronaut in Berlin	2006	1	5	0.99	134	20.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'astronaut':16 'berlin':18 'dog':8 'explor':11 'find':14 'must':13 'patton':2 'splendor':1 'stori':5 'taut':4
-834	Spoilers Hellfighters	A Fanciful Story of a Technical Writer And a Squirrel who must Defeat a Dog in The Gulf of Mexico	2006	1	4	0.99	151	26.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'defeat':15 'dog':17 'fanci':4 'gulf':20 'hellfight':2 'mexico':22 'must':14 'spoiler':1 'squirrel':12 'stori':5 'technic':8 'writer':9
-835	Spy Mile	A Thrilling Documentary of a Feminist And a Feminist who must Confront a Feminist in A Baloon	2006	1	6	2.99	112	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'baloon':19 'confront':14 'documentari':5 'feminist':8,11,16 'mile':2 'must':13 'spi':1 'thrill':4
-836	Squad Fish	A Fast-Paced Display of a Pastry Chef And a Dog who must Kill a Teacher in Berlin	2006	1	3	2.99	136	14.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'berlin':21 'chef':11 'display':7 'dog':14 'fast':5 'fast-pac':4 'fish':2 'kill':17 'must':16 'pace':6 'pastri':10 'squad':1 'teacher':19
-837	Stage World	A Lacklusture Panorama of a Woman And a Frisbee who must Chase a Crocodile in A Jet Boat	2006	1	4	2.99	85	19.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'boat':20 'chase':14 'crocodil':16 'frisbe':11 'jet':19 'lacklustur':4 'must':13 'panorama':5 'stage':1 'woman':8 'world':2
-838	Stagecoach Armageddon	A Touching Display of a Pioneer And a Butler who must Chase a Car in California	2006	1	5	4.99	112	25.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'armageddon':2 'butler':11 'california':18 'car':16 'chase':14 'display':5 'must':13 'pioneer':8 'stagecoach':1 'touch':4
-839	Stallion Sundance	A Fast-Paced Tale of a Car And a Dog who must Outgun a A Shark in Australia	2006	1	5	0.99	130	23.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'australia':21 'car':10 'dog':13 'fast':5 'fast-pac':4 'must':15 'outgun':16 'pace':6 'shark':19 'stallion':1 'sundanc':2 'tale':7
-840	Stampede Disturbing	A Unbelieveable Tale of a Woman And a Lumberjack who must Fight a Frisbee in A U-Boat	2006	1	5	0.99	75	26.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':21 'disturb':2 'fight':14 'frisbe':16 'lumberjack':11 'must':13 'stamped':1 'tale':5 'u':20 'u-boat':19 'unbeliev':4 'woman':8
-841	Star Operation	A Insightful Character Study of a Girl And a Car who must Pursue a Mad Cow in A Shark Tank	2006	1	5	2.99	181	9.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'car':12 'charact':5 'cow':18 'girl':9 'insight':4 'mad':17 'must':14 'oper':2 'pursu':15 'shark':21 'star':1 'studi':6 'tank':22
-842	State Wasteland	A Beautiful Display of a Cat And a Pastry Chef who must Outrace a Mad Cow in A Jet Boat	2006	1	4	2.99	113	13.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'beauti':4 'boat':22 'cat':8 'chef':12 'cow':18 'display':5 'jet':21 'mad':17 'must':14 'outrac':15 'pastri':11 'state':1 'wasteland':2
-843	Steel Santa	A Fast-Paced Yarn of a Composer And a Frisbee who must Face a Moose in Nigeria	2006	1	4	4.99	143	15.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'compos':10 'face':16 'fast':5 'fast-pac':4 'frisbe':13 'moos':18 'must':15 'nigeria':20 'pace':6 'santa':2 'steel':1 'yarn':7
-844	Steers Armageddon	A Stunning Character Study of a Car And a Girl who must Succumb a Car in A MySQL Convention	2006	1	6	4.99	140	16.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'armageddon':2 'car':9,17 'charact':5 'convent':21 'girl':12 'must':14 'mysql':20 'steer':1 'studi':6 'stun':4 'succumb':15
-845	Stepmom Dream	A Touching Epistle of a Crocodile And a Teacher who must Build a Forensic Psychologist in A MySQL Convention	2006	1	7	4.99	48	9.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'build':14 'convent':21 'crocodil':8 'dream':2 'epistl':5 'forens':16 'must':13 'mysql':20 'psychologist':17 'stepmom':1 'teacher':11 'touch':4
-846	Sting Personal	A Fanciful Drama of a Frisbee And a Dog who must Fight a Madman in A Jet Boat	2006	1	3	4.99	93	9.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':20 'dog':11 'drama':5 'fanci':4 'fight':14 'frisbe':8 'jet':19 'madman':16 'must':13 'person':2 'sting':1
-847	Stock Glass	A Boring Epistle of a Crocodile And a Lumberjack who must Outgun a Moose in Ancient China	2006	1	7	2.99	160	10.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'ancient':18 'bore':4 'china':19 'crocodil':8 'epistl':5 'glass':2 'lumberjack':11 'moos':16 'must':13 'outgun':14 'stock':1
-848	Stone Fire	A Intrepid Drama of a Astronaut And a Crocodile who must Find a Boat in Soviet Georgia	2006	1	3	0.99	94	19.99	G	2013-05-26 14:50:58.951	{Trailers}	'astronaut':8 'boat':16 'crocodil':11 'drama':5 'find':14 'fire':2 'georgia':19 'intrepid':4 'must':13 'soviet':18 'stone':1
-849	Storm Happiness	A Insightful Drama of a Feminist And a A Shark who must Vanquish a Boat in A Shark Tank	2006	1	6	0.99	57	28.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'boat':17 'drama':5 'feminist':8 'happi':2 'insight':4 'must':14 'shark':12,20 'storm':1 'tank':21 'vanquish':15
-850	Story Side	A Lacklusture Saga of a Boy And a Cat who must Sink a Dentist in An Abandoned Mine Shaft	2006	1	7	0.99	163	27.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':19 'boy':8 'cat':11 'dentist':16 'lacklustur':4 'mine':20 'must':13 'saga':5 'shaft':21 'side':2 'sink':14 'stori':1
-851	Straight Hours	A Boring Panorama of a Secret Agent And a Girl who must Sink a Waitress in The Outback	2006	1	3	0.99	151	19.99	R	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'agent':9 'bore':4 'girl':12 'hour':2 'must':14 'outback':20 'panorama':5 'secret':8 'sink':15 'straight':1 'waitress':17
-852	Strangelove Desire	A Awe-Inspiring Panorama of a Lumberjack And a Waitress who must Defeat a Crocodile in An Abandoned Amusement Park	2006	1	4	0.99	103	27.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'abandon':21 'amus':22 'awe':5 'awe-inspir':4 'crocodil':18 'defeat':16 'desir':2 'inspir':6 'lumberjack':10 'must':15 'panorama':7 'park':23 'strangelov':1 'waitress':13
-853	Stranger Strangers	A Awe-Inspiring Yarn of a Womanizer And a Explorer who must Fight a Woman in The First Manned Space Station	2006	1	3	4.99	139	12.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'awe':5 'awe-inspir':4 'explor':13 'fight':16 'first':21 'inspir':6 'man':22 'must':15 'space':23 'station':24 'stranger':1,2 'woman':10,18 'yarn':7
-890	Tights Dawn	A Thrilling Epistle of a Boat And a Secret Agent who must Face a Boy in A Baloon	2006	1	5	0.99	172	14.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'agent':12 'baloon':20 'boat':8 'boy':17 'dawn':2 'epistl':5 'face':15 'must':14 'secret':11 'thrill':4 'tight':1
-854	Strangers Graffiti	A Brilliant Character Study of a Secret Agent And a Man who must Find a Cat in The Gulf of Mexico	2006	1	4	4.99	119	22.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'agent':10 'brilliant':4 'cat':18 'charact':5 'find':16 'graffiti':2 'gulf':21 'man':13 'mexico':23 'must':15 'secret':9 'stranger':1 'studi':6
-855	Streak Ridgemont	A Astounding Character Study of a Hunter And a Waitress who must Sink a Man in New Orleans	2006	1	7	0.99	132	28.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'astound':4 'charact':5 'hunter':9 'man':17 'must':14 'new':19 'orlean':20 'ridgemont':2 'sink':15 'streak':1 'studi':6 'waitress':12
-856	Streetcar Intentions	A Insightful Character Study of a Waitress And a Crocodile who must Sink a Waitress in The Gulf of Mexico	2006	1	5	4.99	73	11.99	R	2013-05-26 14:50:58.951	{Commentaries}	'charact':5 'crocodil':12 'gulf':20 'insight':4 'intent':2 'mexico':22 'must':14 'sink':15 'streetcar':1 'studi':6 'waitress':9,17
-857	Strictly Scarface	A Touching Reflection of a Crocodile And a Dog who must Chase a Hunter in An Abandoned Fun House	2006	1	3	2.99	144	24.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'abandon':19 'chase':14 'crocodil':8 'dog':11 'fun':20 'hous':21 'hunter':16 'must':13 'reflect':5 'scarfac':2 'strict':1 'touch':4
-858	Submarine Bed	A Amazing Display of a Car And a Monkey who must Fight a Teacher in Soviet Georgia	2006	1	5	4.99	127	21.99	R	2013-05-26 14:50:58.951	{Trailers}	'amaz':4 'bed':2 'car':8 'display':5 'fight':14 'georgia':19 'monkey':11 'must':13 'soviet':18 'submarin':1 'teacher':16
-859	Sugar Wonka	A Touching Story of a Dentist And a Database Administrator who must Conquer a Astronaut in An Abandoned Amusement Park	2006	1	3	4.99	114	20.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'abandon':20 'administr':12 'amus':21 'astronaut':17 'conquer':15 'databas':11 'dentist':8 'must':14 'park':22 'stori':5 'sugar':1 'touch':4 'wonka':2
-860	Suicides Silence	A Emotional Character Study of a Car And a Girl who must Face a Composer in A U-Boat	2006	1	4	4.99	93	13.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'boat':22 'car':9 'charact':5 'compos':17 'emot':4 'face':15 'girl':12 'must':14 'silenc':2 'studi':6 'suicid':1 'u':21 'u-boat':20
-861	Suit Walls	A Touching Panorama of a Lumberjack And a Frisbee who must Build a Dog in Australia	2006	1	3	4.99	111	12.99	R	2013-05-26 14:50:58.951	{Commentaries}	'australia':18 'build':14 'dog':16 'frisbe':11 'lumberjack':8 'must':13 'panorama':5 'suit':1 'touch':4 'wall':2
-862	Summer Scarface	A Emotional Panorama of a Lumberjack And a Hunter who must Meet a Girl in A Shark Tank	2006	1	5	0.99	53	25.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'emot':4 'girl':16 'hunter':11 'lumberjack':8 'meet':14 'must':13 'panorama':5 'scarfac':2 'shark':19 'summer':1 'tank':20
-863	Sun Confessions	A Beautiful Display of a Mad Cow And a Dog who must Redeem a Waitress in An Abandoned Amusement Park	2006	1	5	0.99	141	9.99	R	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':20 'amus':21 'beauti':4 'confess':2 'cow':9 'display':5 'dog':12 'mad':8 'must':14 'park':22 'redeem':15 'sun':1 'waitress':17
-864	Sundance Invasion	A Epic Drama of a Lumberjack And a Explorer who must Confront a Hunter in A Baloon Factory	2006	1	5	0.99	92	21.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'baloon':19 'confront':14 'drama':5 'epic':4 'explor':11 'factori':20 'hunter':16 'invas':2 'lumberjack':8 'must':13 'sundanc':1
-865	Sunrise League	A Beautiful Epistle of a Madman And a Butler who must Face a Crocodile in A Manhattan Penthouse	2006	1	3	4.99	135	19.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'beauti':4 'butler':11 'crocodil':16 'epistl':5 'face':14 'leagu':2 'madman':8 'manhattan':19 'must':13 'penthous':20 'sunris':1
-866	Sunset Racer	A Awe-Inspiring Reflection of a Astronaut And a A Shark who must Defeat a Forensic Psychologist in California	2006	1	6	0.99	48	28.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'astronaut':10 'awe':5 'awe-inspir':4 'california':22 'defeat':17 'forens':19 'inspir':6 'must':16 'psychologist':20 'racer':2 'reflect':7 'shark':14 'sunset':1
-867	Super Wyoming	A Action-Packed Saga of a Pastry Chef And a Explorer who must Discover a A Shark in The Outback	2006	1	5	4.99	58	10.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'chef':11 'discov':17 'explor':14 'must':16 'outback':23 'pack':6 'pastri':10 'saga':7 'shark':20 'super':1 'wyom':2
-868	Superfly Trip	A Beautiful Saga of a Lumberjack And a Teacher who must Build a Technical Writer in An Abandoned Fun House	2006	1	5	0.99	114	27.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'abandon':20 'beauti':4 'build':14 'fun':21 'hous':22 'lumberjack':8 'must':13 'saga':5 'superfli':1 'teacher':11 'technic':16 'trip':2 'writer':17
-869	Suspects Quills	A Emotional Epistle of a Pioneer And a Crocodile who must Battle a Man in A Manhattan Penthouse	2006	1	4	2.99	47	22.99	PG	2013-05-26 14:50:58.951	{Trailers}	'battl':14 'crocodil':11 'emot':4 'epistl':5 'man':16 'manhattan':19 'must':13 'penthous':20 'pioneer':8 'quill':2 'suspect':1
-870	Swarm Gold	A Insightful Panorama of a Crocodile And a Boat who must Conquer a Sumo Wrestler in A MySQL Convention	2006	1	4	0.99	123	12.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'boat':11 'conquer':14 'convent':21 'crocodil':8 'gold':2 'insight':4 'must':13 'mysql':20 'panorama':5 'sumo':16 'swarm':1 'wrestler':17
-871	Sweden Shining	A Taut Documentary of a Car And a Robot who must Conquer a Boy in The Canadian Rockies	2006	1	6	4.99	176	19.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'canadian':19 'car':8 'conquer':14 'documentari':5 'must':13 'robot':11 'rocki':20 'shine':2 'sweden':1 'taut':4
-891	Timberland Sky	A Boring Display of a Man And a Dog who must Redeem a Girl in A U-Boat	2006	1	3	0.99	69	13.99	G	2013-05-26 14:50:58.951	{Commentaries}	'boat':21 'bore':4 'display':5 'dog':11 'girl':16 'man':8 'must':13 'redeem':14 'sky':2 'timberland':1 'u':20 'u-boat':19
-872	Sweet Brotherhood	A Unbelieveable Epistle of a Sumo Wrestler And a Hunter who must Chase a Forensic Psychologist in A Baloon	2006	1	3	2.99	185	27.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'baloon':21 'brotherhood':2 'chase':15 'epistl':5 'forens':17 'hunter':12 'must':14 'psychologist':18 'sumo':8 'sweet':1 'unbeliev':4 'wrestler':9
-873	Sweethearts Suspects	A Brilliant Character Study of a Frisbee And a Sumo Wrestler who must Confront a Woman in The Gulf of Mexico	2006	1	3	0.99	108	13.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'brilliant':4 'charact':5 'confront':16 'frisbe':9 'gulf':21 'mexico':23 'must':15 'studi':6 'sumo':12 'suspect':2 'sweetheart':1 'woman':18 'wrestler':13
-874	Tadpole Park	A Beautiful Tale of a Frisbee And a Moose who must Vanquish a Dog in An Abandoned Amusement Park	2006	1	6	2.99	155	13.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':19 'amus':20 'beauti':4 'dog':16 'frisbe':8 'moos':11 'must':13 'park':2,21 'tadpol':1 'tale':5 'vanquish':14
-875	Talented Homicide	A Lacklusture Panorama of a Dentist And a Forensic Psychologist who must Outrace a Pioneer in A U-Boat	2006	1	6	0.99	173	9.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':22 'dentist':8 'forens':11 'homicid':2 'lacklustur':4 'must':14 'outrac':15 'panorama':5 'pioneer':17 'psychologist':12 'talent':1 'u':21 'u-boat':20
-876	Tarzan Videotape	A Fast-Paced Display of a Lumberjack And a Mad Scientist who must Succumb a Sumo Wrestler in The Sahara Desert	2006	1	3	2.99	91	11.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'desert':24 'display':7 'fast':5 'fast-pac':4 'lumberjack':10 'mad':13 'must':16 'pace':6 'sahara':23 'scientist':14 'succumb':17 'sumo':19 'tarzan':1 'videotap':2 'wrestler':20
-877	Taxi Kick	A Amazing Epistle of a Girl And a Woman who must Outrace a Waitress in Soviet Georgia	2006	1	4	0.99	64	23.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'amaz':4 'epistl':5 'georgia':19 'girl':8 'kick':2 'must':13 'outrac':14 'soviet':18 'taxi':1 'waitress':16 'woman':11
-878	Teen Apollo	A Awe-Inspiring Drama of a Dog And a Man who must Escape a Robot in A Shark Tank	2006	1	3	4.99	74	25.99	G	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'apollo':2 'awe':5 'awe-inspir':4 'dog':10 'drama':7 'escap':16 'inspir':6 'man':13 'must':15 'robot':18 'shark':21 'tank':22 'teen':1
-879	Telegraph Voyage	A Fateful Yarn of a Husband And a Dog who must Battle a Waitress in A Jet Boat	2006	1	3	4.99	148	20.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'battl':14 'boat':20 'dog':11 'fate':4 'husband':8 'jet':19 'must':13 'telegraph':1 'voyag':2 'waitress':16 'yarn':5
-880	Telemark Heartbreakers	A Action-Packed Panorama of a Technical Writer And a Man who must Build a Forensic Psychologist in A Manhattan Penthouse	2006	1	6	2.99	152	9.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'action':5 'action-pack':4 'build':17 'forens':19 'heartbreak':2 'man':14 'manhattan':23 'must':16 'pack':6 'panorama':7 'penthous':24 'psychologist':20 'technic':10 'telemark':1 'writer':11
-881	Temple Attraction	A Action-Packed Saga of a Forensic Psychologist And a Woman who must Battle a Womanizer in Soviet Georgia	2006	1	5	4.99	71	13.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'action':5 'action-pack':4 'attract':2 'battl':17 'forens':10 'georgia':22 'must':16 'pack':6 'psychologist':11 'saga':7 'soviet':21 'templ':1 'woman':14,19
-882	Tenenbaums Command	A Taut Display of a Pioneer And a Man who must Reach a Girl in The Gulf of Mexico	2006	1	4	0.99	99	24.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'command':2 'display':5 'girl':16 'gulf':19 'man':11 'mexico':21 'must':13 'pioneer':8 'reach':14 'taut':4 'tenenbaum':1
-883	Tequila Past	A Action-Packed Panorama of a Mad Scientist And a Robot who must Challenge a Student in Nigeria	2006	1	6	4.99	53	17.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'challeng':17 'mad':10 'must':16 'nigeria':21 'pack':6 'panorama':7 'past':2 'robot':14 'scientist':11 'student':19 'tequila':1
-884	Terminator Club	A Touching Story of a Crocodile And a Girl who must Sink a Man in The Gulf of Mexico	2006	1	5	4.99	88	11.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'club':2 'crocodil':8 'girl':11 'gulf':19 'man':16 'mexico':21 'must':13 'sink':14 'stori':5 'termin':1 'touch':4
-885	Texas Watch	A Awe-Inspiring Yarn of a Student And a Teacher who must Fight a Teacher in An Abandoned Amusement Park	2006	1	7	0.99	179	22.99	NC-17	2013-05-26 14:50:58.951	{Trailers}	'abandon':21 'amus':22 'awe':5 'awe-inspir':4 'fight':16 'inspir':6 'must':15 'park':23 'student':10 'teacher':13,18 'texa':1 'watch':2 'yarn':7
-886	Theory Mermaid	A Fateful Yarn of a Composer And a Monkey who must Vanquish a Womanizer in The First Manned Space Station	2006	1	5	0.99	184	9.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'compos':8 'fate':4 'first':19 'man':20 'mermaid':2 'monkey':11 'must':13 'space':21 'station':22 'theori':1 'vanquish':14 'woman':16 'yarn':5
-887	Thief Pelican	A Touching Documentary of a Madman And a Mad Scientist who must Outrace a Feminist in An Abandoned Mine Shaft	2006	1	5	4.99	135	28.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'abandon':20 'documentari':5 'feminist':17 'mad':11 'madman':8 'mine':21 'must':14 'outrac':15 'pelican':2 'scientist':12 'shaft':22 'thief':1 'touch':4
-888	Thin Sagebrush	A Emotional Drama of a Husband And a Lumberjack who must Build a Cat in Ancient India	2006	1	5	4.99	53	9.99	PG-13	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'ancient':18 'build':14 'cat':16 'drama':5 'emot':4 'husband':8 'india':19 'lumberjack':11 'must':13 'sagebrush':2 'thin':1
-889	Ties Hunger	A Insightful Saga of a Astronaut And a Explorer who must Pursue a Mad Scientist in A U-Boat	2006	1	3	4.99	111	28.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'astronaut':8 'boat':22 'explor':11 'hunger':2 'insight':4 'mad':16 'must':13 'pursu':14 'saga':5 'scientist':17 'tie':1 'u':21 'u-boat':20
-892	Titanic Boondock	A Brilliant Reflection of a Feminist And a Dog who must Fight a Boy in A Baloon Factory	2006	1	3	4.99	104	18.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'baloon':19 'boondock':2 'boy':16 'brilliant':4 'dog':11 'factori':20 'feminist':8 'fight':14 'must':13 'reflect':5 'titan':1
-893	Titans Jerk	A Unbelieveable Panorama of a Feminist And a Sumo Wrestler who must Challenge a Technical Writer in Ancient China	2006	1	4	4.99	91	11.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'ancient':20 'challeng':15 'china':21 'feminist':8 'jerk':2 'must':14 'panorama':5 'sumo':11 'technic':17 'titan':1 'unbeliev':4 'wrestler':12 'writer':18
-894	Tomatoes Hellfighters	A Thoughtful Epistle of a Madman And a Astronaut who must Overcome a Monkey in A Shark Tank	2006	1	6	0.99	68	23.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'astronaut':11 'epistl':5 'hellfight':2 'madman':8 'monkey':16 'must':13 'overcom':14 'shark':19 'tank':20 'thought':4 'tomato':1
-895	Tomorrow Hustler	A Thoughtful Story of a Moose And a Husband who must Face a Secret Agent in The Sahara Desert	2006	1	3	2.99	142	21.99	R	2013-05-26 14:50:58.951	{Commentaries}	'agent':17 'desert':21 'face':14 'husband':11 'hustler':2 'moos':8 'must':13 'sahara':20 'secret':16 'stori':5 'thought':4 'tomorrow':1
-896	Tootsie Pilot	A Awe-Inspiring Documentary of a Womanizer And a Pastry Chef who must Kill a Lumberjack in Berlin	2006	1	3	0.99	157	10.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'berlin':21 'chef':14 'documentari':7 'inspir':6 'kill':17 'lumberjack':19 'must':16 'pastri':13 'pilot':2 'tootsi':1 'woman':10
-897	Torque Bound	A Emotional Display of a Crocodile And a Husband who must Reach a Man in Ancient Japan	2006	1	3	4.99	179	27.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':18 'bound':2 'crocodil':8 'display':5 'emot':4 'husband':11 'japan':19 'man':16 'must':13 'reach':14 'torqu':1
-898	Tourist Pelican	A Boring Story of a Butler And a Astronaut who must Outrace a Pioneer in Australia	2006	1	4	4.99	152	18.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'astronaut':11 'australia':18 'bore':4 'butler':8 'must':13 'outrac':14 'pelican':2 'pioneer':16 'stori':5 'tourist':1
-899	Towers Hurricane	A Fateful Display of a Monkey And a Car who must Sink a Husband in A MySQL Convention	2006	1	7	0.99	144	14.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'car':11 'convent':20 'display':5 'fate':4 'hurrican':2 'husband':16 'monkey':8 'must':13 'mysql':19 'sink':14 'tower':1
-900	Town Ark	A Awe-Inspiring Documentary of a Moose And a Madman who must Meet a Dog in An Abandoned Mine Shaft	2006	1	6	2.99	136	17.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'abandon':21 'ark':2 'awe':5 'awe-inspir':4 'documentari':7 'dog':18 'inspir':6 'madman':13 'meet':16 'mine':22 'moos':10 'must':15 'shaft':23 'town':1
-901	Tracy Cider	A Touching Reflection of a Database Administrator And a Madman who must Build a Lumberjack in Nigeria	2006	1	3	0.99	142	29.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'administr':9 'build':15 'cider':2 'databas':8 'lumberjack':17 'madman':12 'must':14 'nigeria':19 'reflect':5 'touch':4 'traci':1
-902	Trading Pinocchio	A Emotional Character Study of a Student And a Explorer who must Discover a Frisbee in The First Manned Space Station	2006	1	6	4.99	170	22.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'charact':5 'discov':15 'emot':4 'explor':12 'first':20 'frisbe':17 'man':21 'must':14 'pinocchio':2 'space':22 'station':23 'student':9 'studi':6 'trade':1
-903	Traffic Hobbit	A Amazing Epistle of a Squirrel And a Lumberjack who must Succumb a Database Administrator in A U-Boat	2006	1	5	4.99	139	13.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'administr':17 'amaz':4 'boat':22 'databas':16 'epistl':5 'hobbit':2 'lumberjack':11 'must':13 'squirrel':8 'succumb':14 'traffic':1 'u':21 'u-boat':20
-904	Train Bunch	A Thrilling Character Study of a Robot And a Squirrel who must Face a Dog in Ancient India	2006	1	3	4.99	71	26.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':19 'bunch':2 'charact':5 'dog':17 'face':15 'india':20 'must':14 'robot':9 'squirrel':12 'studi':6 'thrill':4 'train':1
-905	Trainspotting Strangers	A Fast-Paced Drama of a Pioneer And a Mad Cow who must Challenge a Madman in Ancient Japan	2006	1	7	4.99	132	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'ancient':21 'challeng':17 'cow':14 'drama':7 'fast':5 'fast-pac':4 'japan':22 'mad':13 'madman':19 'must':16 'pace':6 'pioneer':10 'stranger':2 'trainspot':1
-906	Tramp Others	A Brilliant Display of a Composer And a Cat who must Succumb a A Shark in Ancient India	2006	1	4	0.99	171	27.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'ancient':19 'brilliant':4 'cat':11 'compos':8 'display':5 'india':20 'must':13 'other':2 'shark':17 'succumb':14 'tramp':1
-907	Translation Summer	A Touching Reflection of a Man And a Monkey who must Pursue a Womanizer in A MySQL Convention	2006	1	4	0.99	168	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'convent':20 'man':8 'monkey':11 'must':13 'mysql':19 'pursu':14 'reflect':5 'summer':2 'touch':4 'translat':1 'woman':16
-908	Trap Guys	A Unbelieveable Story of a Boy And a Mad Cow who must Challenge a Database Administrator in The Sahara Desert	2006	1	3	4.99	110	11.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'administr':18 'boy':8 'challeng':15 'cow':12 'databas':17 'desert':22 'guy':2 'mad':11 'must':14 'sahara':21 'stori':5 'trap':1 'unbeliev':4
-909	Treasure Command	A Emotional Saga of a Car And a Madman who must Discover a Pioneer in California	2006	1	3	0.99	102	28.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'california':18 'car':8 'command':2 'discov':14 'emot':4 'madman':11 'must':13 'pioneer':16 'saga':5 'treasur':1
-910	Treatment Jekyll	A Boring Story of a Teacher And a Student who must Outgun a Cat in An Abandoned Mine Shaft	2006	1	3	0.99	87	19.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'abandon':19 'bore':4 'cat':16 'jekyl':2 'mine':20 'must':13 'outgun':14 'shaft':21 'stori':5 'student':11 'teacher':8 'treatment':1
-911	Trip Newton	A Fanciful Character Study of a Lumberjack And a Car who must Discover a Cat in An Abandoned Amusement Park	2006	1	7	4.99	64	14.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'abandon':20 'amus':21 'car':12 'cat':17 'charact':5 'discov':15 'fanci':4 'lumberjack':9 'must':14 'newton':2 'park':22 'studi':6 'trip':1
-912	Trojan Tomorrow	A Astounding Panorama of a Husband And a Sumo Wrestler who must Pursue a Boat in Ancient India	2006	1	3	2.99	52	9.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'ancient':19 'astound':4 'boat':17 'husband':8 'india':20 'must':14 'panorama':5 'pursu':15 'sumo':11 'tomorrow':2 'trojan':1 'wrestler':12
-913	Troopers Metal	A Fanciful Drama of a Monkey And a Feminist who must Sink a Man in Berlin	2006	1	3	0.99	115	20.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'berlin':18 'drama':5 'fanci':4 'feminist':11 'man':16 'metal':2 'monkey':8 'must':13 'sink':14 'trooper':1
-914	Trouble Date	A Lacklusture Panorama of a Forensic Psychologist And a Woman who must Kill a Explorer in Ancient Japan	2006	1	6	2.99	61	13.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ancient':19 'date':2 'explor':17 'forens':8 'japan':20 'kill':15 'lacklustur':4 'must':14 'panorama':5 'psychologist':9 'troubl':1 'woman':12
-915	Truman Crazy	A Thrilling Epistle of a Moose And a Boy who must Meet a Database Administrator in A Monastery	2006	1	7	4.99	92	9.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'administr':17 'boy':11 'crazi':2 'databas':16 'epistl':5 'meet':14 'monasteri':20 'moos':8 'must':13 'thrill':4 'truman':1
-916	Turn Star	A Stunning Tale of a Man And a Monkey who must Chase a Student in New Orleans	2006	1	3	2.99	80	10.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'chase':14 'man':8 'monkey':11 'must':13 'new':18 'orlean':19 'star':2 'student':16 'stun':4 'tale':5 'turn':1
-917	Tuxedo Mile	A Boring Drama of a Man And a Forensic Psychologist who must Face a Frisbee in Ancient India	2006	1	3	2.99	152	24.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'ancient':19 'bore':4 'drama':5 'face':15 'forens':11 'frisbe':17 'india':20 'man':8 'mile':2 'must':14 'psychologist':12 'tuxedo':1
-918	Twisted Pirates	A Touching Display of a Frisbee And a Boat who must Kill a Girl in A MySQL Convention	2006	1	4	4.99	152	23.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'boat':11 'convent':20 'display':5 'frisbe':8 'girl':16 'kill':14 'must':13 'mysql':19 'pirat':2 'touch':4 'twist':1
-919	Tycoon Gathering	A Emotional Display of a Husband And a A Shark who must Succumb a Madman in A Manhattan Penthouse	2006	1	3	4.99	82	17.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'display':5 'emot':4 'gather':2 'husband':8 'madman':17 'manhattan':20 'must':14 'penthous':21 'shark':12 'succumb':15 'tycoon':1
-920	Unbreakable Karate	A Amazing Character Study of a Robot And a Student who must Chase a Robot in Australia	2006	1	3	0.99	62	16.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'amaz':4 'australia':19 'charact':5 'chase':15 'karat':2 'must':14 'robot':9,17 'student':12 'studi':6 'unbreak':1
-921	Uncut Suicides	A Intrepid Yarn of a Explorer And a Pastry Chef who must Pursue a Mad Cow in A U-Boat	2006	1	7	2.99	172	29.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'boat':23 'chef':12 'cow':18 'explor':8 'intrepid':4 'mad':17 'must':14 'pastri':11 'pursu':15 'suicid':2 'u':22 'u-boat':21 'uncut':1 'yarn':5
-922	Undefeated Dalmations	A Unbelieveable Display of a Crocodile And a Feminist who must Overcome a Moose in An Abandoned Amusement Park	2006	1	7	4.99	107	22.99	PG-13	2013-05-26 14:50:58.951	{Commentaries}	'abandon':19 'amus':20 'crocodil':8 'dalmat':2 'display':5 'feminist':11 'moos':16 'must':13 'overcom':14 'park':21 'unbeliev':4 'undef':1
-923	Unfaithful Kill	A Taut Documentary of a Waitress And a Mad Scientist who must Battle a Technical Writer in New Orleans	2006	1	7	2.99	78	12.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'battl':15 'documentari':5 'kill':2 'mad':11 'must':14 'new':20 'orlean':21 'scientist':12 'taut':4 'technic':17 'unfaith':1 'waitress':8 'writer':18
-924	Unforgiven Zoolander	A Taut Epistle of a Monkey And a Sumo Wrestler who must Vanquish a A Shark in A Baloon Factory	2006	1	7	0.99	129	15.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'baloon':21 'epistl':5 'factori':22 'monkey':8 'must':14 'shark':18 'sumo':11 'taut':4 'unforgiven':1 'vanquish':15 'wrestler':12 'zooland':2
-925	United Pilot	A Fast-Paced Reflection of a Cat And a Mad Cow who must Fight a Car in The Sahara Desert	2006	1	3	0.99	164	27.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'car':19 'cat':10 'cow':14 'desert':23 'fast':5 'fast-pac':4 'fight':17 'mad':13 'must':16 'pace':6 'pilot':2 'reflect':7 'sahara':22 'unit':1
-926	Untouchables Sunrise	A Amazing Documentary of a Woman And a Astronaut who must Outrace a Teacher in An Abandoned Fun House	2006	1	5	2.99	120	11.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'abandon':19 'amaz':4 'astronaut':11 'documentari':5 'fun':20 'hous':21 'must':13 'outrac':14 'sunris':2 'teacher':16 'untouch':1 'woman':8
-927	Uprising Uptown	A Fanciful Reflection of a Boy And a Butler who must Pursue a Woman in Berlin	2006	1	6	2.99	174	16.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'berlin':18 'boy':8 'butler':11 'fanci':4 'must':13 'pursu':14 'reflect':5 'upris':1 'uptown':2 'woman':16
-928	Uptown Young	A Fateful Documentary of a Dog And a Hunter who must Pursue a Teacher in An Abandoned Amusement Park	2006	1	5	2.99	84	16.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'abandon':19 'amus':20 'documentari':5 'dog':8 'fate':4 'hunter':11 'must':13 'park':21 'pursu':14 'teacher':16 'uptown':1 'young':2
-929	Usual Untouchables	A Touching Display of a Explorer And a Lumberjack who must Fight a Forensic Psychologist in A Shark Tank	2006	1	5	4.99	128	21.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'display':5 'explor':8 'fight':14 'forens':16 'lumberjack':11 'must':13 'psychologist':17 'shark':20 'tank':21 'touch':4 'untouch':2 'usual':1
-930	Vacation Boondock	A Fanciful Character Study of a Secret Agent And a Mad Scientist who must Reach a Teacher in Australia	2006	1	4	2.99	145	23.99	R	2013-05-26 14:50:58.951	{Commentaries}	'agent':10 'australia':21 'boondock':2 'charact':5 'fanci':4 'mad':13 'must':16 'reach':17 'scientist':14 'secret':9 'studi':6 'teacher':19 'vacat':1
-931	Valentine Vanishing	A Thrilling Display of a Husband And a Butler who must Reach a Pastry Chef in California	2006	1	7	0.99	48	9.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'butler':11 'california':19 'chef':17 'display':5 'husband':8 'must':13 'pastri':16 'reach':14 'thrill':4 'valentin':1 'vanish':2
-932	Valley Packer	A Astounding Documentary of a Astronaut And a Boy who must Outrace a Sumo Wrestler in Berlin	2006	1	3	0.99	73	21.99	G	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'astound':4 'astronaut':8 'berlin':19 'boy':11 'documentari':5 'must':13 'outrac':14 'packer':2 'sumo':16 'valley':1 'wrestler':17
-933	Vampire Whale	A Epic Story of a Lumberjack And a Monkey who must Confront a Pioneer in A MySQL Convention	2006	1	4	4.99	126	11.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'confront':14 'convent':20 'epic':4 'lumberjack':8 'monkey':11 'must':13 'mysql':19 'pioneer':16 'stori':5 'vampir':1 'whale':2
-934	Vanilla Day	A Fast-Paced Saga of a Girl And a Forensic Psychologist who must Redeem a Girl in Nigeria	2006	1	7	4.99	122	20.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'day':2 'fast':5 'fast-pac':4 'forens':13 'girl':10,19 'must':16 'nigeria':21 'pace':6 'psychologist':14 'redeem':17 'saga':7 'vanilla':1
-935	Vanished Garden	A Intrepid Character Study of a Squirrel And a A Shark who must Kill a Lumberjack in California	2006	1	5	0.99	142	17.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'california':20 'charact':5 'garden':2 'intrepid':4 'kill':16 'lumberjack':18 'must':15 'shark':13 'squirrel':9 'studi':6 'vanish':1
-936	Vanishing Rocky	A Brilliant Reflection of a Man And a Woman who must Conquer a Pioneer in A MySQL Convention	2006	1	3	2.99	123	21.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'brilliant':4 'conquer':14 'convent':20 'man':8 'must':13 'mysql':19 'pioneer':16 'reflect':5 'rocki':2 'vanish':1 'woman':11
-937	Varsity Trip	A Action-Packed Character Study of a Astronaut And a Explorer who must Reach a Monkey in A MySQL Convention	2006	1	7	2.99	85	14.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'action':5 'action-pack':4 'astronaut':11 'charact':7 'convent':23 'explor':14 'monkey':19 'must':16 'mysql':22 'pack':6 'reach':17 'studi':8 'trip':2 'varsiti':1
-938	Velvet Terminator	A Lacklusture Tale of a Pastry Chef And a Technical Writer who must Confront a Crocodile in An Abandoned Amusement Park	2006	1	3	4.99	173	14.99	R	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'abandon':21 'amus':22 'chef':9 'confront':16 'crocodil':18 'lacklustur':4 'must':15 'park':23 'pastri':8 'tale':5 'technic':12 'termin':2 'velvet':1 'writer':13
-939	Vertigo Northwest	A Unbelieveable Display of a Mad Scientist And a Mad Scientist who must Outgun a Mad Cow in Ancient Japan	2006	1	4	2.99	90	17.99	R	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'ancient':21 'cow':19 'display':5 'japan':22 'mad':8,12,18 'must':15 'northwest':2 'outgun':16 'scientist':9,13 'unbeliev':4 'vertigo':1
-940	Victory Academy	A Insightful Epistle of a Mad Scientist And a Explorer who must Challenge a Cat in The Sahara Desert	2006	1	6	0.99	64	19.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'academi':2 'cat':17 'challeng':15 'desert':21 'epistl':5 'explor':12 'insight':4 'mad':8 'must':14 'sahara':20 'scientist':9 'victori':1
-941	Videotape Arsenic	A Lacklusture Display of a Girl And a Astronaut who must Succumb a Student in Australia	2006	1	4	4.99	145	10.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'arsenic':2 'astronaut':11 'australia':18 'display':5 'girl':8 'lacklustur':4 'must':13 'student':16 'succumb':14 'videotap':1
-942	Vietnam Smoochy	A Lacklusture Display of a Butler And a Man who must Sink a Explorer in Soviet Georgia	2006	1	7	0.99	174	27.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'butler':8 'display':5 'explor':16 'georgia':19 'lacklustur':4 'man':11 'must':13 'sink':14 'smoochi':2 'soviet':18 'vietnam':1
-943	Villain Desperate	A Boring Yarn of a Pioneer And a Feminist who must Redeem a Cat in An Abandoned Amusement Park	2006	1	4	4.99	76	27.99	PG-13	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'abandon':19 'amus':20 'bore':4 'cat':16 'desper':2 'feminist':11 'must':13 'park':21 'pioneer':8 'redeem':14 'villain':1 'yarn':5
-944	Virgin Daisy	A Awe-Inspiring Documentary of a Robot And a Mad Scientist who must Reach a Database Administrator in A Shark Tank	2006	1	6	4.99	179	29.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'administr':20 'awe':5 'awe-inspir':4 'daisi':2 'databas':19 'documentari':7 'inspir':6 'mad':13 'must':16 'reach':17 'robot':10 'scientist':14 'shark':23 'tank':24 'virgin':1
-945	Virginian Pluto	A Emotional Panorama of a Dentist And a Crocodile who must Meet a Boy in Berlin	2006	1	5	0.99	164	22.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'berlin':18 'boy':16 'crocodil':11 'dentist':8 'emot':4 'meet':14 'must':13 'panorama':5 'pluto':2 'virginian':1
-946	Virtual Spoilers	A Fateful Tale of a Database Administrator And a Squirrel who must Discover a Student in Soviet Georgia	2006	1	3	4.99	144	14.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'administr':9 'databas':8 'discov':15 'fate':4 'georgia':20 'must':14 'soviet':19 'spoiler':2 'squirrel':12 'student':17 'tale':5 'virtual':1
-947	Vision Torque	A Thoughtful Documentary of a Dog And a Man who must Sink a Man in A Shark Tank	2006	1	5	0.99	59	16.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'documentari':5 'dog':8 'man':11,16 'must':13 'shark':19 'sink':14 'tank':20 'thought':4 'torqu':2 'vision':1
-948	Voice Peach	A Amazing Panorama of a Pioneer And a Student who must Overcome a Mad Scientist in A Manhattan Penthouse	2006	1	6	0.99	139	22.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'amaz':4 'mad':16 'manhattan':20 'must':13 'overcom':14 'panorama':5 'peach':2 'penthous':21 'pioneer':8 'scientist':17 'student':11 'voic':1
-949	Volcano Texas	A Awe-Inspiring Yarn of a Hunter And a Feminist who must Challenge a Dentist in The Outback	2006	1	6	0.99	157	27.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'awe-inspir':4 'challeng':16 'dentist':18 'feminist':13 'hunter':10 'inspir':6 'must':15 'outback':21 'texa':2 'volcano':1 'yarn':7
-950	Volume House	A Boring Tale of a Dog And a Woman who must Meet a Dentist in California	2006	1	7	4.99	132	12.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'bore':4 'california':18 'dentist':16 'dog':8 'hous':2 'meet':14 'must':13 'tale':5 'volum':1 'woman':11
-951	Voyage Legally	A Epic Tale of a Squirrel And a Hunter who must Conquer a Boy in An Abandoned Mine Shaft	2006	1	6	0.99	78	28.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'abandon':19 'boy':16 'conquer':14 'epic':4 'hunter':11 'legal':2 'mine':20 'must':13 'shaft':21 'squirrel':8 'tale':5 'voyag':1
-952	Wagon Jaws	A Intrepid Drama of a Moose And a Boat who must Kill a Explorer in A Manhattan Penthouse	2006	1	7	2.99	152	17.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'boat':11 'drama':5 'explor':16 'intrepid':4 'jaw':2 'kill':14 'manhattan':19 'moos':8 'must':13 'penthous':20 'wagon':1
-953	Wait Cider	A Intrepid Epistle of a Woman And a Forensic Psychologist who must Succumb a Astronaut in A Manhattan Penthouse	2006	1	3	0.99	112	9.99	PG-13	2013-05-26 14:50:58.951	{Trailers}	'astronaut':17 'cider':2 'epistl':5 'forens':11 'intrepid':4 'manhattan':20 'must':14 'penthous':21 'psychologist':12 'succumb':15 'wait':1 'woman':8
-954	Wake Jaws	A Beautiful Saga of a Feminist And a Composer who must Challenge a Moose in Berlin	2006	1	7	4.99	73	18.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'beauti':4 'berlin':18 'challeng':14 'compos':11 'feminist':8 'jaw':2 'moos':16 'must':13 'saga':5 'wake':1
-955	Walls Artist	A Insightful Panorama of a Teacher And a Teacher who must Overcome a Mad Cow in An Abandoned Fun House	2006	1	7	4.99	135	19.99	PG	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':20 'artist':2 'cow':17 'fun':21 'hous':22 'insight':4 'mad':16 'must':13 'overcom':14 'panorama':5 'teacher':8,11 'wall':1
-956	Wanda Chamber	A Insightful Drama of a A Shark And a Pioneer who must Find a Womanizer in The Outback	2006	1	7	4.99	107	23.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'chamber':2 'drama':5 'find':15 'insight':4 'must':14 'outback':20 'pioneer':12 'shark':9 'wanda':1 'woman':17
-957	War Notting	A Boring Drama of a Teacher And a Sumo Wrestler who must Challenge a Secret Agent in The Canadian Rockies	2006	1	7	4.99	80	26.99	G	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'agent':18 'bore':4 'canadian':21 'challeng':15 'drama':5 'must':14 'not':2 'rocki':22 'secret':17 'sumo':11 'teacher':8 'war':1 'wrestler':12
-958	Wardrobe Phantom	A Action-Packed Display of a Mad Cow And a Astronaut who must Kill a Car in Ancient India	2006	1	6	2.99	178	19.99	G	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'action':5 'action-pack':4 'ancient':21 'astronaut':14 'car':19 'cow':11 'display':7 'india':22 'kill':17 'mad':10 'must':16 'pack':6 'phantom':2 'wardrob':1
-959	Warlock Werewolf	A Astounding Yarn of a Pioneer And a Crocodile who must Defeat a A Shark in The Outback	2006	1	6	2.99	83	10.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'astound':4 'crocodil':11 'defeat':14 'must':13 'outback':20 'pioneer':8 'shark':17 'warlock':1 'werewolf':2 'yarn':5
-960	Wars Pluto	A Taut Reflection of a Teacher And a Database Administrator who must Chase a Madman in The Sahara Desert	2006	1	5	2.99	128	15.99	G	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'administr':12 'chase':15 'databas':11 'desert':21 'madman':17 'must':14 'pluto':2 'reflect':5 'sahara':20 'taut':4 'teacher':8 'war':1
-961	Wash Heavenly	A Awe-Inspiring Reflection of a Cat And a Pioneer who must Escape a Hunter in Ancient China	2006	1	7	4.99	161	22.99	R	2013-05-26 14:50:58.951	{Commentaries}	'ancient':20 'awe':5 'awe-inspir':4 'cat':10 'china':21 'escap':16 'heaven':2 'hunter':18 'inspir':6 'must':15 'pioneer':13 'reflect':7 'wash':1
-962	Wasteland Divine	A Fanciful Story of a Database Administrator And a Womanizer who must Fight a Database Administrator in Ancient China	2006	1	7	2.99	85	18.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'administr':9,18 'ancient':20 'china':21 'databas':8,17 'divin':2 'fanci':4 'fight':15 'must':14 'stori':5 'wasteland':1 'woman':12
-963	Watch Tracy	A Fast-Paced Yarn of a Dog And a Frisbee who must Conquer a Hunter in Nigeria	2006	1	5	0.99	78	12.99	PG	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes","Behind the Scenes"}	'conquer':16 'dog':10 'fast':5 'fast-pac':4 'frisbe':13 'hunter':18 'must':15 'nigeria':20 'pace':6 'traci':2 'watch':1 'yarn':7
-964	Waterfront Deliverance	A Unbelieveable Documentary of a Dentist And a Technical Writer who must Build a Womanizer in Nigeria	2006	1	4	4.99	61	17.99	G	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'build':15 'deliver':2 'dentist':8 'documentari':5 'must':14 'nigeria':19 'technic':11 'unbeliev':4 'waterfront':1 'woman':17 'writer':12
-965	Watership Frontier	A Emotional Yarn of a Boat And a Crocodile who must Meet a Moose in Soviet Georgia	2006	1	6	0.99	112	28.99	G	2013-05-26 14:50:58.951	{Commentaries}	'boat':8 'crocodil':11 'emot':4 'frontier':2 'georgia':19 'meet':14 'moos':16 'must':13 'soviet':18 'watership':1 'yarn':5
-966	Wedding Apollo	A Action-Packed Tale of a Student And a Waitress who must Conquer a Lumberjack in An Abandoned Mine Shaft	2006	1	3	0.99	70	14.99	PG	2013-05-26 14:50:58.951	{Trailers}	'abandon':21 'action':5 'action-pack':4 'apollo':2 'conquer':16 'lumberjack':18 'mine':22 'must':15 'pack':6 'shaft':23 'student':10 'tale':7 'waitress':13 'wed':1
-967	Weekend Personal	A Fast-Paced Documentary of a Car And a Butler who must Find a Frisbee in A Jet Boat	2006	1	5	2.99	134	26.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':22 'butler':13 'car':10 'documentari':7 'fast':5 'fast-pac':4 'find':16 'frisbe':18 'jet':21 'must':15 'pace':6 'person':2 'weekend':1
-968	Werewolf Lola	A Fanciful Story of a Man And a Sumo Wrestler who must Outrace a Student in A Monastery	2006	1	6	4.99	79	19.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'fanci':4 'lola':2 'man':8 'monasteri':20 'must':14 'outrac':15 'stori':5 'student':17 'sumo':11 'werewolf':1 'wrestler':12
-969	West Lion	A Intrepid Drama of a Butler And a Lumberjack who must Challenge a Database Administrator in A Manhattan Penthouse	2006	1	4	4.99	159	29.99	G	2013-05-26 14:50:58.951	{Trailers}	'administr':17 'butler':8 'challeng':14 'databas':16 'drama':5 'intrepid':4 'lion':2 'lumberjack':11 'manhattan':20 'must':13 'penthous':21 'west':1
-970	Westward Seabiscuit	A Lacklusture Tale of a Butler And a Husband who must Face a Boy in Ancient China	2006	1	7	0.99	52	11.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'ancient':18 'boy':16 'butler':8 'china':19 'face':14 'husband':11 'lacklustur':4 'must':13 'seabiscuit':2 'tale':5 'westward':1
-971	Whale Bikini	A Intrepid Story of a Pastry Chef And a Database Administrator who must Kill a Feminist in A MySQL Convention	2006	1	4	4.99	109	11.99	PG-13	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'administr':13 'bikini':2 'chef':9 'convent':22 'databas':12 'feminist':18 'intrepid':4 'kill':16 'must':15 'mysql':21 'pastri':8 'stori':5 'whale':1
-972	Whisperer Giant	A Intrepid Story of a Dentist And a Hunter who must Confront a Monkey in Ancient Japan	2006	1	4	4.99	59	24.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':18 'confront':14 'dentist':8 'giant':2 'hunter':11 'intrepid':4 'japan':19 'monkey':16 'must':13 'stori':5 'whisper':1
-973	Wife Turn	A Awe-Inspiring Epistle of a Teacher And a Feminist who must Confront a Pioneer in Ancient Japan	2006	1	3	4.99	183	27.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'ancient':20 'awe':5 'awe-inspir':4 'confront':16 'epistl':7 'feminist':13 'inspir':6 'japan':21 'must':15 'pioneer':18 'teacher':10 'turn':2 'wife':1
-974	Wild Apollo	A Beautiful Story of a Monkey And a Sumo Wrestler who must Conquer a A Shark in A MySQL Convention	2006	1	4	0.99	181	24.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'apollo':2 'beauti':4 'conquer':15 'convent':22 'monkey':8 'must':14 'mysql':21 'shark':18 'stori':5 'sumo':11 'wild':1 'wrestler':12
-975	Willow Tracy	A Brilliant Panorama of a Boat And a Astronaut who must Challenge a Teacher in A Manhattan Penthouse	2006	1	6	2.99	137	22.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'astronaut':11 'boat':8 'brilliant':4 'challeng':14 'manhattan':19 'must':13 'panorama':5 'penthous':20 'teacher':16 'traci':2 'willow':1
-976	Wind Phantom	A Touching Saga of a Madman And a Forensic Psychologist who must Build a Sumo Wrestler in An Abandoned Mine Shaft	2006	1	6	0.99	111	12.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'abandon':21 'build':15 'forens':11 'madman':8 'mine':22 'must':14 'phantom':2 'psychologist':12 'saga':5 'shaft':23 'sumo':17 'touch':4 'wind':1 'wrestler':18
-977	Window Side	A Astounding Character Study of a Womanizer And a Hunter who must Escape a Robot in A Monastery	2006	1	3	2.99	85	25.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'astound':4 'charact':5 'escap':15 'hunter':12 'monasteri':20 'must':14 'robot':17 'side':2 'studi':6 'window':1 'woman':9
-978	Wisdom Worker	A Unbelieveable Saga of a Forensic Psychologist And a Student who must Face a Squirrel in The First Manned Space Station	2006	1	3	0.99	98	12.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'face':15 'first':20 'forens':8 'man':21 'must':14 'psychologist':9 'saga':5 'space':22 'squirrel':17 'station':23 'student':12 'unbeliev':4 'wisdom':1 'worker':2
-979	Witches Panic	A Awe-Inspiring Drama of a Secret Agent And a Hunter who must Fight a Moose in Nigeria	2006	1	6	4.99	100	10.99	NC-17	2013-05-26 14:50:58.951	{Commentaries,"Behind the Scenes"}	'agent':11 'awe':5 'awe-inspir':4 'drama':7 'fight':17 'hunter':14 'inspir':6 'moos':19 'must':16 'nigeria':21 'panic':2 'secret':10 'witch':1
-980	Wizard Coldblooded	A Lacklusture Display of a Robot And a Girl who must Defeat a Sumo Wrestler in A MySQL Convention	2006	1	4	4.99	75	12.99	PG	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'coldblood':2 'convent':21 'defeat':14 'display':5 'girl':11 'lacklustur':4 'must':13 'mysql':20 'robot':8 'sumo':16 'wizard':1 'wrestler':17
-981	Wolves Desire	A Fast-Paced Drama of a Squirrel And a Robot who must Succumb a Technical Writer in A Manhattan Penthouse	2006	1	7	0.99	55	13.99	NC-17	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'desir':2 'drama':7 'fast':5 'fast-pac':4 'manhattan':22 'must':15 'pace':6 'penthous':23 'robot':13 'squirrel':10 'succumb':16 'technic':18 'wolv':1 'writer':19
-982	Women Dorado	A Insightful Documentary of a Waitress And a Butler who must Vanquish a Composer in Australia	2006	1	4	0.99	126	23.99	R	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'australia':18 'butler':11 'compos':16 'documentari':5 'dorado':2 'insight':4 'must':13 'vanquish':14 'waitress':8 'women':1
-983	Won Dares	A Unbelieveable Documentary of a Teacher And a Monkey who must Defeat a Explorer in A U-Boat	2006	1	7	2.99	105	18.99	PG	2013-05-26 14:50:58.951	{"Behind the Scenes"}	'boat':21 'dare':2 'defeat':14 'documentari':5 'explor':16 'monkey':11 'must':13 'teacher':8 'u':20 'u-boat':19 'unbeliev':4 'won':1
-984	Wonderful Drop	A Boring Panorama of a Woman And a Madman who must Overcome a Butler in A U-Boat	2006	1	3	2.99	126	20.99	NC-17	2013-05-26 14:50:58.951	{Commentaries}	'boat':21 'bore':4 'butler':16 'drop':2 'madman':11 'must':13 'overcom':14 'panorama':5 'u':20 'u-boat':19 'woman':8 'wonder':1
-985	Wonderland Christmas	A Awe-Inspiring Character Study of a Waitress And a Car who must Pursue a Mad Scientist in The First Manned Space Station	2006	1	4	4.99	111	19.99	PG	2013-05-26 14:50:58.951	{Commentaries}	'awe':5 'awe-inspir':4 'car':14 'charact':7 'christma':2 'first':23 'inspir':6 'mad':19 'man':24 'must':16 'pursu':17 'scientist':20 'space':25 'station':26 'studi':8 'waitress':11 'wonderland':1
-986	Wonka Sea	A Brilliant Saga of a Boat And a Mad Scientist who must Meet a Moose in Ancient India	2006	1	6	2.99	85	24.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'ancient':19 'boat':8 'brilliant':4 'india':20 'mad':11 'meet':15 'moos':17 'must':14 'saga':5 'scientist':12 'sea':2 'wonka':1
-987	Words Hunter	A Action-Packed Reflection of a Composer And a Mad Scientist who must Face a Pioneer in A MySQL Convention	2006	1	3	2.99	116	13.99	PG	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'action':5 'action-pack':4 'compos':10 'convent':23 'face':17 'hunter':2 'mad':13 'must':16 'mysql':22 'pack':6 'pioneer':19 'reflect':7 'scientist':14 'word':1
-988	Worker Tarzan	A Action-Packed Yarn of a Secret Agent And a Technical Writer who must Battle a Sumo Wrestler in The First Manned Space Station	2006	1	7	2.99	139	26.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'action':5 'action-pack':4 'agent':11 'battl':18 'first':24 'man':25 'must':17 'pack':6 'secret':10 'space':26 'station':27 'sumo':20 'tarzan':2 'technic':14 'worker':1 'wrestler':21 'writer':15 'yarn':7
-989	Working Microcosmos	A Stunning Epistle of a Dentist And a Dog who must Kill a Madman in Ancient China	2006	1	4	4.99	74	22.99	R	2013-05-26 14:50:58.951	{Commentaries,"Deleted Scenes"}	'ancient':18 'china':19 'dentist':8 'dog':11 'epistl':5 'kill':14 'madman':16 'microcosmo':2 'must':13 'stun':4 'work':1
-990	World Leathernecks	A Unbelieveable Tale of a Pioneer And a Astronaut who must Overcome a Robot in An Abandoned Amusement Park	2006	1	3	0.99	171	13.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'abandon':19 'amus':20 'astronaut':11 'leatherneck':2 'must':13 'overcom':14 'park':21 'pioneer':8 'robot':16 'tale':5 'unbeliev':4 'world':1
-991	Worst Banger	A Thrilling Drama of a Madman And a Dentist who must Conquer a Boy in The Outback	2006	1	4	2.99	185	26.99	PG	2013-05-26 14:50:58.951	{"Deleted Scenes","Behind the Scenes"}	'banger':2 'boy':16 'conquer':14 'dentist':11 'drama':5 'madman':8 'must':13 'outback':19 'thrill':4 'worst':1
-992	Wrath Mile	A Intrepid Reflection of a Technical Writer And a Hunter who must Defeat a Sumo Wrestler in A Monastery	2006	1	5	0.99	176	17.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries}	'defeat':15 'hunter':12 'intrepid':4 'mile':2 'monasteri':21 'must':14 'reflect':5 'sumo':17 'technic':8 'wrath':1 'wrestler':18 'writer':9
-993	Wrong Behavior	A Emotional Saga of a Crocodile And a Sumo Wrestler who must Discover a Mad Cow in New Orleans	2006	1	6	2.99	178	10.99	PG-13	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'behavior':2 'cow':18 'crocodil':8 'discov':15 'emot':4 'mad':17 'must':14 'new':20 'orlean':21 'saga':5 'sumo':11 'wrestler':12 'wrong':1
-994	Wyoming Storm	A Awe-Inspiring Panorama of a Robot And a Boat who must Overcome a Feminist in A U-Boat	2006	1	6	4.99	100	29.99	PG-13	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'awe':5 'awe-inspir':4 'boat':13,23 'feminist':18 'inspir':6 'must':15 'overcom':16 'panorama':7 'robot':10 'storm':2 'u':22 'u-boat':21 'wyom':1
-995	Yentl Idaho	A Amazing Display of a Robot And a Astronaut who must Fight a Womanizer in Berlin	2006	1	5	4.99	86	11.99	R	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Deleted Scenes"}	'amaz':4 'astronaut':11 'berlin':18 'display':5 'fight':14 'idaho':2 'must':13 'robot':8 'woman':16 'yentl':1
-996	Young Language	A Unbelieveable Yarn of a Boat And a Database Administrator who must Meet a Boy in The First Manned Space Station	2006	1	6	0.99	183	9.99	G	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'administr':12 'boat':8 'boy':17 'databas':11 'first':20 'languag':2 'man':21 'meet':15 'must':14 'space':22 'station':23 'unbeliev':4 'yarn':5 'young':1
-997	Youth Kick	A Touching Drama of a Teacher And a Cat who must Challenge a Technical Writer in A U-Boat	2006	1	4	0.99	179	14.99	NC-17	2013-05-26 14:50:58.951	{Trailers,"Behind the Scenes"}	'boat':22 'cat':11 'challeng':14 'drama':5 'kick':2 'must':13 'teacher':8 'technic':16 'touch':4 'u':21 'u-boat':20 'writer':17 'youth':1
-998	Zhivago Core	A Fateful Yarn of a Composer And a Man who must Face a Boy in The Canadian Rockies	2006	1	6	0.99	105	10.99	NC-17	2013-05-26 14:50:58.951	{"Deleted Scenes"}	'boy':16 'canadian':19 'compos':8 'core':2 'face':14 'fate':4 'man':11 'must':13 'rocki':20 'yarn':5 'zhivago':1
-999	Zoolander Fiction	A Fateful Reflection of a Waitress And a Boat who must Discover a Sumo Wrestler in Ancient China	2006	1	5	2.99	101	28.99	R	2013-05-26 14:50:58.951	{Trailers,"Deleted Scenes"}	'ancient':19 'boat':11 'china':20 'discov':14 'fate':4 'fiction':2 'must':13 'reflect':5 'sumo':16 'waitress':8 'wrestler':17 'zooland':1
-1000	Zorro Ark	A Intrepid Panorama of a Mad Scientist And a Boy who must Redeem a Boy in A Monastery	2006	1	3	4.99	50	18.99	NC-17	2013-05-26 14:50:58.951	{Trailers,Commentaries,"Behind the Scenes"}	'ark':2 'boy':12,17 'intrepid':4 'mad':8 'monasteri':20 'must':14 'panorama':5 'redeem':15 'scientist':9 'zorro':1
+ALTER TABLE film DISABLE TRIGGER ALL;
+
+COPY film (film_id, title, description, release_year, language_id, original_language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features, fulltext) FROM stdin;
+1	ACADEMY DINOSAUR	A Epic Drama of a Feminist And a Mad Scientist who must Battle a Teacher in The Canadian Rockies	2006	1	\N	6	0.99	86	20.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'mad':11 'epic':4 'must':14 'battl':15 'drama':5 'rocki':21 'academi':1 'teacher':17 'canadian':20 'dinosaur':2 'feminist':8 'scientist':12
+2	ACE GOLDFINGER	A Astounding Epistle of a Database Administrator And a Explorer who must Find a Car in Ancient China	2006	1	\N	3	4.99	48	12.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'ace':1 'car':17 'find':15 'must':14 'china':20 'epistl':5 'explor':12 'ancient':19 'astound':4 'databas':8 'goldfing':2 'administr':9
+3	ADAPTATION HOLES	A Astounding Reflection of a Lumberjack And a Car who must Sink a Lumberjack in A Baloon Factory	2006	1	\N	7	2.99	50	18.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'car':11 'hole':2 'must':13 'sink':14 'adapt':1 'baloon':19 'astound':4 'factori':20 'reflect':5 'lumberjack':8,16
+4	AFFAIR PREJUDICE	A Fanciful Documentary of a Frisbee And a Lumberjack who must Chase a Monkey in A Shark Tank	2006	1	\N	5	2.99	117	26.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'must':13 'tank':20 'chase':14 'fanci':4 'shark':19 'affair':1 'frisbe':8 'monkey':16 'prejudic':2 'lumberjack':11 'documentari':5
+5	AFRICAN EGG	A Fast-Paced Documentary of a Pastry Chef And a Dentist who must Pursue a Forensic Psychologist in The Gulf of Mexico	2006	1	\N	6	2.99	130	22.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'egg':2 'chef':11 'fast':5 'gulf':23 'must':16 'pace':6 'pursu':17 'forens':19 'mexico':25 'pastri':10 'african':1 'dentist':14 'fast-pac':4 'documentari':7 'psychologist':20
+6	AGENT TRUMAN	A Intrepid Panorama of a Robot And a Boy who must Escape a Sumo Wrestler in Ancient China	2006	1	\N	3	2.99	169	17.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'boy':11 'must':13 'sumo':16 'agent':1 'china':20 'escap':14 'robot':8 'truman':2 'ancient':19 'intrepid':4 'panorama':5 'wrestler':17
+7	AIRPLANE SIERRA	A Touching Saga of a Hunter And a Butler who must Discover a Butler in A Jet Boat	2006	1	\N	6	4.99	62	28.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'jet':19 'boat':20 'must':13 'saga':5 'touch':4 'butler':11,16 'discov':14 'hunter':8 'sierra':2 'airplan':1
+8	AIRPORT POLLOCK	A Epic Tale of a Moose And a Girl who must Confront a Monkey in Ancient India	2006	1	\N	6	4.99	54	15.99	R	2007-09-10 17:46:03.905795	{Trailers}	'epic':4 'girl':11 'moos':8 'must':13 'tale':5 'india':19 'monkey':16 'airport':1 'ancient':18 'pollock':2 'confront':14
+9	ALABAMA DEVIL	A Thoughtful Panorama of a Database Administrator And a Mad Scientist who must Outgun a Mad Scientist in A Jet Boat	2006	1	\N	3	2.99	114	21.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'jet':22 'mad':12,18 'boat':23 'must':15 'devil':2 'outgun':16 'alabama':1 'databas':8 'thought':4 'panorama':5 'administr':9 'scientist':13,19
+10	ALADDIN CALENDAR	A Action-Packed Tale of a Man And a Lumberjack who must Reach a Feminist in Ancient China	2006	1	\N	6	4.99	63	24.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'man':10 'must':15 'pack':6 'tale':7 'china':21 'reach':16 'action':5 'aladdin':1 'ancient':20 'calendar':2 'feminist':18 'lumberjack':13 'action-pack':4
+11	ALAMO VIDEOTAPE	A Boring Epistle of a Butler And a Cat who must Fight a Pastry Chef in A MySQL Convention	2006	1	\N	6	0.99	126	16.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cat':11 'bore':4 'chef':17 'must':13 'alamo':1 'fight':14 'mysql':20 'butler':8 'epistl':5 'pastri':16 'convent':21 'videotap':2
+12	ALASKA PHANTOM	A Fanciful Saga of a Hunter And a Pastry Chef who must Vanquish a Boy in Australia	2006	1	\N	6	0.99	136	22.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'boy':17 'chef':12 'must':14 'saga':5 'fanci':4 'alaska':1 'hunter':8 'pastri':11 'phantom':2 'vanquish':15 'australia':19
+213	DATE SPEED	A Touching Saga of a Composer And a Moose who must Discover a Dentist in A MySQL Convention	2006	1	\N	4	0.99	104	19.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'date':1 'moos':11 'must':13 'saga':5 'mysql':19 'speed':2 'touch':4 'compos':8 'discov':14 'convent':20 'dentist':16
+13	ALI FOREVER	A Action-Packed Drama of a Dentist And a Crocodile who must Battle a Feminist in The Canadian Rockies	2006	1	\N	4	4.99	150	21.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'ali':1 'must':15 'pack':6 'battl':16 'drama':7 'forev':2 'rocki':22 'action':5 'dentist':10 'canadian':21 'crocodil':13 'feminist':18 'action-pack':4
+14	ALICE FANTASIA	A Emotional Drama of a A Shark And a Database Administrator who must Vanquish a Pioneer in Soviet Georgia	2006	1	\N	6	0.99	94	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'alic':1 'emot':4 'must':15 'drama':5 'shark':9 'soviet':20 'databas':12 'georgia':21 'pioneer':18 'fantasia':2 'vanquish':16 'administr':13
+15	ALIEN CENTER	A Brilliant Drama of a Cat And a Mad Scientist who must Battle a Feminist in A MySQL Convention	2006	1	\N	5	2.99	46	10.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cat':8 'mad':11 'must':14 'alien':1 'battl':15 'drama':5 'mysql':20 'center':2 'convent':21 'feminist':17 'brilliant':4 'scientist':12
+16	ALLEY EVOLUTION	A Fast-Paced Drama of a Robot And a Composer who must Battle a Astronaut in New Orleans	2006	1	\N	6	2.99	180	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'new':20 'fast':5 'must':15 'pace':6 'alley':1 'battl':16 'drama':7 'robot':10 'compos':13 'evolut':2 'orlean':21 'fast-pac':4 'astronaut':18
+17	ALONE TRIP	A Fast-Paced Character Study of a Composer And a Dog who must Outgun a Boat in An Abandoned Fun House	2006	1	\N	3	0.99	82	14.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'dog':14 'fun':23 'alon':1 'boat':19 'fast':5 'hous':24 'must':16 'pace':6 'trip':2 'studi':8 'compos':11 'outgun':17 'abandon':22 'charact':7 'fast-pac':4
+18	ALTER VICTORY	A Thoughtful Drama of a Composer And a Feminist who must Meet a Secret Agent in The Canadian Rockies	2006	1	\N	6	0.99	57	27.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'meet':14 'must':13 'agent':17 'alter':1 'drama':5 'rocki':21 'compos':8 'secret':16 'thought':4 'victori':2 'canadian':20 'feminist':11
+19	AMADEUS HOLY	A Emotional Display of a Pioneer And a Technical Writer who must Battle a Man in A Baloon	2006	1	\N	6	0.99	113	20.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'man':17 'emot':4 'holi':2 'must':14 'battl':15 'baloon':20 'writer':12 'amadeus':1 'display':5 'pioneer':8 'technic':11
+20	AMELIE HELLFIGHTERS	A Boring Drama of a Woman And a Squirrel who must Conquer a Student in A Baloon	2006	1	\N	4	4.99	79	23.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'bore':4 'must':13 'ameli':1 'drama':5 'woman':8 'baloon':19 'conquer':14 'student':16 'squirrel':11 'hellfight':2
+21	AMERICAN CIRCUS	A Insightful Drama of a Girl And a Astronaut who must Face a Database Administrator in A Shark Tank	2006	1	\N	3	4.99	129	17.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'face':14 'girl':8 'must':13 'tank':21 'drama':5 'shark':20 'circus':2 'databas':16 'insight':4 'american':1 'administr':17 'astronaut':11
+22	AMISTAD MIDSUMMER	A Emotional Character Study of a Dentist And a Crocodile who must Meet a Sumo Wrestler in California	2006	1	\N	6	2.99	85	10.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'emot':4 'meet':15 'must':14 'sumo':17 'studi':6 'amistad':1 'charact':5 'dentist':9 'midsumm':2 'crocodil':12 'wrestler':18 'california':20
+23	ANACONDA CONFESSIONS	A Lacklusture Display of a Dentist And a Dentist who must Fight a Girl in Australia	2006	1	\N	3	0.99	92	9.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'girl':16 'must':13 'fight':14 'confess':2 'dentist':8,11 'display':5 'anaconda':1 'australia':18 'lacklustur':4
+24	ANALYZE HOOSIERS	A Thoughtful Display of a Explorer And a Pastry Chef who must Overcome a Feminist in The Sahara Desert	2006	1	\N	6	2.99	181	19.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'chef':12 'must':14 'analyz':1 'desert':21 'explor':8 'pastri':11 'sahara':20 'display':5 'hoosier':2 'overcom':15 'thought':4 'feminist':17
+25	ANGELS LIFE	A Thoughtful Display of a Woman And a Astronaut who must Battle a Robot in Berlin	2006	1	\N	3	2.99	74	15.99	G	2007-09-10 17:46:03.905795	{Trailers}	'life':2 'must':13 'angel':1 'battl':14 'robot':16 'woman':8 'berlin':18 'display':5 'thought':4 'astronaut':11
+26	ANNIE IDENTITY	A Amazing Panorama of a Pastry Chef And a Boat who must Escape a Woman in An Abandoned Amusement Park	2006	1	\N	3	0.99	86	15.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'amaz':4 'amus':21 'anni':1 'boat':12 'chef':9 'must':14 'park':22 'escap':15 'ident':2 'woman':17 'pastri':8 'abandon':20 'panorama':5
+27	ANONYMOUS HUMAN	A Amazing Reflection of a Database Administrator And a Astronaut who must Outrace a Database Administrator in A Shark Tank	2006	1	\N	7	0.99	179	12.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'amaz':4 'must':14 'tank':22 'human':2 'shark':21 'anonym':1 'outrac':15 'databas':8,17 'reflect':5 'administr':9,18 'astronaut':12
+28	ANTHEM LUKE	A Touching Panorama of a Waitress And a Woman who must Outrace a Dog in An Abandoned Amusement Park	2006	1	\N	5	4.99	91	16.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'dog':16 'amus':20 'luke':2 'must':13 'park':21 'touch':4 'woman':11 'anthem':1 'outrac':14 'abandon':19 'panorama':5 'waitress':8
+29	ANTITRUST TOMATOES	A Fateful Yarn of a Womanizer And a Feminist who must Succumb a Database Administrator in Ancient India	2006	1	\N	5	2.99	168	11.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'fate':4 'must':13 'yarn':5 'india':20 'woman':8 'tomato':2 'ancient':19 'databas':16 'succumb':14 'feminist':11 'administr':17 'antitrust':1
+30	ANYTHING SAVANNAH	A Epic Story of a Pastry Chef And a Woman who must Chase a Feminist in An Abandoned Fun House	2006	1	\N	4	2.99	82	27.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'fun':21 'chef':9 'epic':4 'hous':22 'must':14 'anyth':1 'chase':15 'stori':5 'woman':12 'pastri':8 'abandon':20 'feminist':17 'savannah':2
+31	APACHE DIVINE	A Awe-Inspiring Reflection of a Pastry Chef And a Teacher who must Overcome a Sumo Wrestler in A U-Boat	2006	1	\N	5	4.99	92	16.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':24 'awe':5 'boat':25 'chef':11 'must':16 'sumo':19 'apach':1 'divin':2 'inspir':6 'pastri':10 'u-boat':23 'overcom':17 'reflect':7 'teacher':14 'wrestler':20 'awe-inspir':4
+32	APOCALYPSE FLAMINGOS	A Astounding Story of a Dog And a Squirrel who must Defeat a Woman in An Abandoned Amusement Park	2006	1	\N	6	4.99	119	11.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'dog':8 'amus':20 'must':13 'park':21 'stori':5 'woman':16 'defeat':14 'abandon':19 'astound':4 'flamingo':2 'squirrel':11 'apocalyps':1
+33	APOLLO TEEN	A Action-Packed Reflection of a Crocodile And a Explorer who must Find a Sumo Wrestler in An Abandoned Mine Shaft	2006	1	\N	5	2.99	153	15.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'find':16 'mine':23 'must':15 'pack':6 'sumo':18 'teen':2 'shaft':24 'action':5 'apollo':1 'explor':13 'abandon':22 'reflect':7 'crocodil':10 'wrestler':19 'action-pack':4
+34	ARABIA DOGMA	A Touching Epistle of a Madman And a Mad Cow who must Defeat a Student in Nigeria	2006	1	\N	6	0.99	62	29.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'cow':12 'mad':11 'must':14 'dogma':2 'touch':4 'arabia':1 'defeat':15 'epistl':5 'madman':8 'nigeria':19 'student':17
+35	ARACHNOPHOBIA ROLLERCOASTER	A Action-Packed Reflection of a Pastry Chef And a Composer who must Discover a Mad Scientist in The First Manned Space Station	2006	1	\N	4	2.99	147	24.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'mad':19 'man':24 'chef':11 'must':16 'pack':6 'first':23 'space':25 'action':5 'compos':14 'discov':17 'pastri':10 'reflect':7 'station':26 'scientist':20 'action-pack':4 'rollercoast':2 'arachnophobia':1
+36	ARGONAUTS TOWN	A Emotional Epistle of a Forensic Psychologist And a Butler who must Challenge a Waitress in An Abandoned Mine Shaft	2006	1	\N	7	0.99	127	12.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'emot':4 'mine':21 'must':14 'town':2 'shaft':22 'butler':12 'epistl':5 'forens':8 'abandon':20 'argonaut':1 'challeng':15 'waitress':17 'psychologist':9
+37	ARIZONA BANG	A Brilliant Panorama of a Mad Scientist And a Mad Cow who must Meet a Pioneer in A Monastery	2006	1	\N	3	2.99	121	28.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'cow':13 'mad':8,12 'bang':2 'meet':16 'must':15 'arizona':1 'pioneer':18 'panorama':5 'brilliant':4 'monasteri':21 'scientist':9
+38	ARK RIDGEMONT	A Beautiful Yarn of a Pioneer And a Monkey who must Pursue a Explorer in The Sahara Desert	2006	1	\N	6	0.99	68	25.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'ark':1 'must':13 'yarn':5 'pursu':14 'beauti':4 'desert':20 'explor':16 'monkey':11 'sahara':19 'pioneer':8 'ridgemont':2
+39	ARMAGEDDON LOST	A Fast-Paced Tale of a Boat And a Teacher who must Succumb a Composer in An Abandoned Mine Shaft	2006	1	\N	5	0.99	99	10.99	G	2007-09-10 17:46:03.905795	{Trailers}	'boat':10 'fast':5 'lost':2 'mine':22 'must':15 'pace':6 'tale':7 'shaft':23 'compos':18 'abandon':21 'succumb':16 'teacher':13 'fast-pac':4 'armageddon':1
+40	ARMY FLINTSTONES	A Boring Saga of a Database Administrator And a Womanizer who must Battle a Waitress in Nigeria	2006	1	\N	4	0.99	148	22.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'armi':1 'bore':4 'must':14 'saga':5 'battl':15 'woman':12 'databas':8 'nigeria':19 'waitress':17 'administr':9 'flintston':2
+41	ARSENIC INDEPENDENCE	A Fanciful Documentary of a Mad Cow And a Womanizer who must Find a Dentist in Berlin	2006	1	\N	4	0.99	137	17.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'cow':9 'mad':8 'find':15 'must':14 'fanci':4 'woman':12 'berlin':19 'arsenic':1 'dentist':17 'independ':2 'documentari':5
+42	ARTIST COLDBLOODED	A Stunning Reflection of a Robot And a Moose who must Challenge a Woman in California	2006	1	\N	5	2.99	170	10.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'moos':11 'must':13 'stun':4 'robot':8 'woman':16 'artist':1 'reflect':5 'challeng':14 'coldblood':2 'california':18
+43	ATLANTIS CAUSE	A Thrilling Yarn of a Feminist And a Hunter who must Fight a Technical Writer in A Shark Tank	2006	1	\N	6	2.99	170	15.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'caus':2 'must':13 'tank':21 'yarn':5 'fight':14 'shark':20 'hunter':11 'thrill':4 'writer':17 'atlanti':1 'technic':16 'feminist':8
+44	ATTACKS HATE	A Fast-Paced Panorama of a Technical Writer And a Mad Scientist who must Find a Feminist in An Abandoned Mine Shaft	2006	1	\N	5	4.99	113	21.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'mad':14 'fast':5 'find':18 'hate':2 'mine':24 'must':17 'pace':6 'shaft':25 'attack':1 'writer':11 'abandon':23 'technic':10 'fast-pac':4 'feminist':20 'panorama':7 'scientist':15
+45	ATTRACTION NEWTON	A Astounding Panorama of a Composer And a Frisbee who must Reach a Husband in Ancient Japan	2006	1	\N	5	4.99	83	14.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'must':13 'japan':19 'reach':14 'compos':8 'frisbe':11 'newton':2 'ancient':18 'astound':4 'attract':1 'husband':16 'panorama':5
+46	AUTUMN CROW	A Beautiful Tale of a Dentist And a Mad Cow who must Battle a Moose in The Sahara Desert	2006	1	\N	3	4.99	108	13.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':12 'mad':11 'crow':2 'moos':17 'must':14 'tale':5 'battl':15 'autumn':1 'beauti':4 'desert':21 'sahara':20 'dentist':8
+47	BABY HALL	A Boring Character Study of a A Shark And a Girl who must Outrace a Feminist in An Abandoned Mine Shaft	2006	1	\N	5	4.99	153	23.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'babi':1 'bore':4 'girl':13 'hall':2 'mine':22 'must':15 'shaft':23 'shark':10 'studi':6 'outrac':16 'abandon':21 'charact':5 'feminist':18
+48	BACKLASH UNDEFEATED	A Stunning Character Study of a Mad Scientist And a Mad Cow who must Kill a Car in A Monastery	2006	1	\N	3	4.99	118	24.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'car':19 'cow':14 'mad':9,13 'kill':17 'must':16 'stun':4 'studi':6 'undef':2 'charact':5 'backlash':1 'monasteri':22 'scientist':10
+49	BADMAN DAWN	A Emotional Panorama of a Pioneer And a Composer who must Escape a Mad Scientist in A Jet Boat	2006	1	\N	6	2.99	162	22.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'jet':20 'mad':16 'boat':21 'dawn':2 'emot':4 'must':13 'escap':14 'badman':1 'compos':11 'pioneer':8 'panorama':5 'scientist':17
+50	BAKED CLEOPATRA	A Stunning Drama of a Forensic Psychologist And a Husband who must Overcome a Waitress in A Monastery	2006	1	\N	3	2.99	182	20.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'bake':1 'must':14 'stun':4 'drama':5 'forens':8 'husband':12 'overcom':15 'waitress':17 'cleopatra':2 'monasteri':20 'psychologist':9
+51	BALLOON HOMEWARD	A Insightful Panorama of a Forensic Psychologist And a Mad Cow who must Build a Mad Scientist in The First Manned Space Station	2006	1	\N	5	2.99	75	10.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'cow':13 'mad':12,18 'man':23 'must':15 'build':16 'first':22 'space':24 'forens':8 'balloon':1 'insight':4 'station':25 'homeward':2 'panorama':5 'scientist':19 'psychologist':9
+52	BALLROOM MOCKINGBIRD	A Thrilling Documentary of a Composer And a Monkey who must Find a Feminist in California	2006	1	\N	6	0.99	173	29.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'find':14 'must':13 'compos':8 'monkey':11 'thrill':4 'ballroom':1 'feminist':16 'california':18 'documentari':5 'mockingbird':2
+53	BANG KWAI	A Epic Drama of a Madman And a Cat who must Face a A Shark in An Abandoned Amusement Park	2006	1	\N	5	2.99	87	25.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':11 'amus':21 'bang':1 'epic':4 'face':14 'kwai':2 'must':13 'park':22 'drama':5 'shark':17 'madman':8 'abandon':20
+54	BANGER PINOCCHIO	A Awe-Inspiring Drama of a Car And a Pastry Chef who must Chase a Crocodile in The First Manned Space Station	2006	1	\N	5	0.99	113	15.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'awe':5 'car':10 'man':23 'chef':14 'must':16 'chase':17 'drama':7 'first':22 'space':24 'banger':1 'inspir':6 'pastri':13 'station':25 'crocodil':19 'pinocchio':2 'awe-inspir':4
+55	BARBARELLA STREETCAR	A Awe-Inspiring Story of a Feminist And a Cat who must Conquer a Dog in A Monastery	2006	1	\N	6	2.99	65	27.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'awe':5 'cat':13 'dog':18 'must':15 'stori':7 'inspir':6 'conquer':16 'feminist':10 'monasteri':21 'streetcar':2 'awe-inspir':4 'barbarella':1
+56	BAREFOOT MANCHURIAN	A Intrepid Story of a Cat And a Student who must Vanquish a Girl in An Abandoned Amusement Park	2006	1	\N	6	2.99	129	15.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cat':8 'amus':20 'girl':16 'must':13 'park':21 'stori':5 'abandon':19 'student':11 'barefoot':1 'intrepid':4 'vanquish':14 'manchurian':2
+57	BASIC EASY	A Stunning Epistle of a Man And a Husband who must Reach a Mad Scientist in A Jet Boat	2006	1	\N	4	2.99	90	18.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'jet':20 'mad':16 'man':8 'boat':21 'easi':2 'must':13 'stun':4 'basic':1 'reach':14 'epistl':5 'husband':11 'scientist':17
+58	BEACH HEARTBREAKERS	A Fateful Display of a Womanizer And a Mad Scientist who must Outgun a A Shark in Soviet Georgia	2006	1	\N	6	2.99	122	16.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'mad':11 'fate':4 'must':14 'beach':1 'shark':18 'woman':8 'outgun':15 'soviet':20 'display':5 'georgia':21 'scientist':12 'heartbreak':2
+59	BEAR GRACELAND	A Astounding Saga of a Dog And a Boy who must Kill a Teacher in The First Manned Space Station	2006	1	\N	4	2.99	160	20.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'boy':11 'dog':8 'man':20 'bear':1 'kill':14 'must':13 'saga':5 'first':19 'space':21 'astound':4 'station':22 'teacher':16 'graceland':2
+60	BEAST HUNCHBACK	A Awe-Inspiring Epistle of a Student And a Squirrel who must Defeat a Boy in Ancient China	2006	1	\N	3	4.99	89	22.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'awe':5 'boy':18 'must':15 'beast':1 'china':21 'defeat':16 'epistl':7 'inspir':6 'ancient':20 'student':10 'squirrel':13 'hunchback':2 'awe-inspir':4
+61	BEAUTY GREASE	A Fast-Paced Display of a Composer And a Moose who must Sink a Robot in An Abandoned Mine Shaft	2006	1	\N	5	4.99	175	28.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'fast':5 'mine':22 'moos':13 'must':15 'pace':6 'sink':16 'greas':2 'robot':18 'shaft':23 'beauti':1 'compos':10 'abandon':21 'display':7 'fast-pac':4
+62	BED HIGHBALL	A Astounding Panorama of a Lumberjack And a Dog who must Redeem a Woman in An Abandoned Fun House	2006	1	\N	5	2.99	106	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'bed':1 'dog':11 'fun':20 'hous':21 'must':13 'woman':16 'redeem':14 'abandon':19 'astound':4 'highbal':2 'panorama':5 'lumberjack':8
+63	BEDAZZLED MARRIED	A Astounding Character Study of a Madman And a Robot who must Meet a Mad Scientist in An Abandoned Fun House	2006	1	\N	6	0.99	73	21.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'fun':22 'mad':17 'hous':23 'meet':15 'must':14 'marri':2 'robot':12 'studi':6 'madman':9 'abandon':21 'astound':4 'bedazzl':1 'charact':5 'scientist':18
+64	BEETHOVEN EXORCIST	A Epic Display of a Pioneer And a Student who must Challenge a Butler in The Gulf of Mexico	2006	1	\N	6	0.99	151	26.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'epic':4 'gulf':19 'must':13 'butler':16 'mexico':21 'display':5 'pioneer':8 'student':11 'challeng':14 'exorcist':2 'beethoven':1
+65	BEHAVIOR RUNAWAY	A Unbelieveable Drama of a Student And a Husband who must Outrace a Sumo Wrestler in Berlin	2006	1	\N	3	4.99	100	20.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'must':13 'sumo':16 'drama':5 'berlin':19 'outrac':14 'husband':11 'runaway':2 'student':8 'behavior':1 'unbeliev':4 'wrestler':17
+66	BENEATH RUSH	A Astounding Panorama of a Man And a Monkey who must Discover a Man in The First Manned Space Station	2006	1	\N	6	0.99	53	27.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'man':8,16,20 'must':13 'rush':2 'first':19 'space':21 'discov':14 'monkey':11 'astound':4 'beneath':1 'station':22 'panorama':5
+67	BERETS AGENT	A Taut Saga of a Crocodile And a Boy who must Overcome a Technical Writer in Ancient China	2006	1	\N	5	2.99	77	24.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'boy':11 'must':13 'saga':5 'taut':4 'agent':2 'beret':1 'china':20 'writer':17 'ancient':19 'overcom':14 'technic':16 'crocodil':8
+68	BETRAYED REAR	A Emotional Character Study of a Boat And a Pioneer who must Find a Explorer in A Shark Tank	2006	1	\N	5	4.99	122	26.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':9 'emot':4 'find':15 'must':14 'rear':2 'tank':21 'shark':20 'studi':6 'betray':1 'explor':17 'charact':5 'pioneer':12
+69	BEVERLY OUTLAW	A Fanciful Documentary of a Womanizer And a Boat who must Defeat a Madman in The First Manned Space Station	2006	1	\N	3	2.99	85	21.99	R	2007-09-10 17:46:03.905795	{Trailers}	'man':20 'boat':11 'must':13 'bever':1 'fanci':4 'first':19 'space':21 'woman':8 'defeat':14 'madman':16 'outlaw':2 'station':22 'documentari':5
+70	BIKINI BORROWERS	A Astounding Drama of a Astronaut And a Cat who must Discover a Woman in The First Manned Space Station	2006	1	\N	7	4.99	142	26.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'cat':11 'man':20 'must':13 'drama':5 'first':19 'space':21 'woman':16 'bikini':1 'borrow':2 'discov':14 'astound':4 'station':22 'astronaut':8
+71	BILKO ANONYMOUS	A Emotional Reflection of a Teacher And a Man who must Meet a Cat in The First Manned Space Station	2006	1	\N	3	4.99	100	25.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':16 'man':11,20 'emot':4 'meet':14 'must':13 'bilko':1 'first':19 'space':21 'anonym':2 'reflect':5 'station':22 'teacher':8
+72	BILL OTHERS	A Stunning Saga of a Mad Scientist And a Forensic Psychologist who must Challenge a Squirrel in A MySQL Convention	2006	1	\N	6	2.99	93	12.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'mad':8 'bill':1 'must':15 'saga':5 'stun':4 'mysql':21 'other':2 'forens':12 'convent':22 'challeng':16 'squirrel':18 'scientist':9 'psychologist':13
+73	BINGO TALENTED	A Touching Tale of a Girl And a Crocodile who must Discover a Waitress in Nigeria	2006	1	\N	5	2.99	150	22.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'girl':8 'must':13 'tale':5 'bingo':1 'touch':4 'discov':14 'talent':2 'nigeria':18 'crocodil':11 'waitress':16
+74	BIRCH ANTITRUST	A Fanciful Panorama of a Husband And a Pioneer who must Outgun a Dog in A Baloon	2006	1	\N	4	4.99	162	18.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'dog':16 'must':13 'birch':1 'fanci':4 'baloon':19 'outgun':14 'husband':8 'pioneer':11 'panorama':5 'antitrust':2
+75	BIRD INDEPENDENCE	A Thrilling Documentary of a Car And a Student who must Sink a Hunter in The Canadian Rockies	2006	1	\N	6	4.99	163	14.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'car':8 'bird':1 'must':13 'sink':14 'rocki':20 'hunter':16 'thrill':4 'student':11 'canadian':19 'independ':2 'documentari':5
+76	BIRDCAGE CASPER	A Fast-Paced Saga of a Frisbee And a Astronaut who must Overcome a Feminist in Ancient India	2006	1	\N	4	0.99	103	23.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'fast':5 'must':15 'pace':6 'saga':7 'india':21 'casper':2 'frisbe':10 'ancient':20 'birdcag':1 'overcom':16 'fast-pac':4 'feminist':18 'astronaut':13
+77	BIRDS PERDITION	A Boring Story of a Womanizer And a Pioneer who must Face a Dog in California	2006	1	\N	5	4.99	61	15.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'dog':16 'bird':1 'bore':4 'face':14 'must':13 'stori':5 'woman':8 'perdit':2 'pioneer':11 'california':18
+78	BLACKOUT PRIVATE	A Intrepid Yarn of a Pastry Chef And a Mad Scientist who must Challenge a Secret Agent in Ancient Japan	2006	1	\N	7	2.99	85	12.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'mad':12 'chef':9 'must':15 'yarn':5 'agent':19 'japan':22 'pastri':8 'privat':2 'secret':18 'ancient':21 'blackout':1 'challeng':16 'intrepid':4 'scientist':13
+79	BLADE POLISH	A Thoughtful Character Study of a Frisbee And a Pastry Chef who must Fight a Dentist in The First Manned Space Station	2006	1	\N	5	0.99	114	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'man':22 'chef':13 'must':15 'blade':1 'fight':16 'first':21 'space':23 'studi':6 'frisbe':9 'pastri':12 'polish':2 'charact':5 'dentist':18 'station':24 'thought':4
+80	BLANKET BEVERLY	A Emotional Documentary of a Student And a Girl who must Build a Boat in Nigeria	2006	1	\N	7	2.99	148	21.99	G	2007-09-10 17:46:03.905795	{Trailers}	'boat':16 'emot':4 'girl':11 'must':13 'bever':2 'build':14 'blanket':1 'nigeria':18 'student':8 'documentari':5
+81	BLINDNESS GUN	A Touching Drama of a Robot And a Dentist who must Meet a Hunter in A Jet Boat	2006	1	\N	6	4.99	103	29.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'gun':2 'jet':19 'boat':20 'meet':14 'must':13 'blind':1 'drama':5 'robot':8 'touch':4 'hunter':16 'dentist':11
+82	BLOOD ARGONAUTS	A Boring Drama of a Explorer And a Man who must Kill a Lumberjack in A Manhattan Penthouse	2006	1	\N	3	0.99	71	13.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'man':11 'bore':4 'kill':14 'must':13 'blood':1 'drama':5 'explor':8 'argonaut':2 'penthous':20 'manhattan':19 'lumberjack':16
+83	BLUES INSTINCT	A Insightful Documentary of a Boat And a Composer who must Meet a Forensic Psychologist in An Abandoned Fun House	2006	1	\N	5	2.99	50	18.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'fun':21 'blue':1 'boat':8 'hous':22 'meet':14 'must':13 'compos':11 'forens':16 'abandon':20 'insight':4 'instinct':2 'documentari':5 'psychologist':17
+84	BOILED DARES	A Awe-Inspiring Story of a Waitress And a Dog who must Discover a Dentist in Ancient Japan	2006	1	\N	7	4.99	102	13.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'awe':5 'dog':13 'boil':1 'dare':2 'must':15 'japan':21 'stori':7 'discov':16 'inspir':6 'ancient':20 'dentist':18 'waitress':10 'awe-inspir':4
+85	BONNIE HOLOCAUST	A Fast-Paced Story of a Crocodile And a Robot who must Find a Moose in Ancient Japan	2006	1	\N	4	0.99	63	29.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'fast':5 'find':16 'moos':18 'must':15 'pace':6 'bonni':1 'japan':21 'robot':13 'stori':7 'ancient':20 'crocodil':10 'fast-pac':4 'holocaust':2
+86	BOOGIE AMELIE	A Lacklusture Character Study of a Husband And a Sumo Wrestler who must Succumb a Technical Writer in The Gulf of Mexico	2006	1	\N	6	4.99	121	11.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'gulf':22 'must':15 'sumo':12 'ameli':2 'boogi':1 'studi':6 'mexico':24 'writer':19 'charact':5 'husband':9 'succumb':16 'technic':18 'wrestler':13 'lacklustur':4
+87	BOONDOCK BALLROOM	A Fateful Panorama of a Crocodile And a Boy who must Defeat a Monkey in The Gulf of Mexico	2006	1	\N	7	0.99	76	14.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'boy':11 'fate':4 'gulf':19 'must':13 'defeat':14 'mexico':21 'monkey':16 'ballroom':2 'boondock':1 'crocodil':8 'panorama':5
+88	BORN SPINAL	A Touching Epistle of a Frisbee And a Husband who must Pursue a Student in Nigeria	2006	1	\N	7	4.99	179	17.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'born':1 'must':13 'pursu':14 'touch':4 'epistl':5 'frisbe':8 'spinal':2 'husband':11 'nigeria':18 'student':16
+89	BORROWERS BEDAZZLED	A Brilliant Epistle of a Teacher And a Sumo Wrestler who must Defeat a Man in An Abandoned Fun House	2006	1	\N	7	0.99	63	22.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'fun':21 'man':17 'hous':22 'must':14 'sumo':11 'borrow':1 'defeat':15 'epistl':5 'abandon':20 'bedazzl':2 'teacher':8 'wrestler':12 'brilliant':4
+90	BOULEVARD MOB	A Fateful Epistle of a Moose And a Monkey who must Confront a Lumberjack in Ancient China	2006	1	\N	3	0.99	63	11.99	R	2007-09-10 17:46:03.905795	{Trailers}	'mob':2 'fate':4 'moos':8 'must':13 'china':19 'epistl':5 'monkey':11 'ancient':18 'confront':14 'boulevard':1 'lumberjack':16
+91	BOUND CHEAPER	A Thrilling Panorama of a Database Administrator And a Astronaut who must Challenge a Lumberjack in A Baloon	2006	1	\N	5	0.99	98	17.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'must':14 'bound':1 'baloon':20 'thrill':4 'cheaper':2 'databas':8 'challeng':15 'panorama':5 'administr':9 'astronaut':12 'lumberjack':17
+92	BOWFINGER GABLES	A Fast-Paced Yarn of a Waitress And a Composer who must Outgun a Dentist in California	2006	1	\N	7	4.99	72	19.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'fast':5 'gabl':2 'must':15 'pace':6 'yarn':7 'compos':13 'outgun':16 'bowfing':1 'dentist':18 'fast-pac':4 'waitress':10 'california':20
+93	BRANNIGAN SUNRISE	A Amazing Epistle of a Moose And a Crocodile who must Outrace a Dog in Berlin	2006	1	\N	4	4.99	121	27.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'dog':16 'amaz':4 'moos':8 'must':13 'berlin':18 'epistl':5 'outrac':14 'sunris':2 'crocodil':11 'brannigan':1
+94	BRAVEHEART HUMAN	A Insightful Story of a Dog And a Pastry Chef who must Battle a Girl in Berlin	2006	1	\N	7	2.99	176	14.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'dog':8 'chef':12 'girl':17 'must':14 'battl':15 'human':2 'stori':5 'berlin':19 'pastri':11 'insight':4 'braveheart':1
+95	BREAKFAST GOLDFINGER	A Beautiful Reflection of a Student And a Student who must Fight a Moose in Berlin	2006	1	\N	5	4.99	123	18.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'moos':16 'must':13 'fight':14 'beauti':4 'berlin':18 'reflect':5 'student':8,11 'goldfing':2 'breakfast':1
+96	BREAKING HOME	A Beautiful Display of a Secret Agent And a Monkey who must Battle a Sumo Wrestler in An Abandoned Mine Shaft	2006	1	\N	4	2.99	169	21.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'home':2 'mine':22 'must':14 'sumo':17 'agent':9 'battl':15 'break':1 'shaft':23 'beauti':4 'monkey':12 'secret':8 'abandon':21 'display':5 'wrestler':18
+97	BRIDE INTRIGUE	A Epic Tale of a Robot And a Monkey who must Vanquish a Man in New Orleans	2006	1	\N	7	0.99	56	24.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'man':16 'new':18 'epic':4 'must':13 'tale':5 'bride':1 'robot':8 'monkey':11 'orlean':19 'intrigu':2 'vanquish':14
+98	BRIGHT ENCOUNTERS	A Fateful Yarn of a Lumberjack And a Feminist who must Conquer a Student in A Jet Boat	2006	1	\N	4	4.99	73	12.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'jet':19 'boat':20 'fate':4 'must':13 'yarn':5 'bright':1 'conquer':14 'encount':2 'student':16 'feminist':11 'lumberjack':8
+99	BRINGING HYSTERICAL	A Fateful Saga of a A Shark And a Technical Writer who must Find a Woman in A Jet Boat	2006	1	\N	7	2.99	136	14.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'jet':21 'boat':22 'fate':4 'find':16 'must':15 'saga':5 'bring':1 'shark':9 'woman':18 'hyster':2 'writer':13 'technic':12
+100	BROOKLYN DESERT	A Beautiful Drama of a Dentist And a Composer who must Battle a Sumo Wrestler in The First Manned Space Station	2006	1	\N	7	4.99	161	21.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'man':21 'must':13 'sumo':16 'battl':14 'drama':5 'first':20 'space':22 'beauti':4 'compos':11 'desert':2 'dentist':8 'station':23 'brooklyn':1 'wrestler':17
+101	BROTHERHOOD BLANKET	A Fateful Character Study of a Butler And a Technical Writer who must Sink a Astronaut in Ancient Japan	2006	1	\N	3	0.99	73	26.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'fate':4 'must':15 'sink':16 'japan':21 'studi':6 'butler':9 'writer':13 'ancient':20 'blanket':2 'charact':5 'technic':12 'astronaut':18 'brotherhood':1
+102	BUBBLE GROSSE	A Awe-Inspiring Panorama of a Crocodile And a Moose who must Confront a Girl in A Baloon	2006	1	\N	4	4.99	60	20.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'girl':18 'moos':13 'must':15 'bubbl':1 'gross':2 'baloon':21 'inspir':6 'confront':16 'crocodil':10 'panorama':7 'awe-inspir':4
+103	BUCKET BROTHERHOOD	A Amazing Display of a Girl And a Womanizer who must Succumb a Lumberjack in A Baloon Factory	2006	1	\N	7	4.99	133	27.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'amaz':4 'girl':8 'must':13 'woman':11 'baloon':19 'bucket':1 'display':5 'factori':20 'succumb':14 'lumberjack':16 'brotherhood':2
+104	BUGSY SONG	A Awe-Inspiring Character Study of a Secret Agent And a Boat who must Find a Squirrel in The First Manned Space Station	2006	1	\N	4	2.99	119	17.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'awe':5 'man':24 'boat':15 'find':18 'must':17 'song':2 'agent':12 'bugsi':1 'first':23 'space':25 'studi':8 'inspir':6 'secret':11 'charact':7 'station':26 'squirrel':20 'awe-inspir':4
+105	BULL SHAWSHANK	A Fanciful Drama of a Moose And a Squirrel who must Conquer a Pioneer in The Canadian Rockies	2006	1	\N	6	0.99	125	21.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'bull':1 'moos':8 'must':13 'drama':5 'fanci':4 'rocki':20 'conquer':14 'pioneer':16 'canadian':19 'squirrel':11 'shawshank':2
+106	BULWORTH COMMANDMENTS	A Amazing Display of a Mad Cow And a Pioneer who must Redeem a Sumo Wrestler in The Outback	2006	1	\N	4	2.99	61	14.99	G	2007-09-10 17:46:03.905795	{Trailers}	'cow':9 'mad':8 'amaz':4 'must':14 'sumo':17 'redeem':15 'command':2 'display':5 'outback':21 'pioneer':12 'bulworth':1 'wrestler':18
+107	BUNCH MINDS	A Emotional Story of a Feminist And a Feminist who must Escape a Pastry Chef in A MySQL Convention	2006	1	\N	4	2.99	63	13.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'chef':17 'emot':4 'mind':2 'must':13 'bunch':1 'escap':14 'mysql':20 'stori':5 'pastri':16 'convent':21 'feminist':8,11
+108	BUTCH PANTHER	A Lacklusture Yarn of a Feminist And a Database Administrator who must Face a Hunter in New Orleans	2006	1	\N	6	0.99	67	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'new':19 'face':15 'must':14 'yarn':5 'butch':1 'hunter':17 'orlean':20 'databas':11 'panther':2 'feminist':8 'administr':12 'lacklustur':4
+109	BUTTERFLY CHOCOLAT	A Fateful Story of a Girl And a Composer who must Conquer a Husband in A Shark Tank	2006	1	\N	3	0.99	89	17.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'fate':4 'girl':8 'must':13 'tank':20 'shark':19 'stori':5 'compos':11 'conquer':14 'husband':16 'chocolat':2 'butterfli':1
+110	CABIN FLASH	A Stunning Epistle of a Boat And a Man who must Challenge a A Shark in A Baloon Factory	2006	1	\N	4	0.99	53	25.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'man':11 'boat':8 'must':13 'stun':4 'cabin':1 'flash':2 'shark':17 'baloon':20 'epistl':5 'factori':21 'challeng':14
+111	CADDYSHACK JEDI	A Awe-Inspiring Epistle of a Woman And a Madman who must Fight a Robot in Soviet Georgia	2006	1	\N	3	0.99	52	17.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'awe':5 'jedi':2 'must':15 'fight':16 'robot':18 'woman':10 'epistl':7 'inspir':6 'madman':13 'soviet':20 'georgia':21 'awe-inspir':4 'caddyshack':1
+112	CALENDAR GUNFIGHT	A Thrilling Drama of a Frisbee And a Lumberjack who must Sink a Man in Nigeria	2006	1	\N	4	4.99	120	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'man':16 'must':13 'sink':14 'drama':5 'frisbe':8 'thrill':4 'nigeria':18 'calendar':1 'gunfight':2 'lumberjack':11
+113	CALIFORNIA BIRDS	A Thrilling Yarn of a Database Administrator And a Robot who must Battle a Database Administrator in Ancient India	2006	1	\N	4	4.99	75	19.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'bird':2 'must':14 'yarn':5 'battl':15 'india':21 'robot':12 'thrill':4 'ancient':20 'databas':8,17 'administr':9,18 'california':1
+114	CAMELOT VACATION	A Touching Character Study of a Woman And a Waitress who must Battle a Pastry Chef in A MySQL Convention	2006	1	\N	3	0.99	61	26.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'chef':18 'must':14 'battl':15 'mysql':21 'studi':6 'touch':4 'vacat':2 'woman':9 'pastri':17 'camelot':1 'charact':5 'convent':22 'waitress':12
+115	CAMPUS REMEMBER	A Astounding Drama of a Crocodile And a Mad Cow who must Build a Robot in A Jet Boat	2006	1	\N	5	2.99	167	27.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'cow':12 'jet':20 'mad':11 'boat':21 'must':14 'build':15 'drama':5 'robot':17 'campus':1 'rememb':2 'astound':4 'crocodil':8
+116	CANDIDATE PERDITION	A Brilliant Epistle of a Composer And a Database Administrator who must Vanquish a Mad Scientist in The First Manned Space Station	2006	1	\N	4	2.99	70	10.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'mad':17 'man':22 'must':14 'first':21 'space':23 'candid':1 'compos':8 'epistl':5 'perdit':2 'databas':11 'station':24 'vanquish':15 'administr':12 'brilliant':4 'scientist':18
+117	CANDLES GRAPES	A Fanciful Character Study of a Monkey And a Explorer who must Build a Astronaut in An Abandoned Fun House	2006	1	\N	6	4.99	135	15.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'fun':21 'hous':22 'must':14 'build':15 'candl':1 'fanci':4 'grape':2 'studi':6 'explor':12 'monkey':9 'abandon':20 'charact':5 'astronaut':17
+118	CANYON STOCK	A Thoughtful Reflection of a Waitress And a Feminist who must Escape a Squirrel in A Manhattan Penthouse	2006	1	\N	7	0.99	85	26.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'must':13 'escap':14 'stock':2 'canyon':1 'reflect':5 'thought':4 'feminist':11 'penthous':20 'squirrel':16 'waitress':8 'manhattan':19
+119	CAPER MOTIONS	A Fateful Saga of a Moose And a Car who must Pursue a Woman in A MySQL Convention	2006	1	\N	6	0.99	176	22.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'car':11 'fate':4 'moos':8 'must':13 'saga':5 'caper':1 'mysql':19 'pursu':14 'woman':16 'motion':2 'convent':20
+120	CARIBBEAN LIBERTY	A Fanciful Tale of a Pioneer And a Technical Writer who must Outgun a Pioneer in A Shark Tank	2006	1	\N	3	4.99	92	16.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':14 'tale':5 'tank':21 'fanci':4 'shark':20 'outgun':15 'writer':12 'liberti':2 'pioneer':8,17 'technic':11 'caribbean':1
+121	CAROL TEXAS	A Astounding Character Study of a Composer And a Student who must Overcome a Composer in A Monastery	2006	1	\N	4	2.99	151	15.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'must':14 'texa':2 'carol':1 'studi':6 'compos':9,17 'astound':4 'charact':5 'overcom':15 'student':12 'monasteri':20
+122	CARRIE BUNCH	A Amazing Epistle of a Student And a Astronaut who must Discover a Frisbee in The Canadian Rockies	2006	1	\N	7	0.99	114	11.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'amaz':4 'must':13 'bunch':2 'carri':1 'rocki':20 'discov':14 'epistl':5 'frisbe':16 'student':8 'canadian':19 'astronaut':11
+123	CASABLANCA SUPER	A Amazing Panorama of a Crocodile And a Forensic Psychologist who must Pursue a Secret Agent in The First Manned Space Station	2006	1	\N	6	4.99	85	22.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'man':22 'amaz':4 'must':14 'agent':18 'first':21 'pursu':15 'space':23 'super':2 'forens':11 'secret':17 'station':24 'crocodil':8 'panorama':5 'casablanca':1 'psychologist':12
+124	CASPER DRAGONFLY	A Intrepid Documentary of a Boat And a Crocodile who must Chase a Robot in The Sahara Desert	2006	1	\N	3	4.99	163	16.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'boat':8 'must':13 'chase':14 'robot':16 'casper':1 'desert':20 'sahara':19 'crocodil':11 'intrepid':4 'dragonfli':2 'documentari':5
+125	CASSIDY WYOMING	A Intrepid Drama of a Frisbee And a Hunter who must Kill a Secret Agent in New Orleans	2006	1	\N	5	2.99	61	19.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'new':19 'kill':14 'must':13 'wyom':2 'agent':17 'drama':5 'frisbe':8 'hunter':11 'orlean':20 'secret':16 'cassidi':1 'intrepid':4
+126	CASUALTIES ENCINO	A Insightful Yarn of a A Shark And a Pastry Chef who must Face a Boy in A Monastery	2006	1	\N	3	4.99	179	16.99	G	2007-09-10 17:46:03.905795	{Trailers}	'boy':18 'chef':13 'face':16 'must':15 'yarn':5 'shark':9 'encino':2 'pastri':12 'insight':4 'casualti':1 'monasteri':21
+127	CAT CONEHEADS	A Fast-Paced Panorama of a Girl And a A Shark who must Confront a Boy in Ancient India	2006	1	\N	5	4.99	112	14.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'boy':19 'cat':1 'fast':5 'girl':10 'must':16 'pace':6 'india':22 'shark':14 'ancient':21 'conehead':2 'confront':17 'fast-pac':4 'panorama':7
+128	CATCH AMISTAD	A Boring Reflection of a Lumberjack And a Feminist who must Discover a Woman in Nigeria	2006	1	\N	7	0.99	183	10.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'bore':4 'must':13 'catch':1 'woman':16 'discov':14 'amistad':2 'nigeria':18 'reflect':5 'feminist':11 'lumberjack':8
+129	CAUSE DATE	A Taut Tale of a Explorer And a Pastry Chef who must Conquer a Hunter in A MySQL Convention	2006	1	\N	3	2.99	179	16.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'caus':1 'chef':12 'date':2 'must':14 'tale':5 'taut':4 'mysql':20 'explor':8 'hunter':17 'pastri':11 'conquer':15 'convent':21
+130	CELEBRITY HORN	A Amazing Documentary of a Secret Agent And a Astronaut who must Vanquish a Hunter in A Shark Tank	2006	1	\N	7	0.99	110	24.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'amaz':4 'horn':2 'must':14 'tank':21 'agent':9 'shark':20 'celebr':1 'hunter':17 'secret':8 'vanquish':15 'astronaut':12 'documentari':5
+131	CENTER DINOSAUR	A Beautiful Character Study of a Sumo Wrestler And a Dentist who must Find a Dog in California	2006	1	\N	5	4.99	152	12.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'dog':18 'find':16 'must':15 'sumo':9 'studi':6 'beauti':4 'center':1 'charact':5 'dentist':13 'dinosaur':2 'wrestler':10 'california':20
+132	CHAINSAW UPTOWN	A Beautiful Documentary of a Boy And a Robot who must Discover a Squirrel in Australia	2006	1	\N	6	0.99	114	25.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boy':8 'must':13 'robot':11 'beauti':4 'discov':14 'uptown':2 'chainsaw':1 'squirrel':16 'australia':18 'documentari':5
+133	CHAMBER ITALIAN	A Fateful Reflection of a Moose And a Husband who must Overcome a Monkey in Nigeria	2006	1	\N	7	4.99	117	14.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'fate':4 'moos':8 'must':13 'monkey':16 'chamber':1 'husband':11 'italian':2 'nigeria':18 'overcom':14 'reflect':5
+134	CHAMPION FLATLINERS	A Amazing Story of a Mad Cow And a Dog who must Kill a Husband in A Monastery	2006	1	\N	4	4.99	51	21.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'cow':9 'dog':12 'mad':8 'amaz':4 'kill':15 'must':14 'stori':5 'flatlin':2 'husband':17 'champion':1 'monasteri':20
+135	CHANCE RESURRECTION	A Astounding Story of a Forensic Psychologist And a Forensic Psychologist who must Overcome a Moose in Ancient China	2006	1	\N	3	2.99	70	22.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'moos':18 'must':15 'chanc':1 'china':21 'stori':5 'forens':8,12 'ancient':20 'astound':4 'overcom':16 'resurrect':2 'psychologist':9,13
+136	CHAPLIN LICENSE	A Boring Drama of a Dog And a Forensic Psychologist who must Outrace a Explorer in Ancient India	2006	1	\N	7	2.99	146	26.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'dog':8 'bore':4 'must':14 'drama':5 'india':20 'explor':17 'forens':11 'licens':2 'outrac':15 'ancient':19 'chaplin':1 'psychologist':12
+137	CHARADE DUFFEL	A Action-Packed Display of a Man And a Waitress who must Build a Dog in A MySQL Convention	2006	1	\N	3	2.99	66	21.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dog':18 'man':10 'must':15 'pack':6 'build':16 'mysql':21 'action':5 'charad':1 'duffel':2 'convent':22 'display':7 'waitress':13 'action-pack':4
+138	CHARIOTS CONSPIRACY	A Unbelieveable Epistle of a Robot And a Husband who must Chase a Robot in The First Manned Space Station	2006	1	\N	5	2.99	71	29.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':20 'must':13 'chase':14 'first':19 'robot':8,16 'space':21 'epistl':5 'chariot':1 'husband':11 'station':22 'unbeliev':4 'conspiraci':2
+139	CHASING FIGHT	A Astounding Saga of a Technical Writer And a Butler who must Battle a Butler in A Shark Tank	2006	1	\N	7	4.99	114	21.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'must':14 'saga':5 'tank':21 'battl':15 'chase':1 'fight':2 'shark':20 'butler':12,17 'writer':9 'astound':4 'technic':8
+140	CHEAPER CLYDE	A Emotional Character Study of a Pioneer And a Girl who must Discover a Dog in Ancient Japan	2006	1	\N	6	0.99	87	23.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'dog':17 'emot':4 'girl':12 'must':14 'clyde':2 'japan':20 'studi':6 'discov':15 'ancient':19 'charact':5 'cheaper':1 'pioneer':9
+141	CHICAGO NORTH	A Fateful Yarn of a Mad Cow And a Waitress who must Battle a Student in California	2006	1	\N	6	4.99	185	11.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'cow':9 'mad':8 'fate':4 'must':14 'yarn':5 'battl':15 'north':2 'chicago':1 'student':17 'waitress':12 'california':19
+142	CHICKEN HELLFIGHTERS	A Emotional Drama of a Dog And a Explorer who must Outrace a Technical Writer in Australia	2006	1	\N	3	0.99	122	24.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':8 'emot':4 'must':13 'drama':5 'explor':11 'outrac':14 'writer':17 'chicken':1 'technic':16 'australia':19 'hellfight':2
+143	CHILL LUCK	A Lacklusture Epistle of a Boat And a Technical Writer who must Fight a A Shark in The Canadian Rockies	2006	1	\N	6	0.99	142	17.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'boat':8 'luck':2 'must':14 'chill':1 'fight':15 'rocki':22 'shark':18 'epistl':5 'writer':12 'technic':11 'canadian':21 'lacklustur':4
+144	CHINATOWN GLADIATOR	A Brilliant Panorama of a Technical Writer And a Lumberjack who must Escape a Butler in Ancient India	2006	1	\N	7	4.99	61	24.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'must':14 'escap':15 'india':20 'butler':17 'writer':9 'ancient':19 'gladiat':2 'technic':8 'panorama':5 'brilliant':4 'chinatown':1 'lumberjack':12
+145	CHISUM BEHAVIOR	A Epic Documentary of a Sumo Wrestler And a Butler who must Kill a Car in Ancient India	2006	1	\N	5	4.99	124	25.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'car':17 'epic':4 'kill':15 'must':14 'sumo':8 'india':20 'butler':12 'chisum':1 'ancient':19 'behavior':2 'wrestler':9 'documentari':5
+146	CHITTY LOCK	A Boring Epistle of a Boat And a Database Administrator who must Kill a Sumo Wrestler in The First Manned Space Station	2006	1	\N	6	2.99	107	24.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'man':22 'boat':8 'bore':4 'kill':15 'lock':2 'must':14 'sumo':17 'first':21 'space':23 'chitti':1 'epistl':5 'databas':11 'station':24 'wrestler':18 'administr':12
+147	CHOCOLAT HARRY	A Action-Packed Epistle of a Dentist And a Moose who must Meet a Mad Cow in Ancient Japan	2006	1	\N	5	0.99	101	16.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cow':19 'mad':18 'meet':16 'moos':13 'must':15 'pack':6 'harri':2 'japan':22 'action':5 'epistl':7 'ancient':21 'dentist':10 'chocolat':1 'action-pack':4
+148	CHOCOLATE DUCK	A Unbelieveable Story of a Mad Scientist And a Technical Writer who must Discover a Composer in Ancient China	2006	1	\N	3	2.99	132	13.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'mad':8 'duck':2 'must':15 'china':21 'stori':5 'chocol':1 'compos':18 'discov':16 'writer':13 'ancient':20 'technic':12 'unbeliev':4 'scientist':9
+149	CHRISTMAS MOONSHINE	A Action-Packed Epistle of a Feminist And a Astronaut who must Conquer a Boat in A Manhattan Penthouse	2006	1	\N	7	0.99	150	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'boat':18 'must':15 'pack':6 'action':5 'epistl':7 'conquer':16 'christma':1 'feminist':10 'moonshin':2 'penthous':22 'astronaut':13 'manhattan':21 'action-pack':4
+150	CIDER DESIRE	A Stunning Character Study of a Composer And a Mad Cow who must Succumb a Cat in Soviet Georgia	2006	1	\N	7	2.99	101	9.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'cat':18 'cow':13 'mad':12 'must':15 'stun':4 'cider':1 'desir':2 'studi':6 'compos':9 'soviet':20 'charact':5 'georgia':21 'succumb':16
+151	CINCINATTI WHISPERER	A Brilliant Saga of a Pastry Chef And a Hunter who must Confront a Butler in Berlin	2006	1	\N	5	4.99	143	26.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'chef':9 'must':14 'saga':5 'berlin':19 'butler':17 'hunter':12 'pastri':8 'whisper':2 'confront':15 'brilliant':4 'cincinatti':1
+152	CIRCUS YOUTH	A Thoughtful Drama of a Pastry Chef And a Dentist who must Pursue a Girl in A Baloon	2006	1	\N	5	2.99	90	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'chef':9 'girl':17 'must':14 'drama':5 'pursu':15 'youth':2 'baloon':20 'circus':1 'pastri':8 'dentist':12 'thought':4
+153	CITIZEN SHREK	A Fanciful Character Study of a Technical Writer And a Husband who must Redeem a Robot in The Outback	2006	1	\N	7	0.99	165	18.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':15 'fanci':4 'robot':18 'shrek':2 'studi':6 'redeem':16 'writer':10 'charact':5 'citizen':1 'husband':13 'outback':21 'technic':9
+154	CLASH FREDDY	A Amazing Yarn of a Composer And a Squirrel who must Escape a Astronaut in Australia	2006	1	\N	6	2.99	81	12.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'amaz':4 'must':13 'yarn':5 'clash':1 'escap':14 'compos':8 'freddi':2 'squirrel':11 'astronaut':16 'australia':18
+155	CLEOPATRA DEVIL	A Fanciful Documentary of a Crocodile And a Technical Writer who must Fight a A Shark in A Baloon	2006	1	\N	6	0.99	150	26.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'must':14 'devil':2 'fanci':4 'fight':15 'shark':18 'baloon':21 'writer':12 'technic':11 'crocodil':8 'cleopatra':1 'documentari':5
+156	CLERKS ANGELS	A Thrilling Display of a Sumo Wrestler And a Girl who must Confront a Man in A Baloon	2006	1	\N	3	4.99	164	15.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'man':17 'girl':12 'must':14 'sumo':8 'angel':2 'clerk':1 'baloon':20 'thrill':4 'display':5 'confront':15 'wrestler':9
+157	CLOCKWORK PARADISE	A Insightful Documentary of a Technical Writer And a Feminist who must Challenge a Cat in A Baloon	2006	1	\N	7	0.99	143	29.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':17 'must':14 'baloon':20 'writer':9 'insight':4 'paradis':2 'technic':8 'challeng':15 'feminist':12 'clockwork':1 'documentari':5
+158	CLONES PINOCCHIO	A Amazing Drama of a Car And a Robot who must Pursue a Dentist in New Orleans	2006	1	\N	6	2.99	124	16.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'car':8 'new':18 'amaz':4 'must':13 'clone':1 'drama':5 'pursu':14 'robot':11 'orlean':19 'dentist':16 'pinocchio':2
+159	CLOSER BANG	A Unbelieveable Panorama of a Frisbee And a Hunter who must Vanquish a Monkey in Ancient India	2006	1	\N	5	4.99	58	12.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'bang':2 'must':13 'india':19 'closer':1 'frisbe':8 'hunter':11 'monkey':16 'ancient':18 'panorama':5 'unbeliev':4 'vanquish':14
+160	CLUB GRAFFITI	A Epic Tale of a Pioneer And a Hunter who must Escape a Girl in A U-Boat	2006	1	\N	4	0.99	65	12.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'u':20 'boat':21 'club':1 'epic':4 'girl':16 'must':13 'tale':5 'escap':14 'hunter':11 'u-boat':19 'pioneer':8 'graffiti':2
+161	CLUE GRAIL	A Taut Tale of a Butler And a Mad Scientist who must Build a Crocodile in Ancient China	2006	1	\N	6	4.99	70	27.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'mad':11 'clue':1 'must':14 'tale':5 'taut':4 'build':15 'china':20 'grail':2 'butler':8 'ancient':19 'crocodil':17 'scientist':12
+162	CLUELESS BUCKET	A Taut Tale of a Car And a Pioneer who must Conquer a Sumo Wrestler in An Abandoned Fun House	2006	1	\N	4	2.99	95	13.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'car':8 'fun':21 'hous':22 'must':13 'sumo':16 'tale':5 'taut':4 'bucket':2 'abandon':20 'conquer':14 'pioneer':11 'clueless':1 'wrestler':17
+163	CLYDE THEORY	A Beautiful Yarn of a Astronaut And a Frisbee who must Overcome a Explorer in A Jet Boat	2006	1	\N	4	0.99	139	29.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'jet':19 'boat':20 'must':13 'yarn':5 'clyde':1 'beauti':4 'explor':16 'frisbe':11 'theori':2 'overcom':14 'astronaut':8
+164	COAST RAINBOW	A Astounding Documentary of a Mad Cow And a Pioneer who must Challenge a Butler in The Sahara Desert	2006	1	\N	4	0.99	55	20.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':9 'mad':8 'must':14 'coast':1 'butler':17 'desert':21 'sahara':20 'astound':4 'pioneer':12 'rainbow':2 'challeng':15 'documentari':5
+165	COLDBLOODED DARLING	A Brilliant Panorama of a Dentist And a Moose who must Find a Student in The Gulf of Mexico	2006	1	\N	7	4.99	70	27.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'darl':2 'find':14 'gulf':19 'moos':11 'must':13 'mexico':21 'dentist':8 'student':16 'panorama':5 'brilliant':4 'coldblood':1
+166	COLOR PHILADELPHIA	A Thoughtful Panorama of a Car And a Crocodile who must Sink a Monkey in The Sahara Desert	2006	1	\N	6	2.99	149	19.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'car':8 'must':13 'sink':14 'color':1 'desert':20 'monkey':16 'sahara':19 'thought':4 'crocodil':11 'panorama':5 'philadelphia':2
+167	COMA HEAD	A Awe-Inspiring Drama of a Boy And a Frisbee who must Escape a Pastry Chef in California	2006	1	\N	6	4.99	109	10.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'awe':5 'boy':10 'chef':19 'coma':1 'head':2 'must':15 'drama':7 'escap':16 'frisbe':13 'inspir':6 'pastri':18 'awe-inspir':4 'california':21
+168	COMANCHEROS ENEMY	A Boring Saga of a Lumberjack And a Monkey who must Find a Monkey in The Gulf of Mexico	2006	1	\N	5	0.99	67	23.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'bore':4 'find':14 'gulf':19 'must':13 'saga':5 'enemi':2 'mexico':21 'monkey':11,16 'comanchero':1 'lumberjack':8
+169	COMFORTS RUSH	A Unbelieveable Panorama of a Pioneer And a Husband who must Meet a Mad Cow in An Abandoned Mine Shaft	2006	1	\N	3	2.99	76	19.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cow':17 'mad':16 'meet':14 'mine':21 'must':13 'rush':2 'shaft':22 'abandon':20 'comfort':1 'husband':11 'pioneer':8 'panorama':5 'unbeliev':4
+170	COMMAND DARLING	A Awe-Inspiring Tale of a Forensic Psychologist And a Woman who must Challenge a Database Administrator in Ancient Japan	2006	1	\N	5	4.99	120	28.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'awe':5 'darl':2 'must':16 'tale':7 'japan':23 'woman':14 'forens':10 'inspir':6 'ancient':22 'command':1 'databas':19 'challeng':17 'administr':20 'awe-inspir':4 'psychologist':11
+171	COMMANDMENTS EXPRESS	A Fanciful Saga of a Student And a Mad Scientist who must Battle a Hunter in An Abandoned Mine Shaft	2006	1	\N	6	4.99	59	13.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'mad':11 'mine':21 'must':14 'saga':5 'battl':15 'fanci':4 'shaft':22 'hunter':17 'abandon':20 'command':1 'express':2 'student':8 'scientist':12
+172	CONEHEADS SMOOCHY	A Touching Story of a Womanizer And a Composer who must Pursue a Husband in Nigeria	2006	1	\N	7	4.99	112	12.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'must':13 'pursu':14 'stori':5 'touch':4 'woman':8 'compos':11 'husband':16 'nigeria':18 'smoochi':2 'conehead':1
+173	CONFESSIONS MAGUIRE	A Insightful Story of a Car And a Boy who must Battle a Technical Writer in A Baloon	2006	1	\N	7	4.99	65	25.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'boy':11 'car':8 'must':13 'battl':14 'stori':5 'baloon':20 'maguir':2 'writer':17 'confess':1 'insight':4 'technic':16
+174	CONFIDENTIAL INTERVIEW	A Stunning Reflection of a Cat And a Woman who must Find a Astronaut in Ancient Japan	2006	1	\N	6	4.99	180	13.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'cat':8 'find':14 'must':13 'stun':4 'japan':19 'woman':11 'ancient':18 'reflect':5 'astronaut':16 'interview':2 'confidenti':1
+175	CONFUSED CANDLES	A Stunning Epistle of a Cat And a Forensic Psychologist who must Confront a Pioneer in A Baloon	2006	1	\N	3	2.99	122	27.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':8 'must':14 'stun':4 'candl':2 'baloon':20 'confus':1 'epistl':5 'forens':11 'pioneer':17 'confront':15 'psychologist':12
+176	CONGENIALITY QUEST	A Touching Documentary of a Cat And a Pastry Chef who must Find a Lumberjack in A Baloon	2006	1	\N	6	0.99	87	21.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cat':8 'chef':12 'find':15 'must':14 'quest':2 'touch':4 'baloon':20 'pastri':11 'congeni':1 'lumberjack':17 'documentari':5
+177	CONNECTICUT TRAMP	A Unbelieveable Drama of a Crocodile And a Mad Cow who must Reach a Dentist in A Shark Tank	2006	1	\N	4	4.99	172	20.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'cow':12 'mad':11 'must':14 'tank':21 'drama':5 'reach':15 'shark':20 'tramp':2 'dentist':17 'crocodil':8 'unbeliev':4 'connecticut':1
+178	CONNECTION MICROCOSMOS	A Fateful Documentary of a Crocodile And a Husband who must Face a Husband in The First Manned Space Station	2006	1	\N	6	0.99	115	25.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':20 'face':14 'fate':4 'must':13 'first':19 'space':21 'connect':1 'husband':11,16 'station':22 'crocodil':8 'microcosmo':2 'documentari':5
+179	CONQUERER NUTS	A Taut Drama of a Mad Scientist And a Man who must Escape a Pioneer in An Abandoned Mine Shaft	2006	1	\N	4	4.99	173	14.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'mad':8 'man':12 'nut':2 'mine':21 'must':14 'taut':4 'drama':5 'escap':15 'shaft':22 'abandon':20 'conquer':1 'pioneer':17 'scientist':9
+180	CONSPIRACY SPIRIT	A Awe-Inspiring Story of a Student And a Frisbee who must Conquer a Crocodile in An Abandoned Mine Shaft	2006	1	\N	4	2.99	184	27.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'awe':5 'mine':22 'must':15 'shaft':23 'stori':7 'frisbe':13 'inspir':6 'spirit':2 'abandon':21 'conquer':16 'student':10 'crocodil':18 'awe-inspir':4 'conspiraci':1
+181	CONTACT ANONYMOUS	A Insightful Display of a A Shark And a Monkey who must Face a Database Administrator in Ancient India	2006	1	\N	7	2.99	166	10.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'face':15 'must':14 'india':21 'shark':9 'anonym':2 'monkey':12 'ancient':20 'contact':1 'databas':17 'display':5 'insight':4 'administr':18
+182	CONTROL ANTHEM	A Fateful Documentary of a Robot And a Student who must Battle a Cat in A Monastery	2006	1	\N	7	4.99	185	9.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'cat':16 'fate':4 'must':13 'battl':14 'robot':8 'anthem':2 'control':1 'student':11 'monasteri':19 'documentari':5
+183	CONVERSATION DOWNHILL	A Taut Character Study of a Husband And a Waitress who must Sink a Squirrel in A MySQL Convention	2006	1	\N	4	4.99	112	14.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'must':14 'sink':15 'taut':4 'mysql':20 'studi':6 'charact':5 'convent':21 'convers':1 'downhil':2 'husband':9 'squirrel':17 'waitress':12
+184	CORE SUIT	A Unbelieveable Tale of a Car And a Explorer who must Confront a Boat in A Manhattan Penthouse	2006	1	\N	3	2.99	92	24.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'car':8 'boat':16 'core':1 'must':13 'suit':2 'tale':5 'explor':11 'confront':14 'penthous':20 'unbeliev':4 'manhattan':19
+185	COWBOY DOOM	A Astounding Drama of a Boy And a Lumberjack who must Fight a Butler in A Baloon	2006	1	\N	3	2.99	146	10.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':8 'doom':2 'must':13 'drama':5 'fight':14 'baloon':19 'butler':16 'cowboy':1 'astound':4 'lumberjack':11
+186	CRAFT OUTFIELD	A Lacklusture Display of a Explorer And a Hunter who must Succumb a Database Administrator in A Baloon Factory	2006	1	\N	6	0.99	64	17.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'must':13 'craft':1 'baloon':20 'explor':8 'hunter':11 'databas':16 'display':5 'factori':21 'succumb':14 'outfield':2 'administr':17 'lacklustur':4
+187	CRANES RESERVOIR	A Fanciful Documentary of a Teacher And a Dog who must Outgun a Forensic Psychologist in A Baloon Factory	2006	1	\N	5	2.99	57	12.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'dog':11 'must':13 'crane':1 'fanci':4 'baloon':20 'forens':16 'outgun':14 'factori':21 'teacher':8 'reservoir':2 'documentari':5 'psychologist':17
+188	CRAZY HOME	A Fanciful Panorama of a Boy And a Woman who must Vanquish a Database Administrator in The Outback	2006	1	\N	7	2.99	136	24.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'boy':8 'home':2 'must':13 'crazi':1 'fanci':4 'woman':11 'databas':16 'outback':20 'panorama':5 'vanquish':14 'administr':17
+189	CREATURES SHAKESPEARE	A Emotional Drama of a Womanizer And a Squirrel who must Vanquish a Crocodile in Ancient India	2006	1	\N	3	0.99	139	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'emot':4 'must':13 'drama':5 'india':19 'woman':8 'ancient':18 'creatur':1 'crocodil':16 'squirrel':11 'vanquish':14 'shakespear':2
+190	CREEPERS KANE	A Awe-Inspiring Reflection of a Squirrel And a Boat who must Outrace a Car in A Jet Boat	2006	1	\N	5	4.99	172	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'awe':5 'car':18 'jet':21 'boat':13,22 'kane':2 'must':15 'inspir':6 'outrac':16 'creeper':1 'reflect':7 'squirrel':10 'awe-inspir':4
+191	CROOKED FROGMEN	A Unbelieveable Drama of a Hunter And a Database Administrator who must Battle a Crocodile in An Abandoned Amusement Park	2006	1	\N	6	0.99	143	27.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'amus':21 'must':14 'park':22 'battl':15 'crook':1 'drama':5 'hunter':8 'abandon':20 'databas':11 'frogmen':2 'crocodil':17 'unbeliev':4 'administr':12
+192	CROSSING DIVORCE	A Beautiful Documentary of a Dog And a Robot who must Redeem a Womanizer in Berlin	2006	1	\N	4	4.99	50	19.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':8 'must':13 'cross':1 'robot':11 'woman':16 'beauti':4 'berlin':18 'divorc':2 'redeem':14 'documentari':5
+193	CROSSROADS CASUALTIES	A Intrepid Documentary of a Sumo Wrestler And a Astronaut who must Battle a Composer in The Outback	2006	1	\N	5	2.99	153	20.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':14 'sumo':8 'battl':15 'compos':17 'outback':20 'casualti':2 'intrepid':4 'wrestler':9 'astronaut':12 'crossroad':1 'documentari':5
+194	CROW GREASE	A Awe-Inspiring Documentary of a Woman And a Husband who must Sink a Database Administrator in The First Manned Space Station	2006	1	\N	6	0.99	104	22.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'awe':5 'man':23 'crow':1 'must':15 'sink':16 'first':22 'greas':2 'space':24 'woman':10 'inspir':6 'databas':18 'husband':13 'station':25 'administr':19 'awe-inspir':4 'documentari':7
+195	CROWDS TELEMARK	A Intrepid Documentary of a Astronaut And a Forensic Psychologist who must Find a Frisbee in An Abandoned Fun House	2006	1	\N	3	4.99	112	16.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'fun':21 'find':15 'hous':22 'must':14 'crowd':1 'forens':11 'frisbe':17 'abandon':20 'intrepid':4 'telemark':2 'astronaut':8 'documentari':5 'psychologist':12
+196	CRUELTY UNFORGIVEN	A Brilliant Tale of a Car And a Moose who must Battle a Dentist in Nigeria	2006	1	\N	7	0.99	69	29.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'car':8 'moos':11 'must':13 'tale':5 'battl':14 'cruelti':1 'dentist':16 'nigeria':18 'brilliant':4 'unforgiven':2
+197	CRUSADE HONEY	A Fast-Paced Reflection of a Explorer And a Butler who must Battle a Madman in An Abandoned Amusement Park	2006	1	\N	4	2.99	112	27.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'amus':22 'fast':5 'must':15 'pace':6 'park':23 'battl':16 'honey':2 'butler':13 'crusad':1 'explor':10 'madman':18 'abandon':21 'reflect':7 'fast-pac':4
+198	CRYSTAL BREAKING	A Fast-Paced Character Study of a Feminist And a Explorer who must Face a Pastry Chef in Ancient Japan	2006	1	\N	6	2.99	184	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'chef':20 'face':17 'fast':5 'must':16 'pace':6 'break':2 'japan':23 'studi':8 'explor':14 'pastri':19 'ancient':22 'charact':7 'crystal':1 'fast-pac':4 'feminist':11
+199	CUPBOARD SINNERS	A Emotional Reflection of a Frisbee And a Boat who must Reach a Pastry Chef in An Abandoned Amusement Park	2006	1	\N	4	2.99	56	29.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'amus':21 'boat':11 'chef':17 'emot':4 'must':13 'park':22 'reach':14 'frisbe':8 'pastri':16 'sinner':2 'abandon':20 'reflect':5 'cupboard':1
+200	CURTAIN VIDEOTAPE	A Boring Reflection of a Dentist And a Mad Cow who must Chase a Secret Agent in A Shark Tank	2006	1	\N	7	0.99	133	27.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':12 'mad':11 'bore':4 'must':14 'tank':22 'agent':18 'chase':15 'shark':21 'secret':17 'curtain':1 'dentist':8 'reflect':5 'videotap':2
+201	CYCLONE FAMILY	A Lacklusture Drama of a Student And a Monkey who must Sink a Womanizer in A MySQL Convention	2006	1	\N	7	2.99	176	18.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'must':13 'sink':14 'drama':5 'mysql':19 'woman':16 'cyclon':1 'famili':2 'monkey':11 'convent':20 'student':8 'lacklustur':4
+202	DADDY PITTSBURGH	A Epic Story of a A Shark And a Student who must Confront a Explorer in The Gulf of Mexico	2006	1	\N	5	4.99	161	26.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'epic':4 'gulf':20 'must':14 'daddi':1 'shark':9 'stori':5 'explor':17 'mexico':22 'student':12 'confront':15 'pittsburgh':2
+203	DAISY MENAGERIE	A Fast-Paced Saga of a Pastry Chef And a Monkey who must Sink a Composer in Ancient India	2006	1	\N	5	4.99	84	9.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'chef':11 'fast':5 'must':16 'pace':6 'saga':7 'sink':17 'daisi':1 'india':22 'compos':19 'monkey':14 'pastri':10 'ancient':21 'fast-pac':4 'menageri':2
+204	DALMATIONS SWEDEN	A Emotional Epistle of a Moose And a Hunter who must Overcome a Robot in A Manhattan Penthouse	2006	1	\N	4	0.99	106	25.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'emot':4 'moos':8 'must':13 'robot':16 'dalmat':1 'epistl':5 'hunter':11 'sweden':2 'overcom':14 'penthous':20 'manhattan':19
+205	DANCES NONE	A Insightful Reflection of a A Shark And a Dog who must Kill a Butler in An Abandoned Amusement Park	2006	1	\N	3	0.99	58	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':12 'amus':21 'danc':1 'kill':15 'must':14 'none':2 'park':22 'shark':9 'butler':17 'abandon':20 'insight':4 'reflect':5
+206	DANCING FEVER	A Stunning Story of a Explorer And a Forensic Psychologist who must Face a Crocodile in A Shark Tank	2006	1	\N	6	0.99	144	25.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'danc':1 'face':15 'must':14 'stun':4 'tank':21 'fever':2 'shark':20 'stori':5 'explor':8 'forens':11 'crocodil':17 'psychologist':12
+207	DANGEROUS UPTOWN	A Unbelieveable Story of a Mad Scientist And a Woman who must Overcome a Dog in California	2006	1	\N	7	4.99	121	26.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'dog':17 'mad':8 'must':14 'stori':5 'woman':12 'danger':1 'uptown':2 'overcom':15 'unbeliev':4 'scientist':9 'california':19
+208	DARES PLUTO	A Fateful Story of a Robot And a Dentist who must Defeat a Astronaut in New Orleans	2006	1	\N	7	2.99	89	16.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'new':18 'dare':1 'fate':4 'must':13 'pluto':2 'robot':8 'stori':5 'defeat':14 'orlean':19 'dentist':11 'astronaut':16
+209	DARKNESS WAR	A Touching Documentary of a Husband And a Hunter who must Escape a Boy in The Sahara Desert	2006	1	\N	6	2.99	99	24.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'war':2 'dark':1 'must':13 'escap':14 'touch':4 'desert':20 'hunter':11 'sahara':19 'husband':8 'documentari':5
+210	DARKO DORADO	A Stunning Reflection of a Frisbee And a Husband who must Redeem a Dog in New Orleans	2006	1	\N	3	4.99	130	13.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':16 'new':18 'must':13 'stun':4 'darko':1 'dorado':2 'frisbe':8 'orlean':19 'redeem':14 'husband':11 'reflect':5
+211	DARLING BREAKING	A Brilliant Documentary of a Astronaut And a Squirrel who must Succumb a Student in The Gulf of Mexico	2006	1	\N	7	4.99	165	20.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'darl':1 'gulf':19 'must':13 'break':2 'mexico':21 'student':16 'succumb':14 'squirrel':11 'astronaut':8 'brilliant':4 'documentari':5
+212	DARN FORRESTER	A Fateful Story of a A Shark And a Explorer who must Succumb a Technical Writer in A Jet Boat	2006	1	\N	7	4.99	185	14.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'jet':21 'boat':22 'darn':1 'fate':4 'must':14 'shark':9 'stori':5 'explor':12 'writer':18 'forrest':2 'succumb':15 'technic':17
+214	DAUGHTER MADIGAN	A Beautiful Tale of a Hunter And a Mad Scientist who must Confront a Squirrel in The First Manned Space Station	2006	1	\N	3	4.99	59	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'mad':11 'man':21 'must':14 'tale':5 'first':20 'space':22 'beauti':4 'hunter':8 'madigan':2 'station':23 'confront':15 'daughter':1 'squirrel':17 'scientist':12
+215	DAWN POND	A Thoughtful Documentary of a Dentist And a Forensic Psychologist who must Defeat a Waitress in Berlin	2006	1	\N	4	4.99	57	27.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dawn':1 'must':14 'pond':2 'berlin':19 'defeat':15 'forens':11 'dentist':8 'thought':4 'waitress':17 'documentari':5 'psychologist':12
+216	DAY UNFAITHFUL	A Stunning Documentary of a Composer And a Mad Scientist who must Find a Technical Writer in A U-Boat	2006	1	\N	3	4.99	113	16.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':22 'day':1 'mad':11 'boat':23 'find':15 'must':14 'stun':4 'compos':8 'u-boat':21 'writer':18 'technic':17 'unfaith':2 'scientist':12 'documentari':5
+217	DAZED PUNK	A Action-Packed Story of a Pioneer And a Technical Writer who must Discover a Forensic Psychologist in An Abandoned Amusement Park	2006	1	\N	6	4.99	120	20.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'amus':24 'daze':1 'must':16 'pack':6 'park':25 'punk':2 'stori':7 'action':5 'discov':17 'forens':19 'writer':14 'abandon':23 'pioneer':10 'technic':13 'action-pack':4 'psychologist':20
+218	DECEIVER BETRAYED	A Taut Story of a Moose And a Squirrel who must Build a Husband in Ancient India	2006	1	\N	7	0.99	122	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'moos':8 'must':13 'taut':4 'build':14 'india':19 'stori':5 'betray':2 'deceiv':1 'ancient':18 'husband':16 'squirrel':11
+219	DEEP CRUSADE	A Amazing Tale of a Crocodile And a Squirrel who must Discover a Composer in Australia	2006	1	\N	6	4.99	51	20.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'amaz':4 'deep':1 'must':13 'tale':5 'compos':16 'crusad':2 'discov':14 'crocodil':8 'squirrel':11 'australia':18
+220	DEER VIRGINIAN	A Thoughtful Story of a Mad Cow And a Womanizer who must Overcome a Mad Scientist in Soviet Georgia	2006	1	\N	7	2.99	106	13.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'cow':9 'mad':8,17 'deer':1 'must':14 'stori':5 'woman':12 'soviet':20 'georgia':21 'overcom':15 'thought':4 'scientist':18 'virginian':2
+221	DELIVERANCE MULHOLLAND	A Astounding Saga of a Monkey And a Moose who must Conquer a Butler in A Shark Tank	2006	1	\N	4	0.99	100	9.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'moos':11 'must':13 'saga':5 'tank':20 'shark':19 'butler':16 'monkey':8 'astound':4 'conquer':14 'deliver':1 'mulholland':2
+222	DESERT POSEIDON	A Brilliant Documentary of a Butler And a Frisbee who must Build a Astronaut in New Orleans	2006	1	\N	4	4.99	64	27.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'new':18 'must':13 'build':14 'butler':8 'desert':1 'frisbe':11 'orlean':19 'poseidon':2 'astronaut':16 'brilliant':4 'documentari':5
+223	DESIRE ALIEN	A Fast-Paced Tale of a Dog And a Forensic Psychologist who must Meet a Astronaut in The First Manned Space Station	2006	1	\N	7	2.99	76	24.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'dog':10 'man':23 'fast':5 'meet':17 'must':16 'pace':6 'tale':7 'alien':2 'desir':1 'first':22 'space':24 'forens':13 'station':25 'fast-pac':4 'astronaut':19 'psychologist':14
+224	DESPERATE TRAINSPOTTING	A Epic Yarn of a Forensic Psychologist And a Teacher who must Face a Lumberjack in California	2006	1	\N	7	4.99	81	29.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'epic':4 'face':15 'must':14 'yarn':5 'desper':1 'forens':8 'teacher':12 'trainspot':2 'california':19 'lumberjack':17 'psychologist':9
+225	DESTINATION JERK	A Beautiful Yarn of a Teacher And a Cat who must Build a Car in A U-Boat	2006	1	\N	3	0.99	76	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'u':20 'car':16 'cat':11 'boat':21 'jerk':2 'must':13 'yarn':5 'build':14 'beauti':4 'destin':1 'u-boat':19 'teacher':8
+226	DESTINY SATURDAY	A Touching Drama of a Crocodile And a Crocodile who must Conquer a Explorer in Soviet Georgia	2006	1	\N	4	4.99	56	20.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':13 'drama':5 'touch':4 'explor':16 'soviet':18 'conquer':14 'destini':1 'georgia':19 'crocodil':8,11 'saturday':2
+227	DETAILS PACKER	A Epic Saga of a Waitress And a Composer who must Face a Boat in A U-Boat	2006	1	\N	4	4.99	88	17.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'u':20 'boat':16,21 'epic':4 'face':14 'must':13 'saga':5 'compos':11 'detail':1 'packer':2 'u-boat':19 'waitress':8
+228	DETECTIVE VISION	A Fanciful Documentary of a Pioneer And a Woman who must Redeem a Hunter in Ancient Japan	2006	1	\N	4	0.99	143	16.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':13 'fanci':4 'japan':19 'woman':11 'detect':1 'hunter':16 'redeem':14 'vision':2 'ancient':18 'pioneer':8 'documentari':5
+229	DEVIL DESIRE	A Beautiful Reflection of a Monkey And a Dentist who must Face a Database Administrator in Ancient Japan	2006	1	\N	6	4.99	87	12.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'face':14 'must':13 'desir':2 'devil':1 'japan':20 'beauti':4 'monkey':8 'ancient':19 'databas':16 'dentist':11 'reflect':5 'administr':17
+230	DIARY PANIC	A Thoughtful Character Study of a Frisbee And a Mad Cow who must Outgun a Man in Ancient India	2006	1	\N	7	2.99	107	20.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cow':13 'mad':12 'man':18 'must':15 'diari':1 'india':21 'panic':2 'studi':6 'frisbe':9 'outgun':16 'ancient':20 'charact':5 'thought':4
+231	DINOSAUR SECRETARY	A Action-Packed Drama of a Feminist And a Girl who must Reach a Robot in The Canadian Rockies	2006	1	\N	7	2.99	63	27.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'girl':13 'must':15 'pack':6 'drama':7 'reach':16 'robot':18 'rocki':22 'action':5 'canadian':21 'dinosaur':1 'feminist':10 'secretari':2 'action-pack':4
+232	DIRTY ACE	A Action-Packed Character Study of a Forensic Psychologist And a Girl who must Build a Dentist in The Outback	2006	1	\N	7	2.99	147	29.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'ace':2 'girl':15 'must':17 'pack':6 'build':18 'dirti':1 'studi':8 'action':5 'forens':11 'charact':7 'dentist':20 'outback':23 'action-pack':4 'psychologist':12
+233	DISCIPLE MOTHER	A Touching Reflection of a Mad Scientist And a Boat who must Face a Moose in A Shark Tank	2006	1	\N	3	0.99	141	17.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'mad':8 'boat':12 'face':15 'moos':17 'must':14 'tank':21 'shark':20 'touch':4 'mother':2 'discipl':1 'reflect':5 'scientist':9
+234	DISTURBING SCARFACE	A Lacklusture Display of a Crocodile And a Butler who must Overcome a Monkey in A U-Boat	2006	1	\N	6	2.99	94	27.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'u':20 'boat':21 'must':13 'butler':11 'monkey':16 'u-boat':19 'display':5 'disturb':1 'overcom':14 'scarfac':2 'crocodil':8 'lacklustur':4
+235	DIVIDE MONSTER	A Intrepid Saga of a Man And a Forensic Psychologist who must Reach a Squirrel in A Monastery	2006	1	\N	6	2.99	68	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'man':8 'must':14 'saga':5 'divid':1 'reach':15 'forens':11 'monster':2 'intrepid':4 'squirrel':17 'monasteri':20 'psychologist':12
+236	DIVINE RESURRECTION	A Boring Character Study of a Man And a Womanizer who must Succumb a Teacher in An Abandoned Amusement Park	2006	1	\N	4	2.99	100	19.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'man':9 'amus':21 'bore':4 'must':14 'park':22 'divin':1 'studi':6 'woman':12 'abandon':20 'charact':5 'succumb':15 'teacher':17 'resurrect':2
+237	DIVORCE SHINING	A Unbelieveable Saga of a Crocodile And a Student who must Discover a Cat in Ancient India	2006	1	\N	3	2.99	47	21.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'cat':16 'must':13 'saga':5 'india':19 'shine':2 'discov':14 'divorc':1 'ancient':18 'student':11 'crocodil':8 'unbeliev':4
+238	DOCTOR GRAIL	A Insightful Drama of a Womanizer And a Waitress who must Reach a Forensic Psychologist in The Outback	2006	1	\N	4	2.99	57	29.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':13 'drama':5 'grail':2 'reach':14 'woman':8 'doctor':1 'forens':16 'insight':4 'outback':20 'waitress':11 'psychologist':17
+239	DOGMA FAMILY	A Brilliant Character Study of a Database Administrator And a Monkey who must Succumb a Astronaut in New Orleans	2006	1	\N	5	4.99	122	16.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'new':20 'must':15 'dogma':1 'studi':6 'famili':2 'monkey':13 'orlean':21 'charact':5 'databas':9 'succumb':16 'administr':10 'astronaut':18 'brilliant':4
+240	DOLLS RAGE	A Thrilling Display of a Pioneer And a Frisbee who must Escape a Teacher in The Outback	2006	1	\N	7	2.99	120	10.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'doll':1 'must':13 'rage':2 'escap':14 'frisbe':11 'thrill':4 'display':5 'outback':19 'pioneer':8 'teacher':16
+241	DONNIE ALLEY	A Awe-Inspiring Tale of a Butler And a Frisbee who must Vanquish a Teacher in Ancient Japan	2006	1	\N	4	0.99	125	20.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'awe':5 'must':15 'tale':7 'alley':2 'donni':1 'japan':21 'butler':10 'frisbe':13 'inspir':6 'ancient':20 'teacher':18 'vanquish':16 'awe-inspir':4
+242	DOOM DANCING	A Astounding Panorama of a Car And a Mad Scientist who must Battle a Lumberjack in A MySQL Convention	2006	1	\N	4	0.99	68	13.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'car':8 'mad':11 'danc':2 'doom':1 'must':14 'battl':15 'mysql':20 'astound':4 'convent':21 'panorama':5 'scientist':12 'lumberjack':17
+243	DOORS PRESIDENT	A Awe-Inspiring Display of a Squirrel And a Woman who must Overcome a Boy in The Gulf of Mexico	2006	1	\N	3	4.99	49	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'boy':18 'door':1 'gulf':21 'must':15 'woman':13 'inspir':6 'mexico':23 'presid':2 'display':7 'overcom':16 'squirrel':10 'awe-inspir':4
+244	DORADO NOTTING	A Action-Packed Tale of a Sumo Wrestler And a A Shark who must Meet a Frisbee in California	2006	1	\N	5	4.99	139	26.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'not':2 'meet':18 'must':17 'pack':6 'sumo':10 'tale':7 'shark':15 'action':5 'dorado':1 'frisbe':20 'wrestler':11 'california':22 'action-pack':4
+245	DOUBLE WRATH	A Thoughtful Yarn of a Womanizer And a Dog who must Challenge a Madman in The Gulf of Mexico	2006	1	\N	4	0.99	177	28.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dog':11 'gulf':19 'must':13 'yarn':5 'doubl':1 'woman':8 'wrath':2 'madman':16 'mexico':21 'thought':4 'challeng':14
+246	DOUBTFIRE LABYRINTH	A Intrepid Panorama of a Butler And a Composer who must Meet a Mad Cow in The Sahara Desert	2006	1	\N	5	4.99	154	16.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'cow':17 'mad':16 'meet':14 'must':13 'butler':8 'compos':11 'desert':21 'sahara':20 'doubtfir':1 'intrepid':4 'panorama':5 'labyrinth':2
+247	DOWNHILL ENOUGH	A Emotional Tale of a Pastry Chef And a Forensic Psychologist who must Succumb a Monkey in The Sahara Desert	2006	1	\N	3	0.99	47	19.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'chef':9 'emot':4 'must':15 'tale':5 'desert':22 'enough':2 'forens':12 'monkey':18 'pastri':8 'sahara':21 'downhil':1 'succumb':16 'psychologist':13
+248	DOZEN LION	A Taut Drama of a Cat And a Girl who must Defeat a Frisbee in The Canadian Rockies	2006	1	\N	6	4.99	177	20.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':8 'girl':11 'lion':2 'must':13 'taut':4 'dozen':1 'drama':5 'rocki':20 'defeat':14 'frisbe':16 'canadian':19
+249	DRACULA CRYSTAL	A Thrilling Reflection of a Feminist And a Cat who must Find a Frisbee in An Abandoned Fun House	2006	1	\N	7	0.99	176	26.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'cat':11 'fun':20 'find':14 'hous':21 'must':13 'frisbe':16 'thrill':4 'abandon':19 'crystal':2 'dracula':1 'reflect':5 'feminist':8
+250	DRAGON SQUAD	A Taut Reflection of a Boy And a Waitress who must Outgun a Teacher in Ancient China	2006	1	\N	4	0.99	170	26.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boy':8 'must':13 'taut':4 'china':19 'squad':2 'dragon':1 'outgun':14 'ancient':18 'reflect':5 'teacher':16 'waitress':11
+251	DRAGONFLY STRANGERS	A Boring Documentary of a Pioneer And a Man who must Vanquish a Man in Nigeria	2006	1	\N	6	4.99	133	19.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'man':11,16 'bore':4 'must':13 'nigeria':18 'pioneer':8 'stranger':2 'vanquish':14 'dragonfli':1 'documentari':5
+252	DREAM PICKUP	A Epic Display of a Car And a Composer who must Overcome a Forensic Psychologist in The Gulf of Mexico	2006	1	\N	6	2.99	135	18.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'car':8 'epic':4 'gulf':20 'must':13 'dream':1 'compos':11 'forens':16 'mexico':22 'pickup':2 'display':5 'overcom':14 'psychologist':17
+253	DRIFTER COMMANDMENTS	A Epic Reflection of a Womanizer And a Squirrel who must Discover a Husband in A Jet Boat	2006	1	\N	5	4.99	61	18.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'jet':19 'boat':20 'epic':4 'must':13 'woman':8 'discov':14 'command':2 'drifter':1 'husband':16 'reflect':5 'squirrel':11
+254	DRIVER ANNIE	A Lacklusture Character Study of a Butler And a Car who must Redeem a Boat in An Abandoned Fun House	2006	1	\N	4	2.99	159	11.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'car':12 'fun':21 'anni':2 'boat':17 'hous':22 'must':14 'studi':6 'butler':9 'driver':1 'redeem':15 'abandon':20 'charact':5 'lacklustur':4
+255	DRIVING POLISH	A Action-Packed Yarn of a Feminist And a Technical Writer who must Sink a Boat in An Abandoned Mine Shaft	2006	1	\N	6	4.99	175	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'boat':19 'mine':23 'must':16 'pack':6 'sink':17 'yarn':7 'drive':1 'shaft':24 'action':5 'polish':2 'writer':14 'abandon':22 'technic':13 'feminist':10 'action-pack':4
+256	DROP WATERFRONT	A Fanciful Documentary of a Husband And a Explorer who must Reach a Madman in Ancient China	2006	1	\N	6	4.99	178	20.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'drop':1 'must':13 'china':19 'fanci':4 'reach':14 'explor':11 'madman':16 'ancient':18 'husband':8 'waterfront':2 'documentari':5
+257	DRUMLINE CYCLONE	A Insightful Panorama of a Monkey And a Sumo Wrestler who must Outrace a Mad Scientist in The Canadian Rockies	2006	1	\N	3	0.99	110	14.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'mad':17 'must':14 'sumo':11 'rocki':22 'cyclon':2 'monkey':8 'outrac':15 'drumlin':1 'insight':4 'canadian':21 'panorama':5 'wrestler':12 'scientist':18
+258	DRUMS DYNAMITE	A Epic Display of a Crocodile And a Crocodile who must Confront a Dog in An Abandoned Amusement Park	2006	1	\N	6	0.99	96	11.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'dog':16 'amus':20 'drum':1 'epic':4 'must':13 'park':21 'abandon':19 'display':5 'dynamit':2 'confront':14 'crocodil':8,11
+259	DUCK RACER	A Lacklusture Yarn of a Teacher And a Squirrel who must Overcome a Dog in A Shark Tank	2006	1	\N	4	2.99	116	15.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'dog':16 'duck':1 'must':13 'tank':20 'yarn':5 'racer':2 'shark':19 'overcom':14 'teacher':8 'squirrel':11 'lacklustur':4
+260	DUDE BLINDNESS	A Stunning Reflection of a Husband And a Lumberjack who must Face a Frisbee in An Abandoned Fun House	2006	1	\N	3	4.99	132	9.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'fun':20 'dude':1 'face':14 'hous':21 'must':13 'stun':4 'blind':2 'frisbe':16 'abandon':19 'husband':8 'reflect':5 'lumberjack':11
+261	DUFFEL APOCALYPSE	A Emotional Display of a Boat And a Explorer who must Challenge a Madman in A MySQL Convention	2006	1	\N	5	0.99	171	13.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'boat':8 'emot':4 'must':13 'mysql':19 'duffel':1 'explor':11 'madman':16 'convent':20 'display':5 'challeng':14 'apocalyps':2
+262	DUMBO LUST	A Touching Display of a Feminist And a Dentist who must Conquer a Husband in The Gulf of Mexico	2006	1	\N	5	0.99	119	17.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'gulf':19 'lust':2 'must':13 'dumbo':1 'touch':4 'mexico':21 'conquer':14 'dentist':11 'display':5 'husband':16 'feminist':8
+263	DURHAM PANKY	A Brilliant Panorama of a Girl And a Boy who must Face a Mad Scientist in An Abandoned Mine Shaft	2006	1	\N	6	4.99	154	14.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'boy':11 'mad':16 'face':14 'girl':8 'mine':21 'must':13 'panki':2 'shaft':22 'durham':1 'abandon':20 'panorama':5 'brilliant':4 'scientist':17
+264	DWARFS ALTER	A Emotional Yarn of a Girl And a Dog who must Challenge a Composer in Ancient Japan	2006	1	\N	6	2.99	101	13.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'dog':11 'emot':4 'girl':8 'must':13 'yarn':5 'alter':2 'dwarf':1 'japan':19 'compos':16 'ancient':18 'challeng':14
+265	DYING MAKER	A Intrepid Tale of a Boat And a Monkey who must Kill a Cat in California	2006	1	\N	5	4.99	168	28.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'cat':16 'die':1 'boat':8 'kill':14 'must':13 'tale':5 'maker':2 'monkey':11 'intrepid':4 'california':18
+266	DYNAMITE TARZAN	A Intrepid Documentary of a Forensic Psychologist And a Mad Scientist who must Face a Explorer in A U-Boat	2006	1	\N	4	0.99	141	27.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'u':22 'mad':12 'boat':23 'face':16 'must':15 'explor':18 'forens':8 'tarzan':2 'u-boat':21 'dynamit':1 'intrepid':4 'scientist':13 'documentari':5 'psychologist':9
+267	EAGLES PANKY	A Thoughtful Story of a Car And a Boy who must Find a A Shark in The Sahara Desert	2006	1	\N	4	4.99	140	14.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'boy':11 'car':8 'eagl':1 'find':14 'must':13 'panki':2 'shark':17 'stori':5 'desert':21 'sahara':20 'thought':4
+268	EARLY HOME	A Amazing Panorama of a Mad Scientist And a Husband who must Meet a Woman in The Outback	2006	1	\N	6	4.99	96	27.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'mad':8 'amaz':4 'home':2 'meet':15 'must':14 'earli':1 'woman':17 'husband':12 'outback':20 'panorama':5 'scientist':9
+269	EARRING INSTINCT	A Stunning Character Study of a Dentist And a Mad Cow who must Find a Teacher in Nigeria	2006	1	\N	3	0.99	98	22.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'cow':13 'mad':12 'find':16 'must':15 'stun':4 'studi':6 'charact':5 'dentist':9 'earring':1 'nigeria':20 'teacher':18 'instinct':2
+270	EARTH VISION	A Stunning Drama of a Butler And a Madman who must Outrace a Womanizer in Ancient India	2006	1	\N	7	0.99	85	29.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'must':13 'stun':4 'drama':5 'earth':1 'india':19 'woman':16 'butler':8 'madman':11 'outrac':14 'vision':2 'ancient':18
+271	EASY GLADIATOR	A Fateful Story of a Monkey And a Girl who must Overcome a Pastry Chef in Ancient India	2006	1	\N	5	4.99	148	12.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'chef':17 'easi':1 'fate':4 'girl':11 'must':13 'india':20 'stori':5 'monkey':8 'pastri':16 'ancient':19 'gladiat':2 'overcom':14
+272	EDGE KISSING	A Beautiful Yarn of a Composer And a Mad Cow who must Redeem a Mad Scientist in A Jet Boat	2006	1	\N	5	4.99	153	9.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'cow':12 'edg':1 'jet':21 'mad':11,17 'boat':22 'kiss':2 'must':14 'yarn':5 'beauti':4 'compos':8 'redeem':15 'scientist':18
+273	EFFECT GLADIATOR	A Beautiful Display of a Pastry Chef And a Pastry Chef who must Outgun a Forensic Psychologist in A Manhattan Penthouse	2006	1	\N	6	0.99	107	14.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'chef':9,13 'must':15 'beauti':4 'effect':1 'forens':18 'outgun':16 'pastri':8,12 'display':5 'gladiat':2 'penthous':23 'manhattan':22 'psychologist':19
+274	EGG IGBY	A Beautiful Documentary of a Boat And a Sumo Wrestler who must Succumb a Database Administrator in The First Manned Space Station	2006	1	\N	4	2.99	67	20.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'egg':1 'man':22 'boat':8 'igbi':2 'must':14 'sumo':11 'first':21 'space':23 'beauti':4 'databas':17 'station':24 'succumb':15 'wrestler':12 'administr':18 'documentari':5
+275	EGYPT TENENBAUMS	A Intrepid Story of a Madman And a Secret Agent who must Outrace a Astronaut in An Abandoned Amusement Park	2006	1	\N	3	0.99	85	11.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'amus':21 'must':14 'park':22 'agent':12 'egypt':1 'stori':5 'madman':8 'outrac':15 'secret':11 'abandon':20 'intrepid':4 'astronaut':17 'tenenbaum':2
+276	ELEMENT FREDDY	A Awe-Inspiring Reflection of a Waitress And a Squirrel who must Kill a Mad Cow in A Jet Boat	2006	1	\N	6	4.99	115	28.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'awe':5 'cow':19 'jet':22 'mad':18 'boat':23 'kill':16 'must':15 'freddi':2 'inspir':6 'element':1 'reflect':7 'squirrel':13 'waitress':10 'awe-inspir':4
+277	ELEPHANT TROJAN	A Beautiful Panorama of a Lumberjack And a Forensic Psychologist who must Overcome a Frisbee in A Baloon	2006	1	\N	4	4.99	126	24.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'must':14 'eleph':1 'baloon':20 'beauti':4 'forens':11 'frisbe':17 'trojan':2 'overcom':15 'panorama':5 'lumberjack':8 'psychologist':12
+278	ELF MURDER	A Action-Packed Story of a Frisbee And a Woman who must Reach a Girl in An Abandoned Mine Shaft	2006	1	\N	4	4.99	155	19.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'elf':1 'girl':18 'mine':22 'must':15 'pack':6 'reach':16 'shaft':23 'stori':7 'woman':13 'action':5 'frisbe':10 'murder':2 'abandon':21 'action-pack':4
+279	ELIZABETH SHANE	A Lacklusture Display of a Womanizer And a Dog who must Face a Sumo Wrestler in Ancient Japan	2006	1	\N	7	4.99	152	11.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dog':11 'face':14 'must':13 'sumo':16 'japan':20 'shane':2 'woman':8 'ancient':19 'display':5 'wrestler':17 'elizabeth':1 'lacklustur':4
+280	EMPIRE MALKOVICH	A Amazing Story of a Feminist And a Cat who must Face a Car in An Abandoned Fun House	2006	1	\N	7	0.99	177	26.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'car':16 'cat':11 'fun':20 'amaz':4 'face':14 'hous':21 'must':13 'empir':1 'stori':5 'abandon':19 'feminist':8 'malkovich':2
+281	ENCINO ELF	A Astounding Drama of a Feminist And a Teacher who must Confront a Husband in A Baloon	2006	1	\N	6	0.99	143	9.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'elf':2 'must':13 'drama':5 'baloon':19 'encino':1 'astound':4 'husband':16 'teacher':11 'confront':14 'feminist':8
+282	ENCOUNTERS CURTAIN	A Insightful Epistle of a Pastry Chef And a Womanizer who must Build a Boat in New Orleans	2006	1	\N	5	0.99	92	20.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'new':19 'boat':17 'chef':9 'must':14 'build':15 'woman':12 'epistl':5 'orlean':20 'pastri':8 'curtain':2 'encount':1 'insight':4
+283	ENDING CROWDS	A Unbelieveable Display of a Dentist And a Madman who must Vanquish a Squirrel in Berlin	2006	1	\N	6	0.99	85	10.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'end':1 'must':13 'crowd':2 'berlin':18 'madman':11 'dentist':8 'display':5 'squirrel':16 'unbeliev':4 'vanquish':14
+284	ENEMY ODDS	A Fanciful Panorama of a Mad Scientist And a Woman who must Pursue a Astronaut in Ancient India	2006	1	\N	5	4.99	77	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'mad':8 'odd':2 'must':14 'enemi':1 'fanci':4 'india':20 'pursu':15 'woman':12 'ancient':19 'panorama':5 'astronaut':17 'scientist':9
+285	ENGLISH BULWORTH	A Intrepid Epistle of a Pastry Chef And a Pastry Chef who must Pursue a Crocodile in Ancient China	2006	1	\N	3	0.99	51	18.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'chef':9,13 'must':15 'china':21 'pursu':16 'epistl':5 'pastri':8,12 'ancient':20 'english':1 'bulworth':2 'crocodil':18 'intrepid':4
+286	ENOUGH RAGING	A Astounding Character Study of a Boat And a Secret Agent who must Find a Mad Cow in The Sahara Desert	2006	1	\N	7	2.99	158	16.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'cow':19 'mad':18 'boat':9 'find':16 'must':15 'rage':2 'agent':13 'studi':6 'desert':23 'enough':1 'sahara':22 'secret':12 'astound':4 'charact':5
+287	ENTRAPMENT SATISFACTION	A Thoughtful Panorama of a Hunter And a Teacher who must Reach a Mad Cow in A U-Boat	2006	1	\N	5	0.99	176	19.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':21 'cow':17 'mad':16 'boat':22 'must':13 'reach':14 'entrap':1 'hunter':8 'u-boat':20 'teacher':11 'thought':4 'panorama':5 'satisfact':2
+288	ESCAPE METROPOLIS	A Taut Yarn of a Astronaut And a Technical Writer who must Outgun a Boat in New Orleans	2006	1	\N	7	2.99	167	20.99	R	2007-09-10 17:46:03.905795	{Trailers}	'new':19 'boat':17 'must':14 'taut':4 'yarn':5 'escap':1 'orlean':20 'outgun':15 'writer':12 'technic':11 'astronaut':8 'metropoli':2
+289	EVE RESURRECTION	A Awe-Inspiring Yarn of a Pastry Chef And a Database Administrator who must Challenge a Teacher in A Baloon	2006	1	\N	5	4.99	66	25.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'awe':5 'eve':1 'chef':11 'must':17 'yarn':7 'baloon':23 'inspir':6 'pastri':10 'databas':14 'teacher':20 'challeng':18 'administr':15 'resurrect':2 'awe-inspir':4
+290	EVERYONE CRAFT	A Fateful Display of a Waitress And a Dentist who must Reach a Butler in Nigeria	2006	1	\N	4	0.99	163	29.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'fate':4 'must':13 'craft':2 'reach':14 'butler':16 'dentist':11 'display':5 'everyon':1 'nigeria':18 'waitress':8
+291	EVOLUTION ALTER	A Fanciful Character Study of a Feminist And a Madman who must Find a Explorer in A Baloon Factory	2006	1	\N	5	0.99	174	10.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'find':15 'must':14 'alter':2 'fanci':4 'studi':6 'baloon':20 'evolut':1 'explor':17 'madman':12 'charact':5 'factori':21 'feminist':9
+292	EXCITEMENT EVE	A Brilliant Documentary of a Monkey And a Car who must Conquer a Crocodile in A Shark Tank	2006	1	\N	3	0.99	51	20.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'car':11 'eve':2 'must':13 'tank':20 'excit':1 'shark':19 'monkey':8 'conquer':14 'crocodil':16 'brilliant':4 'documentari':5
+293	EXORCIST STING	A Touching Drama of a Dog And a Sumo Wrestler who must Conquer a Mad Scientist in Berlin	2006	1	\N	6	2.99	167	17.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':8 'mad':17 'must':14 'sumo':11 'drama':5 'sting':2 'touch':4 'berlin':20 'conquer':15 'exorcist':1 'wrestler':12 'scientist':18
+294	EXPECATIONS NATURAL	A Amazing Drama of a Butler And a Husband who must Reach a A Shark in A U-Boat	2006	1	\N	5	4.99	138	26.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'u':21 'amaz':4 'boat':22 'must':13 'drama':5 'expec':1 'natur':2 'reach':14 'shark':17 'butler':8 'u-boat':20 'husband':11
+295	EXPENDABLE STALLION	A Amazing Character Study of a Mad Cow And a Squirrel who must Discover a Hunter in A U-Boat	2006	1	\N	3	0.99	97	14.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'u':22 'cow':10 'mad':9 'amaz':4 'boat':23 'must':15 'studi':6 'discov':16 'expend':1 'hunter':18 'u-boat':21 'charact':5 'squirrel':13 'stallion':2
+296	EXPRESS LONELY	A Boring Drama of a Astronaut And a Boat who must Face a Boat in California	2006	1	\N	5	2.99	178	23.99	R	2007-09-10 17:46:03.905795	{Trailers}	'boat':11,16 'bore':4 'face':14 'lone':2 'must':13 'drama':5 'express':1 'astronaut':8 'california':18
+297	EXTRAORDINARY CONQUERER	A Stunning Story of a Dog And a Feminist who must Face a Forensic Psychologist in Berlin	2006	1	\N	6	2.99	122	29.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'dog':8 'face':14 'must':13 'stun':4 'stori':5 'berlin':19 'forens':16 'conquer':2 'feminist':11 'psychologist':17 'extraordinari':1
+298	EYES DRIVING	A Thrilling Story of a Cat And a Waitress who must Fight a Explorer in The Outback	2006	1	\N	4	2.99	172	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cat':8 'eye':1 'must':13 'drive':2 'fight':14 'stori':5 'explor':16 'thrill':4 'outback':19 'waitress':11
+299	FACTORY DRAGON	A Action-Packed Saga of a Teacher And a Frisbee who must Escape a Lumberjack in The Sahara Desert	2006	1	\N	4	0.99	144	9.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'must':15 'pack':6 'saga':7 'escap':16 'action':5 'desert':22 'dragon':2 'frisbe':13 'sahara':21 'factori':1 'teacher':10 'lumberjack':18 'action-pack':4
+300	FALCON VOLUME	A Fateful Saga of a Sumo Wrestler And a Hunter who must Redeem a A Shark in New Orleans	2006	1	\N	5	4.99	102	21.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'new':20 'fate':4 'must':14 'saga':5 'sumo':8 'shark':18 'volum':2 'falcon':1 'hunter':12 'orlean':21 'redeem':15 'wrestler':9
+301	FAMILY SWEET	A Epic Documentary of a Teacher And a Boy who must Escape a Woman in Berlin	2006	1	\N	4	0.99	155	24.99	R	2007-09-10 17:46:03.905795	{Trailers}	'boy':11 'epic':4 'must':13 'escap':14 'sweet':2 'woman':16 'berlin':18 'famili':1 'teacher':8 'documentari':5
+302	FANTASIA PARK	A Thoughtful Documentary of a Mad Scientist And a A Shark who must Outrace a Feminist in Australia	2006	1	\N	5	2.99	131	29.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'mad':8 'must':15 'park':2 'shark':13 'outrac':16 'thought':4 'fantasia':1 'feminist':18 'australia':20 'scientist':9 'documentari':5
+303	FANTASY TROOPERS	A Touching Saga of a Teacher And a Monkey who must Overcome a Secret Agent in A MySQL Convention	2006	1	\N	6	0.99	58	27.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'must':13 'saga':5 'agent':17 'mysql':20 'touch':4 'monkey':11 'secret':16 'convent':21 'fantasi':1 'overcom':14 'teacher':8 'trooper':2
+304	FARGO GANDHI	A Thrilling Reflection of a Pastry Chef And a Crocodile who must Reach a Teacher in The Outback	2006	1	\N	3	2.99	130	28.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'chef':9 'must':14 'fargo':1 'reach':15 'gandhi':2 'pastri':8 'thrill':4 'outback':20 'reflect':5 'teacher':17 'crocodil':12
+305	FATAL HAUNTED	A Beautiful Drama of a Student And a Secret Agent who must Confront a Dentist in Ancient Japan	2006	1	\N	6	2.99	91	24.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'must':14 'agent':12 'drama':5 'fatal':1 'haunt':2 'japan':20 'beauti':4 'secret':11 'ancient':19 'dentist':17 'student':8 'confront':15
+306	FEATHERS METAL	A Thoughtful Yarn of a Monkey And a Teacher who must Find a Dog in Australia	2006	1	\N	3	0.99	104	12.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'dog':16 'find':14 'must':13 'yarn':5 'metal':2 'monkey':8 'feather':1 'teacher':11 'thought':4 'australia':18
+307	FELLOWSHIP AUTUMN	A Lacklusture Reflection of a Dentist And a Hunter who must Meet a Teacher in A Baloon	2006	1	\N	6	4.99	77	9.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'meet':14 'must':13 'autumn':2 'baloon':19 'hunter':11 'dentist':8 'reflect':5 'teacher':16 'fellowship':1 'lacklustur':4
+308	FERRIS MOTHER	A Touching Display of a Frisbee And a Frisbee who must Kill a Girl in The Gulf of Mexico	2006	1	\N	3	2.99	142	13.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'girl':16 'gulf':19 'kill':14 'must':13 'ferri':1 'touch':4 'frisbe':8,11 'mexico':21 'mother':2 'display':5
+309	FEUD FROGMEN	A Brilliant Reflection of a Database Administrator And a Mad Cow who must Chase a Woman in The Canadian Rockies	2006	1	\N	6	0.99	98	29.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':13 'mad':12 'feud':1 'must':15 'chase':16 'rocki':22 'woman':18 'databas':8 'frogmen':2 'reflect':5 'canadian':21 'administr':9 'brilliant':4
+310	FEVER EMPIRE	A Insightful Panorama of a Cat And a Boat who must Defeat a Boat in The Gulf of Mexico	2006	1	\N	5	4.99	158	20.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'cat':8 'boat':11,16 'gulf':19 'must':13 'empir':2 'fever':1 'defeat':14 'mexico':21 'insight':4 'panorama':5
+311	FICTION CHRISTMAS	A Emotional Yarn of a A Shark And a Student who must Battle a Robot in An Abandoned Mine Shaft	2006	1	\N	4	0.99	72	14.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'emot':4 'mine':21 'must':14 'yarn':5 'battl':15 'robot':17 'shaft':22 'shark':9 'abandon':20 'fiction':1 'student':12 'christma':2
+312	FIDDLER LOST	A Boring Tale of a Squirrel And a Dog who must Challenge a Madman in The Gulf of Mexico	2006	1	\N	4	4.99	75	20.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'dog':11 'bore':4 'gulf':19 'lost':2 'must':13 'tale':5 'madman':16 'mexico':21 'fiddler':1 'challeng':14 'squirrel':8
+313	FIDELITY DEVIL	A Awe-Inspiring Drama of a Technical Writer And a Composer who must Reach a Pastry Chef in A U-Boat	2006	1	\N	5	4.99	118	11.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'u':24 'awe':5 'boat':25 'chef':20 'must':16 'devil':2 'drama':7 'fidel':1 'reach':17 'compos':14 'inspir':6 'pastri':19 'u-boat':23 'writer':11 'technic':10 'awe-inspir':4
+314	FIGHT JAWBREAKER	A Intrepid Panorama of a Womanizer And a Girl who must Escape a Girl in A Manhattan Penthouse	2006	1	\N	3	0.99	91	13.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'girl':11,16 'must':13 'escap':14 'fight':1 'woman':8 'intrepid':4 'jawbreak':2 'panorama':5 'penthous':20 'manhattan':19
+315	FINDING ANACONDA	A Fateful Tale of a Database Administrator And a Girl who must Battle a Squirrel in New Orleans	2006	1	\N	4	0.99	156	10.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'new':19 'fate':4 'find':1 'girl':12 'must':14 'tale':5 'battl':15 'orlean':20 'databas':8 'anaconda':2 'squirrel':17 'administr':9
+316	FIRE WOLVES	A Intrepid Documentary of a Frisbee And a Dog who must Outrace a Lumberjack in Nigeria	2006	1	\N	5	4.99	173	18.99	R	2007-09-10 17:46:03.905795	{Trailers}	'dog':11 'fire':1 'must':13 'wolv':2 'frisbe':8 'outrac':14 'nigeria':18 'intrepid':4 'lumberjack':16 'documentari':5
+317	FIREBALL PHILADELPHIA	A Amazing Yarn of a Dentist And a A Shark who must Vanquish a Madman in An Abandoned Mine Shaft	2006	1	\N	4	0.99	148	25.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'amaz':4 'mine':21 'must':14 'yarn':5 'shaft':22 'shark':12 'madman':17 'abandon':20 'dentist':8 'firebal':1 'vanquish':15 'philadelphia':2
+318	FIREHOUSE VIETNAM	A Awe-Inspiring Character Study of a Boat And a Boy who must Kill a Pastry Chef in The Sahara Desert	2006	1	\N	7	0.99	103	14.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'awe':5 'boy':14 'boat':11 'chef':20 'kill':17 'must':16 'studi':8 'desert':24 'inspir':6 'pastri':19 'sahara':23 'charact':7 'vietnam':2 'firehous':1 'awe-inspir':4
+319	FISH OPUS	A Touching Display of a Feminist And a Girl who must Confront a Astronaut in Australia	2006	1	\N	4	2.99	125	22.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'fish':1 'girl':11 'must':13 'opus':2 'touch':4 'display':5 'confront':14 'feminist':8 'astronaut':16 'australia':18
+320	FLAMINGOS CONNECTICUT	A Fast-Paced Reflection of a Composer And a Composer who must Meet a Cat in The Sahara Desert	2006	1	\N	4	4.99	80	28.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'cat':18 'fast':5 'meet':16 'must':15 'pace':6 'compos':10,13 'desert':22 'sahara':21 'reflect':7 'fast-pac':4 'flamingo':1 'connecticut':2
+321	FLASH WARS	A Astounding Saga of a Moose And a Pastry Chef who must Chase a Student in The Gulf of Mexico	2006	1	\N	3	4.99	123	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'war':2 'chef':12 'gulf':20 'moos':8 'must':14 'saga':5 'chase':15 'flash':1 'mexico':22 'pastri':11 'astound':4 'student':17
+322	FLATLINERS KILLER	A Taut Display of a Secret Agent And a Waitress who must Sink a Robot in An Abandoned Mine Shaft	2006	1	\N	5	2.99	100	29.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'mine':21 'must':14 'sink':15 'taut':4 'agent':9 'robot':17 'shaft':22 'killer':2 'secret':8 'abandon':20 'display':5 'flatlin':1 'waitress':12
+323	FLIGHT LIES	A Stunning Character Study of a Crocodile And a Pioneer who must Pursue a Teacher in New Orleans	2006	1	\N	7	4.99	179	22.99	R	2007-09-10 17:46:03.905795	{Trailers}	'lie':2 'new':19 'must':14 'stun':4 'pursu':15 'studi':6 'flight':1 'orlean':20 'charact':5 'pioneer':12 'teacher':17 'crocodil':9
+324	FLINTSTONES HAPPINESS	A Fateful Story of a Husband And a Moose who must Vanquish a Boy in California	2006	1	\N	3	4.99	148	11.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':16 'fate':4 'moos':11 'must':13 'happi':2 'stori':5 'husband':8 'vanquish':14 'flintston':1 'california':18
+325	FLOATS GARDEN	A Action-Packed Epistle of a Robot And a Car who must Chase a Boat in Ancient Japan	2006	1	\N	6	2.99	145	29.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'car':13 'boat':18 'must':15 'pack':6 'chase':16 'float':1 'japan':21 'robot':10 'action':5 'epistl':7 'garden':2 'ancient':20 'action-pack':4
+326	FLYING HOOK	A Thrilling Display of a Mad Cow And a Dog who must Challenge a Frisbee in Nigeria	2006	1	\N	6	2.99	69	18.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cow':9 'dog':12 'fli':1 'mad':8 'hook':2 'must':14 'frisbe':17 'thrill':4 'display':5 'nigeria':19 'challeng':15
+327	FOOL MOCKINGBIRD	A Lacklusture Tale of a Crocodile And a Composer who must Defeat a Madman in A U-Boat	2006	1	\N	3	4.99	158	24.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'u':20 'boat':21 'fool':1 'must':13 'tale':5 'compos':11 'defeat':14 'madman':16 'u-boat':19 'crocodil':8 'lacklustur':4 'mockingbird':2
+328	FOREVER CANDIDATE	A Unbelieveable Panorama of a Technical Writer And a Man who must Pursue a Frisbee in A U-Boat	2006	1	\N	7	2.99	131	28.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':21 'man':12 'boat':22 'must':14 'forev':1 'pursu':15 'candid':2 'frisbe':17 'u-boat':20 'writer':9 'technic':8 'panorama':5 'unbeliev':4
+329	FORREST SONS	A Thrilling Documentary of a Forensic Psychologist And a Butler who must Defeat a Explorer in A Jet Boat	2006	1	\N	4	2.99	63	15.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'jet':20 'son':2 'boat':21 'must':14 'butler':12 'defeat':15 'explor':17 'forens':8 'thrill':4 'forrest':1 'documentari':5 'psychologist':9
+330	FORRESTER COMANCHEROS	A Fateful Tale of a Squirrel And a Forensic Psychologist who must Redeem a Man in Nigeria	2006	1	\N	7	4.99	112	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'man':17 'fate':4 'must':14 'tale':5 'forens':11 'redeem':15 'forrest':1 'nigeria':19 'squirrel':8 'comanchero':2 'psychologist':12
+331	FORWARD TEMPLE	A Astounding Display of a Forensic Psychologist And a Mad Scientist who must Challenge a Girl in New Orleans	2006	1	\N	6	2.99	90	25.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'mad':12 'new':20 'girl':18 'must':15 'templ':2 'forens':8 'orlean':21 'astound':4 'display':5 'forward':1 'challeng':16 'scientist':13 'psychologist':9
+332	FRANKENSTEIN STRANGER	A Insightful Character Study of a Feminist And a Pioneer who must Pursue a Pastry Chef in Nigeria	2006	1	\N	7	0.99	159	16.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'chef':18 'must':14 'pursu':15 'studi':6 'pastri':17 'charact':5 'insight':4 'nigeria':20 'pioneer':12 'feminist':9 'stranger':2 'frankenstein':1
+333	FREAKY POCUS	A Fast-Paced Documentary of a Pastry Chef And a Crocodile who must Chase a Squirrel in The Gulf of Mexico	2006	1	\N	7	2.99	126	16.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'chef':11 'fast':5 'gulf':22 'must':16 'pace':6 'chase':17 'pocus':2 'freaki':1 'mexico':24 'pastri':10 'crocodil':14 'fast-pac':4 'squirrel':19 'documentari':7
+334	FREDDY STORM	A Intrepid Saga of a Man And a Lumberjack who must Vanquish a Husband in The Outback	2006	1	\N	6	4.99	65	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'man':8 'must':13 'saga':5 'storm':2 'freddi':1 'husband':16 'outback':19 'intrepid':4 'vanquish':14 'lumberjack':11
+335	FREEDOM CLEOPATRA	A Emotional Reflection of a Dentist And a Mad Cow who must Face a Squirrel in A Baloon	2006	1	\N	5	0.99	133	23.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cow':12 'mad':11 'emot':4 'face':15 'must':14 'baloon':20 'dentist':8 'freedom':1 'reflect':5 'squirrel':17 'cleopatra':2
+336	FRENCH HOLIDAY	A Thrilling Epistle of a Dog And a Feminist who must Kill a Madman in Berlin	2006	1	\N	5	4.99	99	22.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'dog':8 'kill':14 'must':13 'berlin':18 'epistl':5 'french':1 'madman':16 'thrill':4 'holiday':2 'feminist':11
+337	FRIDA SLIPPER	A Fateful Story of a Lumberjack And a Car who must Escape a Boat in An Abandoned Mine Shaft	2006	1	\N	6	2.99	73	11.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'car':11 'boat':16 'fate':4 'mine':20 'must':13 'escap':14 'frida':1 'shaft':21 'stori':5 'abandon':19 'slipper':2 'lumberjack':8
+338	FRISCO FORREST	A Beautiful Documentary of a Woman And a Pioneer who must Pursue a Mad Scientist in A Shark Tank	2006	1	\N	6	4.99	51	23.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'mad':16 'must':13 'tank':21 'pursu':14 'shark':20 'woman':8 'beauti':4 'frisco':1 'forrest':2 'pioneer':11 'scientist':17 'documentari':5
+339	FROGMEN BREAKING	A Unbelieveable Yarn of a Mad Scientist And a Cat who must Chase a Lumberjack in Australia	2006	1	\N	5	0.99	111	17.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'cat':12 'mad':8 'must':14 'yarn':5 'break':2 'chase':15 'frogmen':1 'unbeliev':4 'australia':19 'scientist':9 'lumberjack':17
+340	FRONTIER CABIN	A Emotional Story of a Madman And a Waitress who must Battle a Teacher in An Abandoned Fun House	2006	1	\N	6	4.99	183	14.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'fun':20 'emot':4 'hous':21 'must':13 'battl':14 'cabin':2 'stori':5 'madman':8 'abandon':19 'teacher':16 'frontier':1 'waitress':11
+341	FROST HEAD	A Amazing Reflection of a Lumberjack And a Cat who must Discover a Husband in A MySQL Convention	2006	1	\N	5	0.99	82	13.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'cat':11 'amaz':4 'head':2 'must':13 'frost':1 'mysql':19 'discov':14 'convent':20 'husband':16 'reflect':5 'lumberjack':8
+342	FUGITIVE MAGUIRE	A Taut Epistle of a Feminist And a Sumo Wrestler who must Battle a Crocodile in Australia	2006	1	\N	7	4.99	83	28.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'must':14 'sumo':11 'taut':4 'battl':15 'fugit':1 'epistl':5 'maguir':2 'crocodil':17 'feminist':8 'wrestler':12 'australia':19
+343	FULL FLATLINERS	A Beautiful Documentary of a Astronaut And a Moose who must Pursue a Monkey in A Shark Tank	2006	1	\N	6	2.99	94	14.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'full':1 'moos':11 'must':13 'tank':20 'pursu':14 'shark':19 'beauti':4 'monkey':16 'flatlin':2 'astronaut':8 'documentari':5
+344	FURY MURDER	A Lacklusture Reflection of a Boat And a Forensic Psychologist who must Fight a Waitress in A Monastery	2006	1	\N	3	0.99	178	28.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'boat':8 'furi':1 'must':14 'fight':15 'forens':11 'murder':2 'reflect':5 'waitress':17 'monasteri':20 'lacklustur':4 'psychologist':12
+345	GABLES METROPOLIS	A Fateful Display of a Cat And a Pioneer who must Challenge a Pastry Chef in A Baloon Factory	2006	1	\N	3	0.99	161	17.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cat':8 'chef':17 'fate':4 'gabl':1 'must':13 'baloon':20 'pastri':16 'display':5 'factori':21 'pioneer':11 'challeng':14 'metropoli':2
+346	GALAXY SWEETHEARTS	A Emotional Reflection of a Womanizer And a Pioneer who must Face a Squirrel in Berlin	2006	1	\N	4	4.99	128	13.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'emot':4 'face':14 'must':13 'woman':8 'berlin':18 'galaxi':1 'pioneer':11 'reflect':5 'squirrel':16 'sweetheart':2
+347	GAMES BOWFINGER	A Astounding Documentary of a Butler And a Explorer who must Challenge a Butler in A Monastery	2006	1	\N	7	4.99	119	17.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'game':1 'must':13 'butler':8,16 'explor':11 'astound':4 'bowfing':2 'challeng':14 'monasteri':19 'documentari':5
+348	GANDHI KWAI	A Thoughtful Display of a Mad Scientist And a Secret Agent who must Chase a Boat in Berlin	2006	1	\N	7	0.99	86	9.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'mad':8 'boat':18 'kwai':2 'must':15 'agent':13 'chase':16 'berlin':20 'gandhi':1 'secret':12 'display':5 'thought':4 'scientist':9
+349	GANGS PRIDE	A Taut Character Study of a Woman And a A Shark who must Confront a Frisbee in Berlin	2006	1	\N	4	2.99	185	27.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'gang':1 'must':15 'taut':4 'pride':2 'shark':13 'studi':6 'woman':9 'berlin':20 'frisbe':18 'charact':5 'confront':16
+350	GARDEN ISLAND	A Unbelieveable Character Study of a Womanizer And a Madman who must Reach a Man in The Outback	2006	1	\N	3	4.99	80	21.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'man':17 'must':14 'reach':15 'studi':6 'woman':9 'garden':1 'island':2 'madman':12 'charact':5 'outback':20 'unbeliev':4
+351	GASLIGHT CRUSADE	A Amazing Epistle of a Boy And a Astronaut who must Redeem a Man in The Gulf of Mexico	2006	1	\N	4	2.99	106	10.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'boy':8 'man':16 'amaz':4 'gulf':19 'must':13 'crusad':2 'epistl':5 'mexico':21 'redeem':14 'gaslight':1 'astronaut':11
+352	GATHERING CALENDAR	A Intrepid Tale of a Pioneer And a Moose who must Conquer a Frisbee in A MySQL Convention	2006	1	\N	4	0.99	176	22.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'moos':11 'must':13 'tale':5 'mysql':19 'frisbe':16 'gather':1 'conquer':14 'convent':20 'pioneer':8 'calendar':2 'intrepid':4
+353	GENTLEMEN STAGE	A Awe-Inspiring Reflection of a Monkey And a Student who must Overcome a Dentist in The First Manned Space Station	2006	1	\N	6	2.99	125	22.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'awe':5 'man':22 'must':15 'first':21 'space':23 'stage':2 'inspir':6 'monkey':10 'dentist':18 'overcom':16 'reflect':7 'station':24 'student':13 'gentlemen':1 'awe-inspir':4
+354	GHOST GROUNDHOG	A Brilliant Panorama of a Madman And a Composer who must Succumb a Car in Ancient India	2006	1	\N	6	4.99	85	18.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'car':16 'must':13 'ghost':1 'india':19 'compos':11 'madman':8 'ancient':18 'succumb':14 'panorama':5 'brilliant':4 'groundhog':2
+355	GHOSTBUSTERS ELF	A Thoughtful Epistle of a Dog And a Feminist who must Chase a Composer in Berlin	2006	1	\N	7	0.99	101	18.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dog':8 'elf':2 'must':13 'chase':14 'berlin':18 'compos':16 'epistl':5 'thought':4 'feminist':11 'ghostbust':1
+356	GIANT TROOPERS	A Fateful Display of a Feminist And a Monkey who must Vanquish a Monkey in The Canadian Rockies	2006	1	\N	5	2.99	102	10.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'fate':4 'must':13 'giant':1 'rocki':20 'monkey':11,16 'display':5 'trooper':2 'canadian':19 'feminist':8 'vanquish':14
+357	GILBERT PELICAN	A Fateful Tale of a Man And a Feminist who must Conquer a Crocodile in A Manhattan Penthouse	2006	1	\N	7	0.99	114	13.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'man':8 'fate':4 'must':13 'tale':5 'conquer':14 'gilbert':1 'pelican':2 'crocodil':16 'feminist':11 'penthous':20 'manhattan':19
+358	GILMORE BOILED	A Unbelieveable Documentary of a Boat And a Husband who must Succumb a Student in A U-Boat	2006	1	\N	5	0.99	163	29.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'u':20 'boat':8,21 'boil':2 'must':13 'gilmor':1 'u-boat':19 'husband':11 'student':16 'succumb':14 'unbeliev':4 'documentari':5
+359	GLADIATOR WESTWARD	A Astounding Reflection of a Squirrel And a Sumo Wrestler who must Sink a Dentist in Ancient Japan	2006	1	\N	6	4.99	173	20.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':14 'sink':15 'sumo':11 'japan':20 'ancient':19 'astound':4 'dentist':17 'gladiat':1 'reflect':5 'squirrel':8 'westward':2 'wrestler':12
+360	GLASS DYING	A Astounding Drama of a Frisbee And a Astronaut who must Fight a Dog in Ancient Japan	2006	1	\N	4	0.99	103	24.99	G	2007-09-10 17:46:03.905795	{Trailers}	'die':2 'dog':16 'must':13 'drama':5 'fight':14 'glass':1 'japan':19 'frisbe':8 'ancient':18 'astound':4 'astronaut':11
+361	GLEAMING JAWBREAKER	A Amazing Display of a Composer And a Forensic Psychologist who must Discover a Car in The Canadian Rockies	2006	1	\N	5	2.99	89	25.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'car':17 'amaz':4 'must':14 'gleam':1 'rocki':21 'compos':8 'discov':15 'forens':11 'display':5 'canadian':20 'jawbreak':2 'psychologist':12
+362	GLORY TRACY	A Amazing Saga of a Woman And a Womanizer who must Discover a Cat in The First Manned Space Station	2006	1	\N	7	2.99	115	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cat':16 'man':20 'amaz':4 'must':13 'saga':5 'first':19 'glori':1 'space':21 'traci':2 'woman':8,11 'discov':14 'station':22
+363	GO PURPLE	A Fast-Paced Display of a Car And a Database Administrator who must Battle a Woman in A Baloon	2006	1	\N	3	0.99	54	12.99	R	2007-09-10 17:46:03.905795	{Trailers}	'go':1 'car':10 'fast':5 'must':16 'pace':6 'battl':17 'purpl':2 'woman':19 'baloon':22 'databas':13 'display':7 'fast-pac':4 'administr':14
+364	GODFATHER DIARY	A Stunning Saga of a Lumberjack And a Squirrel who must Chase a Car in The Outback	2006	1	\N	3	2.99	73	14.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'car':16 'must':13 'saga':5 'stun':4 'chase':14 'diari':2 'godfath':1 'outback':19 'squirrel':11 'lumberjack':8
+365	GOLD RIVER	A Taut Documentary of a Database Administrator And a Waitress who must Reach a Mad Scientist in A Baloon Factory	2006	1	\N	4	4.99	154	21.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'mad':17 'gold':1 'must':14 'taut':4 'reach':15 'river':2 'baloon':21 'databas':8 'factori':22 'waitress':12 'administr':9 'scientist':18 'documentari':5
+366	GOLDFINGER SENSIBILITY	A Insightful Drama of a Mad Scientist And a Hunter who must Defeat a Pastry Chef in New Orleans	2006	1	\N	3	0.99	93	29.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'mad':8 'new':20 'chef':18 'must':14 'drama':5 'defeat':15 'hunter':12 'orlean':21 'pastri':17 'insight':4 'sensibl':2 'goldfing':1 'scientist':9
+367	GOLDMINE TYCOON	A Brilliant Epistle of a Composer And a Frisbee who must Conquer a Husband in The Outback	2006	1	\N	6	0.99	153	20.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'must':13 'compos':8 'epistl':5 'frisbe':11 'tycoon':2 'conquer':14 'goldmin':1 'husband':16 'outback':19 'brilliant':4
+368	GONE TROUBLE	A Insightful Character Study of a Mad Cow And a Forensic Psychologist who must Conquer a A Shark in A Manhattan Penthouse	2006	1	\N	7	2.99	84	20.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'cow':10 'mad':9 'gone':1 'must':16 'shark':20 'studi':6 'forens':13 'troubl':2 'charact':5 'conquer':17 'insight':4 'penthous':24 'manhattan':23 'psychologist':14
+369	GOODFELLAS SALUTE	A Unbelieveable Tale of a Dog And a Explorer who must Sink a Mad Cow in A Baloon Factory	2006	1	\N	4	4.99	56	22.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'cow':17 'dog':8 'mad':16 'must':13 'sink':14 'tale':5 'salut':2 'baloon':20 'explor':11 'factori':21 'unbeliev':4 'goodfella':1
+370	GORGEOUS BINGO	A Action-Packed Display of a Sumo Wrestler And a Car who must Overcome a Waitress in A Baloon Factory	2006	1	\N	4	2.99	108	26.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'car':14 'must':16 'pack':6 'sumo':10 'bingo':2 'action':5 'baloon':22 'display':7 'factori':23 'overcom':17 'gorgeous':1 'waitress':19 'wrestler':11 'action-pack':4
+371	GOSFORD DONNIE	A Epic Panorama of a Mad Scientist And a Monkey who must Redeem a Secret Agent in Berlin	2006	1	\N	5	4.99	129	17.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'mad':8 'epic':4 'must':14 'agent':18 'donni':2 'berlin':20 'monkey':12 'redeem':15 'secret':17 'gosford':1 'panorama':5 'scientist':9
+372	GRACELAND DYNAMITE	A Taut Display of a Cat And a Girl who must Overcome a Database Administrator in New Orleans	2006	1	\N	5	4.99	140	26.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cat':8 'new':19 'girl':11 'must':13 'taut':4 'orlean':20 'databas':16 'display':5 'dynamit':2 'overcom':14 'administr':17 'graceland':1
+373	GRADUATE LORD	A Lacklusture Epistle of a Girl And a A Shark who must Meet a Mad Scientist in Ancient China	2006	1	\N	7	2.99	156	14.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'mad':17 'girl':8 'lord':2 'meet':15 'must':14 'china':21 'shark':12 'epistl':5 'ancient':20 'graduat':1 'scientist':18 'lacklustur':4
+374	GRAFFITI LOVE	A Unbelieveable Epistle of a Sumo Wrestler And a Hunter who must Build a Composer in Berlin	2006	1	\N	3	0.99	117	29.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'love':2 'must':14 'sumo':8 'build':15 'berlin':19 'compos':17 'epistl':5 'hunter':12 'graffiti':1 'unbeliev':4 'wrestler':9
+375	GRAIL FRANKENSTEIN	A Unbelieveable Saga of a Teacher And a Monkey who must Fight a Girl in An Abandoned Mine Shaft	2006	1	\N	4	2.99	85	17.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'girl':16 'mine':20 'must':13 'saga':5 'fight':14 'grail':1 'shaft':21 'monkey':11 'abandon':19 'teacher':8 'unbeliev':4 'frankenstein':2
+376	GRAPES FURY	A Boring Yarn of a Mad Cow And a Sumo Wrestler who must Meet a Robot in Australia	2006	1	\N	4	0.99	155	20.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cow':9 'mad':8 'bore':4 'furi':2 'meet':16 'must':15 'sumo':12 'yarn':5 'grape':1 'robot':18 'wrestler':13 'australia':20
+377	GREASE YOUTH	A Emotional Panorama of a Secret Agent And a Waitress who must Escape a Composer in Soviet Georgia	2006	1	\N	7	0.99	135	20.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'emot':4 'must':14 'agent':9 'escap':15 'greas':1 'youth':2 'compos':17 'secret':8 'soviet':19 'georgia':20 'panorama':5 'waitress':12
+378	GREATEST NORTH	A Astounding Character Study of a Secret Agent And a Robot who must Build a A Shark in Berlin	2006	1	\N	5	2.99	93	24.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':15 'agent':10 'build':16 'north':2 'robot':13 'shark':19 'studi':6 'berlin':21 'secret':9 'astound':4 'charact':5 'greatest':1
+379	GREEDY ROOTS	A Amazing Reflection of a A Shark And a Butler who must Chase a Hunter in The Canadian Rockies	2006	1	\N	7	0.99	166	14.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'amaz':4 'must':14 'root':2 'chase':15 'rocki':21 'shark':9 'butler':12 'greedi':1 'hunter':17 'reflect':5 'canadian':20
+380	GREEK EVERYONE	A Stunning Display of a Butler And a Teacher who must Confront a A Shark in The First Manned Space Station	2006	1	\N	7	2.99	176	11.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'man':21 'must':13 'stun':4 'first':20 'greek':1 'shark':17 'space':22 'butler':8 'display':5 'everyon':2 'station':23 'teacher':11 'confront':14
+381	GRINCH MASSAGE	A Intrepid Display of a Madman And a Feminist who must Pursue a Pioneer in The First Manned Space Station	2006	1	\N	7	4.99	150	25.99	R	2007-09-10 17:46:03.905795	{Trailers}	'man':20 'must':13 'first':19 'pursu':14 'space':21 'grinch':1 'madman':8 'massag':2 'display':5 'pioneer':16 'station':22 'feminist':11 'intrepid':4
+382	GRIT CLOCKWORK	A Thoughtful Display of a Dentist And a Squirrel who must Confront a Lumberjack in A Shark Tank	2006	1	\N	3	0.99	137	21.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'grit':1 'must':13 'tank':20 'shark':19 'dentist':8 'display':5 'thought':4 'confront':14 'squirrel':11 'clockwork':2 'lumberjack':16
+383	GROOVE FICTION	A Unbelieveable Reflection of a Moose And a A Shark who must Defeat a Lumberjack in An Abandoned Mine Shaft	2006	1	\N	6	0.99	111	13.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'mine':21 'moos':8 'must':14 'groov':1 'shaft':22 'shark':12 'defeat':15 'abandon':20 'fiction':2 'reflect':5 'unbeliev':4 'lumberjack':17
+384	GROSSE WONDERFUL	A Epic Drama of a Cat And a Explorer who must Redeem a Moose in Australia	2006	1	\N	5	4.99	49	19.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'cat':8 'epic':4 'moos':16 'must':13 'drama':5 'gross':1 'explor':11 'redeem':14 'wonder':2 'australia':18
+385	GROUNDHOG UNCUT	A Brilliant Panorama of a Astronaut And a Technical Writer who must Discover a Butler in A Manhattan Penthouse	2006	1	\N	6	4.99	139	26.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'must':14 'uncut':2 'butler':17 'discov':15 'writer':12 'technic':11 'panorama':5 'penthous':21 'astronaut':8 'brilliant':4 'groundhog':1 'manhattan':20
+386	GUMP DATE	A Intrepid Yarn of a Explorer And a Student who must Kill a Husband in An Abandoned Mine Shaft	2006	1	\N	3	4.99	53	12.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'date':2 'gump':1 'kill':14 'mine':20 'must':13 'yarn':5 'shaft':21 'explor':8 'abandon':19 'husband':16 'student':11 'intrepid':4
+387	GUN BONNIE	A Boring Display of a Sumo Wrestler And a Husband who must Build a Waitress in The Gulf of Mexico	2006	1	\N	7	0.99	100	27.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'gun':1 'bore':4 'gulf':20 'must':14 'sumo':8 'bonni':2 'build':15 'mexico':22 'display':5 'husband':12 'waitress':17 'wrestler':9
+388	GUNFIGHT MOON	A Epic Reflection of a Pastry Chef And a Explorer who must Reach a Dentist in The Sahara Desert	2006	1	\N	5	0.99	70	16.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'chef':9 'epic':4 'moon':2 'must':14 'reach':15 'desert':21 'explor':12 'pastri':8 'sahara':20 'dentist':17 'reflect':5 'gunfight':1
+389	GUNFIGHTER MUSSOLINI	A Touching Saga of a Robot And a Boy who must Kill a Man in Ancient Japan	2006	1	\N	3	2.99	127	9.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'boy':11 'man':16 'kill':14 'must':13 'saga':5 'japan':19 'robot':8 'touch':4 'ancient':18 'gunfight':1 'mussolini':2
+390	GUYS FALCON	A Boring Story of a Woman And a Feminist who must Redeem a Squirrel in A U-Boat	2006	1	\N	4	4.99	84	20.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'u':20 'guy':1 'boat':21 'bore':4 'must':13 'stori':5 'woman':8 'falcon':2 'redeem':14 'u-boat':19 'feminist':11 'squirrel':16
+391	HALF OUTFIELD	A Epic Epistle of a Database Administrator And a Crocodile who must Face a Madman in A Jet Boat	2006	1	\N	6	2.99	146	25.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'jet':20 'boat':21 'epic':4 'face':15 'half':1 'must':14 'epistl':5 'madman':17 'databas':8 'crocodil':12 'outfield':2 'administr':9
+392	HALL CASSIDY	A Beautiful Panorama of a Pastry Chef And a A Shark who must Battle a Pioneer in Soviet Georgia	2006	1	\N	5	4.99	51	13.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'chef':9 'hall':1 'must':15 'battl':16 'shark':13 'beauti':4 'pastri':8 'soviet':20 'cassidi':2 'georgia':21 'pioneer':18 'panorama':5
+393	HALLOWEEN NUTS	A Amazing Panorama of a Forensic Psychologist And a Technical Writer who must Fight a Dentist in A U-Boat	2006	1	\N	6	2.99	47	19.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'u':22 'nut':2 'amaz':4 'boat':23 'must':15 'fight':16 'forens':8 'u-boat':21 'writer':13 'dentist':18 'technic':12 'panorama':5 'halloween':1 'psychologist':9
+394	HAMLET WISDOM	A Touching Reflection of a Man And a Man who must Sink a Robot in The Outback	2006	1	\N	7	2.99	146	21.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'man':8,11 'must':13 'sink':14 'robot':16 'touch':4 'hamlet':1 'wisdom':2 'outback':19 'reflect':5
+395	HANDICAP BOONDOCK	A Beautiful Display of a Pioneer And a Squirrel who must Vanquish a Sumo Wrestler in Soviet Georgia	2006	1	\N	4	0.99	108	28.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'must':13 'sumo':16 'beauti':4 'soviet':19 'display':5 'georgia':20 'pioneer':8 'boondock':2 'handicap':1 'squirrel':11 'vanquish':14 'wrestler':17
+396	HANGING DEEP	A Action-Packed Yarn of a Boat And a Crocodile who must Build a Monkey in Berlin	2006	1	\N	5	4.99	62	18.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'boat':10 'deep':2 'hang':1 'must':15 'pack':6 'yarn':7 'build':16 'action':5 'berlin':20 'monkey':18 'crocodil':13 'action-pack':4
+397	HANKY OCTOBER	A Boring Epistle of a Database Administrator And a Explorer who must Pursue a Madman in Soviet Georgia	2006	1	\N	5	2.99	107	26.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'bore':4 'must':14 'hanki':1 'octob':2 'pursu':15 'epistl':5 'explor':12 'madman':17 'soviet':19 'databas':8 'georgia':20 'administr':9
+398	HANOVER GALAXY	A Stunning Reflection of a Girl And a Secret Agent who must Succumb a Boy in A MySQL Convention	2006	1	\N	5	4.99	47	21.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':17 'girl':8 'must':14 'stun':4 'agent':12 'hanov':1 'mysql':20 'galaxi':2 'secret':11 'convent':21 'reflect':5 'succumb':15
+399	HAPPINESS UNITED	A Action-Packed Panorama of a Husband And a Feminist who must Meet a Forensic Psychologist in Ancient Japan	2006	1	\N	6	2.99	100	23.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'meet':16 'must':15 'pack':6 'unit':2 'happi':1 'japan':22 'action':5 'forens':18 'ancient':21 'husband':10 'feminist':13 'panorama':7 'action-pack':4 'psychologist':19
+400	HARDLY ROBBERS	A Emotional Character Study of a Hunter And a Car who must Kill a Woman in Berlin	2006	1	\N	7	2.99	72	15.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'car':12 'emot':4 'hard':1 'kill':15 'must':14 'studi':6 'woman':17 'berlin':19 'hunter':9 'robber':2 'charact':5
+401	HAROLD FRENCH	A Stunning Saga of a Sumo Wrestler And a Student who must Outrace a Moose in The Sahara Desert	2006	1	\N	6	0.99	168	10.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'moos':17 'must':14 'saga':5 'stun':4 'sumo':8 'desert':21 'french':2 'harold':1 'outrac':15 'sahara':20 'student':12 'wrestler':9
+402	HARPER DYING	A Awe-Inspiring Reflection of a Woman And a Cat who must Confront a Feminist in The Sahara Desert	2006	1	\N	3	0.99	52	15.99	G	2007-09-10 17:46:03.905795	{Trailers}	'awe':5 'cat':13 'die':2 'must':15 'woman':10 'desert':22 'harper':1 'inspir':6 'sahara':21 'reflect':7 'confront':16 'feminist':18 'awe-inspir':4
+403	HARRY IDAHO	A Taut Yarn of a Technical Writer And a Feminist who must Outrace a Dog in California	2006	1	\N	5	4.99	121	18.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'dog':17 'must':14 'taut':4 'yarn':5 'harri':1 'idaho':2 'outrac':15 'writer':9 'technic':8 'feminist':12 'california':19
+404	HATE HANDICAP	A Intrepid Reflection of a Mad Scientist And a Pioneer who must Overcome a Hunter in The First Manned Space Station	2006	1	\N	4	0.99	107	26.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'mad':8 'man':21 'hate':1 'must':14 'first':20 'space':22 'hunter':17 'overcom':15 'pioneer':12 'reflect':5 'station':23 'handicap':2 'intrepid':4 'scientist':9
+405	HAUNTED ANTITRUST	A Amazing Saga of a Man And a Dentist who must Reach a Technical Writer in Ancient India	2006	1	\N	6	4.99	76	13.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'man':8 'amaz':4 'must':13 'saga':5 'haunt':1 'india':20 'reach':14 'writer':17 'ancient':19 'dentist':11 'technic':16 'antitrust':2
+406	HAUNTING PIANIST	A Fast-Paced Story of a Database Administrator And a Composer who must Defeat a Squirrel in An Abandoned Amusement Park	2006	1	\N	5	0.99	181	22.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'amus':23 'fast':5 'must':16 'pace':6 'park':24 'haunt':1 'stori':7 'compos':14 'defeat':17 'abandon':22 'databas':10 'pianist':2 'fast-pac':4 'squirrel':19 'administr':11
+407	HAWK CHILL	A Action-Packed Drama of a Mad Scientist And a Composer who must Outgun a Car in Australia	2006	1	\N	5	0.99	47	12.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'car':19 'mad':10 'hawk':1 'must':16 'pack':6 'chill':2 'drama':7 'action':5 'compos':14 'outgun':17 'australia':21 'scientist':11 'action-pack':4
+408	HEAD STRANGER	A Thoughtful Saga of a Hunter And a Crocodile who must Confront a Dog in The Gulf of Mexico	2006	1	\N	4	4.99	69	28.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'dog':16 'gulf':19 'head':1 'must':13 'saga':5 'hunter':8 'mexico':21 'thought':4 'confront':14 'crocodil':11 'stranger':2
+409	HEARTBREAKERS BRIGHT	A Awe-Inspiring Documentary of a A Shark And a Dentist who must Outrace a Pastry Chef in The Canadian Rockies	2006	1	\N	3	4.99	59	9.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'awe':5 'chef':20 'must':16 'rocki':24 'shark':11 'bright':2 'inspir':6 'outrac':17 'pastri':19 'dentist':14 'canadian':23 'awe-inspir':4 'heartbreak':1 'documentari':7
+410	HEAVEN FREEDOM	A Intrepid Story of a Butler And a Car who must Vanquish a Man in New Orleans	2006	1	\N	7	2.99	48	19.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'car':11 'man':16 'new':18 'must':13 'stori':5 'butler':8 'heaven':1 'orlean':19 'freedom':2 'intrepid':4 'vanquish':14
+411	HEAVENLY GUN	A Beautiful Yarn of a Forensic Psychologist And a Frisbee who must Battle a Moose in A Jet Boat	2006	1	\N	5	4.99	49	13.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'gun':2 'jet':20 'boat':21 'moos':17 'must':14 'yarn':5 'battl':15 'beauti':4 'forens':8 'frisbe':12 'heaven':1 'psychologist':9
+412	HEAVYWEIGHTS BEAST	A Unbelieveable Story of a Composer And a Dog who must Overcome a Womanizer in An Abandoned Amusement Park	2006	1	\N	6	4.99	102	25.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'dog':11 'amus':20 'must':13 'park':21 'beast':2 'stori':5 'woman':16 'compos':8 'abandon':19 'overcom':14 'unbeliev':4 'heavyweight':1
+413	HEDWIG ALTER	A Action-Packed Yarn of a Womanizer And a Lumberjack who must Chase a Sumo Wrestler in A Monastery	2006	1	\N	7	2.99	169	16.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':15 'pack':6 'sumo':18 'yarn':7 'alter':2 'chase':16 'woman':10 'action':5 'hedwig':1 'wrestler':19 'monasteri':22 'lumberjack':13 'action-pack':4
+414	HELLFIGHTERS SIERRA	A Taut Reflection of a A Shark And a Dentist who must Battle a Boat in Soviet Georgia	2006	1	\N	3	2.99	75	23.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boat':17 'must':14 'taut':4 'battl':15 'shark':9 'sierra':2 'soviet':19 'dentist':12 'georgia':20 'reflect':5 'hellfight':1
+415	HIGH ENCINO	A Fateful Saga of a Waitress And a Hunter who must Outrace a Sumo Wrestler in Australia	2006	1	\N	3	2.99	84	23.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'fate':4 'high':1 'must':13 'saga':5 'sumo':16 'encino':2 'hunter':11 'outrac':14 'waitress':8 'wrestler':17 'australia':19
+416	HIGHBALL POTTER	A Action-Packed Saga of a Husband And a Dog who must Redeem a Database Administrator in The Sahara Desert	2006	1	\N	6	0.99	110	10.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'dog':13 'must':15 'pack':6 'saga':7 'action':5 'desert':23 'potter':2 'redeem':16 'sahara':22 'databas':18 'highbal':1 'husband':10 'administr':19 'action-pack':4
+417	HILLS NEIGHBORS	A Epic Display of a Hunter And a Feminist who must Sink a Car in A U-Boat	2006	1	\N	5	0.99	93	29.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':20 'car':16 'boat':21 'epic':4 'hill':1 'must':13 'sink':14 'hunter':8 'u-boat':19 'display':5 'feminist':11 'neighbor':2
+418	HOBBIT ALIEN	A Emotional Drama of a Husband And a Girl who must Outgun a Composer in The First Manned Space Station	2006	1	\N	5	0.99	157	27.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'man':20 'emot':4 'girl':11 'must':13 'alien':2 'drama':5 'first':19 'space':21 'compos':16 'hobbit':1 'outgun':14 'husband':8 'station':22
+419	HOCUS FRIDA	A Awe-Inspiring Tale of a Girl And a Madman who must Outgun a Student in A Shark Tank	2006	1	\N	4	2.99	141	19.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'awe':5 'girl':10 'must':15 'tale':7 'tank':22 'frida':2 'hocus':1 'shark':21 'inspir':6 'madman':13 'outgun':16 'student':18 'awe-inspir':4
+420	HOLES BRANNIGAN	A Fast-Paced Reflection of a Technical Writer And a Student who must Fight a Boy in The Canadian Rockies	2006	1	\N	7	4.99	128	27.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'boy':19 'fast':5 'hole':1 'must':16 'pace':6 'fight':17 'rocki':23 'writer':11 'reflect':7 'student':14 'technic':10 'canadian':22 'fast-pac':4 'brannigan':2
+421	HOLIDAY GAMES	A Insightful Reflection of a Waitress And a Madman who must Pursue a Boy in Ancient Japan	2006	1	\N	7	4.99	78	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'boy':16 'game':2 'must':13 'japan':19 'pursu':14 'madman':11 'ancient':18 'holiday':1 'insight':4 'reflect':5 'waitress':8
+422	HOLLOW JEOPARDY	A Beautiful Character Study of a Robot And a Astronaut who must Overcome a Boat in A Monastery	2006	1	\N	7	4.99	136	25.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'boat':17 'must':14 'robot':9 'studi':6 'beauti':4 'hollow':1 'charact':5 'overcom':15 'jeopardi':2 'astronaut':12 'monasteri':20
+423	HOLLYWOOD ANONYMOUS	A Fast-Paced Epistle of a Boy And a Explorer who must Escape a Dog in A U-Boat	2006	1	\N	7	0.99	69	29.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'u':22 'boy':10 'dog':18 'boat':23 'fast':5 'must':15 'pace':6 'escap':16 'anonym':2 'epistl':7 'explor':13 'u-boat':21 'fast-pac':4 'hollywood':1
+424	HOLOCAUST HIGHBALL	A Awe-Inspiring Yarn of a Composer And a Man who must Find a Robot in Soviet Georgia	2006	1	\N	6	0.99	149	12.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'awe':5 'man':13 'find':16 'must':15 'yarn':7 'robot':18 'compos':10 'inspir':6 'soviet':20 'georgia':21 'highbal':2 'holocaust':1 'awe-inspir':4
+425	HOLY TADPOLE	A Action-Packed Display of a Feminist And a Pioneer who must Pursue a Dog in A Baloon Factory	2006	1	\N	6	0.99	88	20.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'dog':18 'holi':1 'must':15 'pack':6 'pursu':16 'action':5 'baloon':21 'tadpol':2 'display':7 'factori':22 'pioneer':13 'feminist':10 'action-pack':4
+426	HOME PITY	A Touching Panorama of a Man And a Secret Agent who must Challenge a Teacher in A MySQL Convention	2006	1	\N	7	4.99	185	15.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'man':8 'home':1 'must':14 'piti':2 'agent':12 'mysql':20 'touch':4 'secret':11 'convent':21 'teacher':17 'challeng':15 'panorama':5
+427	HOMEWARD CIDER	A Taut Reflection of a Astronaut And a Squirrel who must Fight a Squirrel in A Manhattan Penthouse	2006	1	\N	5	0.99	103	19.99	R	2007-09-10 17:46:03.905795	{Trailers}	'must':13 'taut':4 'cider':2 'fight':14 'reflect':5 'homeward':1 'penthous':20 'squirrel':11,16 'astronaut':8 'manhattan':19
+428	HOMICIDE PEACH	A Astounding Documentary of a Hunter And a Boy who must Confront a Boy in A MySQL Convention	2006	1	\N	6	2.99	141	21.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'boy':11,16 'must':13 'mysql':19 'peach':2 'hunter':8 'astound':4 'convent':20 'homicid':1 'confront':14 'documentari':5
+429	HONEY TIES	A Taut Story of a Waitress And a Crocodile who must Outrace a Lumberjack in A Shark Tank	2006	1	\N	3	0.99	84	29.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'tie':2 'must':13 'tank':20 'taut':4 'honey':1 'shark':19 'stori':5 'outrac':14 'crocodil':11 'waitress':8 'lumberjack':16
+430	HOOK CHARIOTS	A Insightful Story of a Boy And a Dog who must Redeem a Boy in Australia	2006	1	\N	7	0.99	49	23.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'boy':8,16 'dog':11 'hook':1 'must':13 'stori':5 'redeem':14 'chariot':2 'insight':4 'australia':18
+431	HOOSIERS BIRDCAGE	A Astounding Display of a Explorer And a Boat who must Vanquish a Car in The First Manned Space Station	2006	1	\N	3	2.99	176	12.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'car':16 'man':20 'boat':11 'must':13 'first':19 'space':21 'explor':8 'astound':4 'birdcag':2 'display':5 'hoosier':1 'station':22 'vanquish':14
+432	HOPE TOOTSIE	A Amazing Documentary of a Student And a Sumo Wrestler who must Outgun a A Shark in A Shark Tank	2006	1	\N	4	2.99	139	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'amaz':4 'hope':1 'must':14 'sumo':11 'tank':22 'shark':18,21 'outgun':15 'tootsi':2 'student':8 'wrestler':12 'documentari':5
+433	HORN WORKING	A Stunning Display of a Mad Scientist And a Technical Writer who must Succumb a Monkey in A Shark Tank	2006	1	\N	4	2.99	95	23.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'mad':8 'horn':1 'must':15 'stun':4 'tank':22 'work':2 'shark':21 'monkey':18 'writer':13 'display':5 'succumb':16 'technic':12 'scientist':9
+434	HORROR REIGN	A Touching Documentary of a A Shark And a Car who must Build a Husband in Nigeria	2006	1	\N	3	0.99	139	25.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'car':12 'must':14 'build':15 'reign':2 'shark':9 'touch':4 'horror':1 'husband':17 'nigeria':19 'documentari':5
+435	HOTEL HAPPINESS	A Thrilling Yarn of a Pastry Chef And a A Shark who must Challenge a Mad Scientist in The Outback	2006	1	\N	6	4.99	181	28.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'mad':18 'chef':9 'must':15 'yarn':5 'happi':2 'hotel':1 'shark':13 'pastri':8 'thrill':4 'outback':22 'challeng':16 'scientist':19
+436	HOURS RAGE	A Fateful Story of a Explorer And a Feminist who must Meet a Technical Writer in Soviet Georgia	2006	1	\N	4	0.99	122	14.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'fate':4 'hour':1 'meet':14 'must':13 'rage':2 'stori':5 'explor':8 'soviet':19 'writer':17 'georgia':20 'technic':16 'feminist':11
+437	HOUSE DYNAMITE	A Taut Story of a Pioneer And a Squirrel who must Battle a Student in Soviet Georgia	2006	1	\N	7	2.99	109	13.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'hous':1 'must':13 'taut':4 'battl':14 'stori':5 'soviet':18 'dynamit':2 'georgia':19 'pioneer':8 'student':16 'squirrel':11
+438	HUMAN GRAFFITI	A Beautiful Reflection of a Womanizer And a Sumo Wrestler who must Chase a Database Administrator in The Gulf of Mexico	2006	1	\N	3	2.99	68	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'gulf':21 'must':14 'sumo':11 'chase':15 'human':1 'woman':8 'beauti':4 'mexico':23 'databas':17 'reflect':5 'graffiti':2 'wrestler':12 'administr':18
+439	HUNCHBACK IMPOSSIBLE	A Touching Yarn of a Frisbee And a Dentist who must Fight a Composer in Ancient Japan	2006	1	\N	4	4.99	151	28.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'must':13 'yarn':5 'fight':14 'japan':19 'touch':4 'compos':16 'frisbe':8 'imposs':2 'ancient':18 'dentist':11 'hunchback':1
+440	HUNGER ROOF	A Unbelieveable Yarn of a Student And a Database Administrator who must Outgun a Husband in An Abandoned Mine Shaft	2006	1	\N	6	0.99	105	21.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'mine':21 'must':14 'roof':2 'yarn':5 'shaft':22 'hunger':1 'outgun':15 'abandon':20 'databas':11 'husband':17 'student':8 'unbeliev':4 'administr':12
+441	HUNTER ALTER	A Emotional Drama of a Mad Cow And a Boat who must Redeem a Secret Agent in A Shark Tank	2006	1	\N	5	2.99	125	21.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':9 'mad':8 'boat':12 'emot':4 'must':14 'tank':22 'agent':18 'alter':2 'drama':5 'shark':21 'hunter':1 'redeem':15 'secret':17
+442	HUNTING MUSKETEERS	A Thrilling Reflection of a Pioneer And a Dentist who must Outrace a Womanizer in An Abandoned Mine Shaft	2006	1	\N	6	2.99	65	24.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'hunt':1 'mine':20 'must':13 'shaft':21 'woman':16 'musket':2 'outrac':14 'thrill':4 'abandon':19 'dentist':11 'pioneer':8 'reflect':5
+443	HURRICANE AFFAIR	A Lacklusture Epistle of a Database Administrator And a Woman who must Meet a Hunter in An Abandoned Mine Shaft	2006	1	\N	6	2.99	49	11.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'meet':15 'mine':21 'must':14 'shaft':22 'woman':12 'affair':2 'epistl':5 'hunter':17 'abandon':20 'databas':8 'hurrican':1 'administr':9 'lacklustur':4
+444	HUSTLER PARTY	A Emotional Reflection of a Sumo Wrestler And a Monkey who must Conquer a Robot in The Sahara Desert	2006	1	\N	3	4.99	83	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'emot':4 'must':14 'sumo':8 'parti':2 'robot':17 'desert':21 'monkey':12 'sahara':20 'conquer':15 'hustler':1 'reflect':5 'wrestler':9
+445	HYDE DOCTOR	A Fanciful Documentary of a Boy And a Woman who must Redeem a Womanizer in A Jet Boat	2006	1	\N	5	2.99	100	11.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'boy':8 'jet':19 'boat':20 'hyde':1 'must':13 'fanci':4 'woman':11,16 'doctor':2 'redeem':14 'documentari':5
+446	HYSTERICAL GRAIL	A Amazing Saga of a Madman And a Dentist who must Build a Car in A Manhattan Penthouse	2006	1	\N	5	4.99	150	19.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'car':16 'amaz':4 'must':13 'saga':5 'build':14 'grail':2 'hyster':1 'madman':8 'dentist':11 'penthous':20 'manhattan':19
+447	ICE CROSSING	A Fast-Paced Tale of a Butler And a Moose who must Overcome a Pioneer in A Manhattan Penthouse	2006	1	\N	5	2.99	131	28.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'ice':1 'fast':5 'moos':13 'must':15 'pace':6 'tale':7 'cross':2 'butler':10 'overcom':16 'pioneer':18 'fast-pac':4 'penthous':22 'manhattan':21
+448	IDAHO LOVE	A Fast-Paced Drama of a Student And a Crocodile who must Meet a Database Administrator in The Outback	2006	1	\N	3	2.99	172	25.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'fast':5 'love':2 'meet':16 'must':15 'pace':6 'drama':7 'idaho':1 'databas':18 'outback':22 'student':10 'crocodil':13 'fast-pac':4 'administr':19
+449	IDENTITY LOVER	A Boring Tale of a Composer And a Mad Cow who must Defeat a Car in The Outback	2006	1	\N	4	2.99	119	12.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'car':17 'cow':12 'mad':11 'bore':4 'must':14 'tale':5 'ident':1 'lover':2 'compos':8 'defeat':15 'outback':20
+450	IDOLS SNATCHERS	A Insightful Drama of a Car And a Composer who must Fight a Man in A Monastery	2006	1	\N	5	2.99	84	29.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'car':8 'man':16 'idol':1 'must':13 'drama':5 'fight':14 'compos':11 'insight':4 'snatcher':2 'monasteri':19
+451	IGBY MAKER	A Epic Documentary of a Hunter And a Dog who must Outgun a Dog in A Baloon Factory	2006	1	\N	7	4.99	160	12.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'dog':11,16 'epic':4 'igbi':1 'must':13 'maker':2 'baloon':19 'hunter':8 'outgun':14 'factori':20 'documentari':5
+452	ILLUSION AMELIE	A Emotional Epistle of a Boat And a Mad Scientist who must Outrace a Robot in An Abandoned Mine Shaft	2006	1	\N	4	0.99	122	15.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'mad':11 'boat':8 'emot':4 'mine':21 'must':14 'ameli':2 'illus':1 'robot':17 'shaft':22 'epistl':5 'outrac':15 'abandon':20 'scientist':12
+453	IMAGE PRINCESS	A Lacklusture Panorama of a Secret Agent And a Crocodile who must Discover a Madman in The Canadian Rockies	2006	1	\N	3	2.99	178	17.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'imag':1 'must':14 'agent':9 'rocki':21 'discov':15 'madman':17 'secret':8 'canadian':20 'crocodil':12 'panorama':5 'princess':2 'lacklustur':4
+454	IMPACT ALADDIN	A Epic Character Study of a Frisbee And a Moose who must Outgun a Technical Writer in A Shark Tank	2006	1	\N	6	0.99	180	20.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'epic':4 'moos':12 'must':14 'tank':22 'shark':21 'studi':6 'frisbe':9 'impact':1 'outgun':15 'writer':18 'aladdin':2 'charact':5 'technic':17
+455	IMPOSSIBLE PREJUDICE	A Awe-Inspiring Yarn of a Monkey And a Hunter who must Chase a Teacher in Ancient China	2006	1	\N	7	4.99	103	11.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'awe':5 'must':15 'yarn':7 'chase':16 'china':21 'hunter':13 'imposs':1 'inspir':6 'monkey':10 'ancient':20 'teacher':18 'prejudic':2 'awe-inspir':4
+456	INCH JET	A Fateful Saga of a Womanizer And a Student who must Defeat a Butler in A Monastery	2006	1	\N	6	4.99	167	18.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'jet':2 'fate':4 'inch':1 'must':13 'saga':5 'woman':8 'butler':16 'defeat':14 'student':11 'monasteri':19
+457	INDEPENDENCE HOTEL	A Thrilling Tale of a Technical Writer And a Boy who must Face a Pioneer in A Monastery	2006	1	\N	5	0.99	157	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'boy':12 'face':15 'must':14 'tale':5 'hotel':2 'thrill':4 'writer':9 'pioneer':17 'technic':8 'independ':1 'monasteri':20
+458	INDIAN LOVE	A Insightful Saga of a Mad Scientist And a Mad Scientist who must Kill a Astronaut in An Abandoned Fun House	2006	1	\N	4	0.99	135	26.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'fun':22 'mad':8,12 'hous':23 'kill':16 'love':2 'must':15 'saga':5 'indian':1 'abandon':21 'insight':4 'astronaut':18 'scientist':9,13
+459	INFORMER DOUBLE	A Action-Packed Display of a Woman And a Dentist who must Redeem a Forensic Psychologist in The Canadian Rockies	2006	1	\N	4	4.99	74	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'must':15 'pack':6 'doubl':2 'rocki':23 'woman':10 'action':5 'forens':18 'inform':1 'redeem':16 'dentist':13 'display':7 'canadian':22 'action-pack':4 'psychologist':19
+460	INNOCENT USUAL	A Beautiful Drama of a Pioneer And a Crocodile who must Challenge a Student in The Outback	2006	1	\N	3	4.99	178	26.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'must':13 'drama':5 'innoc':1 'usual':2 'beauti':4 'outback':19 'pioneer':8 'student':16 'challeng':14 'crocodil':11
+461	INSECTS STONE	A Epic Display of a Butler And a Dog who must Vanquish a Crocodile in A Manhattan Penthouse	2006	1	\N	3	0.99	123	14.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'dog':11 'epic':4 'must':13 'stone':2 'butler':8 'insect':1 'display':5 'crocodil':16 'penthous':20 'vanquish':14 'manhattan':19
+462	INSIDER ARIZONA	A Astounding Saga of a Mad Scientist And a Hunter who must Pursue a Robot in A Baloon Factory	2006	1	\N	5	2.99	78	17.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'mad':8 'must':14 'saga':5 'insid':1 'pursu':15 'robot':17 'baloon':20 'hunter':12 'arizona':2 'astound':4 'factori':21 'scientist':9
+463	INSTINCT AIRPORT	A Touching Documentary of a Mad Cow And a Explorer who must Confront a Butler in A Manhattan Penthouse	2006	1	\N	4	2.99	116	21.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'cow':9 'mad':8 'must':14 'touch':4 'butler':17 'explor':12 'airport':2 'confront':15 'instinct':1 'penthous':21 'manhattan':20 'documentari':5
+464	INTENTIONS EMPIRE	A Astounding Epistle of a Cat And a Cat who must Conquer a Mad Cow in A U-Boat	2006	1	\N	3	2.99	107	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'u':21 'cat':8,11 'cow':17 'mad':16 'boat':22 'must':13 'empir':2 'epistl':5 'intent':1 'u-boat':20 'astound':4 'conquer':14
+465	INTERVIEW LIAISONS	A Action-Packed Reflection of a Student And a Butler who must Discover a Database Administrator in A Manhattan Penthouse	2006	1	\N	4	4.99	59	17.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'must':15 'pack':6 'action':5 'butler':13 'discov':16 'databas':18 'liaison':2 'reflect':7 'student':10 'penthous':23 'administr':19 'interview':1 'manhattan':22 'action-pack':4
+466	INTOLERABLE INTENTIONS	A Awe-Inspiring Story of a Monkey And a Pastry Chef who must Succumb a Womanizer in A MySQL Convention	2006	1	\N	6	4.99	63	20.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'awe':5 'chef':14 'must':16 'mysql':22 'stori':7 'woman':19 'inspir':6 'intent':2 'monkey':10 'pastri':13 'convent':23 'intoler':1 'succumb':17 'awe-inspir':4
+467	INTRIGUE WORST	A Fanciful Character Study of a Explorer And a Mad Scientist who must Vanquish a Squirrel in A Jet Boat	2006	1	\N	6	0.99	181	10.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'jet':21 'mad':12 'boat':22 'must':15 'fanci':4 'studi':6 'worst':2 'explor':9 'charact':5 'intrigu':1 'squirrel':18 'vanquish':16 'scientist':13
+468	INVASION CYCLONE	A Lacklusture Character Study of a Mad Scientist And a Womanizer who must Outrace a Explorer in A Monastery	2006	1	\N	5	2.99	97	12.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'mad':9 'must':15 'invas':1 'studi':6 'woman':13 'cyclon':2 'explor':18 'outrac':16 'charact':5 'monasteri':21 'scientist':10 'lacklustur':4
+469	IRON MOON	A Fast-Paced Documentary of a Mad Cow And a Boy who must Pursue a Dentist in A Baloon	2006	1	\N	7	4.99	46	27.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'boy':14 'cow':11 'mad':10 'fast':5 'iron':1 'moon':2 'must':16 'pace':6 'pursu':17 'baloon':22 'dentist':19 'fast-pac':4 'documentari':7
+470	ISHTAR ROCKETEER	A Astounding Saga of a Dog And a Squirrel who must Conquer a Dog in An Abandoned Fun House	2006	1	\N	4	4.99	79	24.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'dog':8,16 'fun':20 'hous':21 'must':13 'saga':5 'ishtar':1 'rocket':2 'abandon':19 'astound':4 'conquer':14 'squirrel':11
+471	ISLAND EXORCIST	A Fanciful Panorama of a Technical Writer And a Boy who must Find a Dentist in An Abandoned Fun House	2006	1	\N	7	2.99	84	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'boy':12 'fun':21 'find':15 'hous':22 'must':14 'fanci':4 'island':1 'writer':9 'abandon':20 'dentist':17 'technic':8 'exorcist':2 'panorama':5
+472	ITALIAN AFRICAN	A Astounding Character Study of a Monkey And a Moose who must Outgun a Cat in A U-Boat	2006	1	\N	3	4.99	174	24.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'u':21 'cat':17 'boat':22 'moos':12 'must':14 'studi':6 'monkey':9 'outgun':15 'u-boat':20 'african':2 'astound':4 'charact':5 'italian':1
+473	JACKET FRISCO	A Insightful Reflection of a Womanizer And a Husband who must Conquer a Pastry Chef in A Baloon	2006	1	\N	5	2.99	181	16.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'chef':17 'must':13 'woman':8 'baloon':20 'frisco':2 'jacket':1 'pastri':16 'conquer':14 'husband':11 'insight':4 'reflect':5
+474	JADE BUNCH	A Insightful Panorama of a Squirrel And a Mad Cow who must Confront a Student in The First Manned Space Station	2006	1	\N	6	2.99	174	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cow':12 'mad':11 'man':21 'jade':1 'must':14 'bunch':2 'first':20 'space':22 'insight':4 'station':23 'student':17 'confront':15 'panorama':5 'squirrel':8
+475	JAPANESE RUN	A Awe-Inspiring Epistle of a Feminist And a Girl who must Sink a Girl in The Outback	2006	1	\N	6	0.99	135	29.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'awe':5 'run':2 'girl':13,18 'must':15 'sink':16 'epistl':7 'inspir':6 'japanes':1 'outback':21 'feminist':10 'awe-inspir':4
+476	JASON TRAP	A Thoughtful Tale of a Woman And a A Shark who must Conquer a Dog in A Monastery	2006	1	\N	5	2.99	130	9.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dog':17 'must':14 'tale':5 'trap':2 'jason':1 'shark':12 'woman':8 'conquer':15 'thought':4 'monasteri':20
+477	JAWBREAKER BROOKLYN	A Stunning Reflection of a Boat And a Pastry Chef who must Succumb a A Shark in A Jet Boat	2006	1	\N	5	0.99	118	15.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'jet':21 'boat':8,22 'chef':12 'must':14 'stun':4 'shark':18 'pastri':11 'reflect':5 'succumb':15 'brooklyn':2 'jawbreak':1
+478	JAWS HARRY	A Thrilling Display of a Database Administrator And a Monkey who must Overcome a Dog in An Abandoned Fun House	2006	1	\N	4	2.99	112	10.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'dog':17 'fun':21 'jaw':1 'hous':22 'must':14 'harri':2 'monkey':12 'thrill':4 'abandon':20 'databas':8 'display':5 'overcom':15 'administr':9
+479	JEDI BENEATH	A Astounding Reflection of a Explorer And a Dentist who must Pursue a Student in Nigeria	2006	1	\N	7	0.99	128	12.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'jedi':1 'must':13 'pursu':14 'explor':8 'astound':4 'beneath':2 'dentist':11 'nigeria':18 'reflect':5 'student':16
+480	JEEPERS WEDDING	A Astounding Display of a Composer And a Dog who must Kill a Pastry Chef in Soviet Georgia	2006	1	\N	3	2.99	84	29.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'dog':11 'wed':2 'chef':17 'kill':14 'must':13 'compos':8 'jeeper':1 'pastri':16 'soviet':19 'astound':4 'display':5 'georgia':20
+481	JEKYLL FROGMEN	A Fanciful Epistle of a Student And a Astronaut who must Kill a Waitress in A Shark Tank	2006	1	\N	4	2.99	58	22.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'kill':14 'must':13 'tank':20 'fanci':4 'jekyl':1 'shark':19 'epistl':5 'frogmen':2 'student':8 'waitress':16 'astronaut':11
+482	JEOPARDY ENCINO	A Boring Panorama of a Man And a Mad Cow who must Face a Explorer in Ancient India	2006	1	\N	3	0.99	102	12.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cow':12 'mad':11 'man':8 'bore':4 'face':15 'must':14 'india':20 'encino':2 'explor':17 'ancient':19 'jeopardi':1 'panorama':5
+483	JERICHO MULAN	A Amazing Yarn of a Hunter And a Butler who must Defeat a Boy in A Jet Boat	2006	1	\N	3	2.99	171	29.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'boy':16 'jet':19 'amaz':4 'boat':20 'must':13 'yarn':5 'mulan':2 'butler':11 'defeat':14 'hunter':8 'jericho':1
+484	JERK PAYCHECK	A Touching Character Study of a Pastry Chef And a Database Administrator who must Reach a A Shark in Ancient Japan	2006	1	\N	3	2.99	172	13.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'chef':10 'jerk':1 'must':16 'japan':23 'reach':17 'shark':20 'studi':6 'touch':4 'pastri':9 'ancient':22 'charact':5 'databas':13 'paycheck':2 'administr':14
+485	JERSEY SASSY	A Lacklusture Documentary of a Madman And a Mad Cow who must Find a Feminist in Ancient Japan	2006	1	\N	6	4.99	60	16.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'cow':12 'mad':11 'find':15 'must':14 'japan':20 'sassi':2 'jersey':1 'madman':8 'ancient':19 'feminist':17 'lacklustur':4 'documentari':5
+486	JET NEIGHBORS	A Amazing Display of a Lumberjack And a Teacher who must Outrace a Woman in A U-Boat	2006	1	\N	7	4.99	59	14.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'u':20 'jet':1 'amaz':4 'boat':21 'must':13 'woman':16 'outrac':14 'u-boat':19 'display':5 'teacher':11 'neighbor':2 'lumberjack':8
+487	JINGLE SAGEBRUSH	A Epic Character Study of a Feminist And a Student who must Meet a Woman in A Baloon	2006	1	\N	6	4.99	124	29.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'epic':4 'meet':15 'must':14 'jingl':1 'studi':6 'woman':17 'baloon':20 'charact':5 'student':12 'feminist':9 'sagebrush':2
+488	JOON NORTHWEST	A Thrilling Panorama of a Technical Writer And a Car who must Discover a Forensic Psychologist in A Shark Tank	2006	1	\N	3	0.99	105	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'car':12 'joon':1 'must':14 'tank':22 'shark':21 'discov':15 'forens':17 'thrill':4 'writer':9 'technic':8 'panorama':5 'northwest':2 'psychologist':18
+489	JUGGLER HARDLY	A Epic Story of a Mad Cow And a Astronaut who must Challenge a Car in California	2006	1	\N	4	0.99	54	14.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'car':17 'cow':9 'mad':8 'epic':4 'hard':2 'must':14 'stori':5 'juggler':1 'challeng':15 'astronaut':12 'california':19
+490	JUMANJI BLADE	A Intrepid Yarn of a Husband And a Womanizer who must Pursue a Mad Scientist in New Orleans	2006	1	\N	4	2.99	121	13.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'mad':16 'new':19 'must':13 'yarn':5 'blade':2 'pursu':14 'woman':11 'orlean':20 'husband':8 'jumanji':1 'intrepid':4 'scientist':17
+491	JUMPING WRATH	A Touching Epistle of a Monkey And a Feminist who must Discover a Boat in Berlin	2006	1	\N	4	0.99	74	18.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'boat':16 'jump':1 'must':13 'touch':4 'wrath':2 'berlin':18 'discov':14 'epistl':5 'monkey':8 'feminist':11
+492	JUNGLE CLOSER	A Boring Character Study of a Boy And a Woman who must Battle a Astronaut in Australia	2006	1	\N	6	0.99	134	11.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'boy':9 'bore':4 'must':14 'battl':15 'jungl':1 'studi':6 'woman':12 'closer':2 'charact':5 'astronaut':17 'australia':19
+493	KANE EXORCIST	A Epic Documentary of a Composer And a Robot who must Overcome a Car in Berlin	2006	1	\N	5	0.99	92	18.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'car':16 'epic':4 'kane':1 'must':13 'robot':11 'berlin':18 'compos':8 'overcom':14 'exorcist':2 'documentari':5
+494	KARATE MOON	A Astounding Yarn of a Womanizer And a Dog who must Reach a Waitress in A MySQL Convention	2006	1	\N	4	0.99	120	21.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'dog':11 'moon':2 'must':13 'yarn':5 'karat':1 'mysql':19 'reach':14 'woman':8 'astound':4 'convent':20 'waitress':16
+495	KENTUCKIAN GIANT	A Stunning Yarn of a Woman And a Frisbee who must Escape a Waitress in A U-Boat	2006	1	\N	5	2.99	169	10.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':20 'boat':21 'must':13 'stun':4 'yarn':5 'escap':14 'giant':2 'woman':8 'frisbe':11 'u-boat':19 'waitress':16 'kentuckian':1
+496	KICK SAVANNAH	A Emotional Drama of a Monkey And a Robot who must Defeat a Monkey in New Orleans	2006	1	\N	3	0.99	179	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'new':18 'emot':4 'kick':1 'must':13 'drama':5 'robot':11 'defeat':14 'monkey':8,16 'orlean':19 'savannah':2
+497	KILL BROTHERHOOD	A Touching Display of a Hunter And a Secret Agent who must Redeem a Husband in The Outback	2006	1	\N	4	0.99	54	15.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'kill':1 'must':14 'agent':12 'touch':4 'hunter':8 'redeem':15 'secret':11 'display':5 'husband':17 'outback':20 'brotherhood':2
+498	KILLER INNOCENT	A Fanciful Character Study of a Student And a Explorer who must Succumb a Composer in An Abandoned Mine Shaft	2006	1	\N	7	2.99	161	11.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'mine':21 'must':14 'fanci':4 'innoc':2 'shaft':22 'studi':6 'compos':17 'explor':12 'killer':1 'abandon':20 'charact':5 'student':9 'succumb':15
+499	KING EVOLUTION	A Action-Packed Tale of a Boy And a Lumberjack who must Chase a Madman in A Baloon	2006	1	\N	3	4.99	184	24.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'boy':10 'king':1 'must':15 'pack':6 'tale':7 'chase':16 'action':5 'baloon':21 'evolut':2 'madman':18 'lumberjack':13 'action-pack':4
+500	KISS GLORY	A Lacklusture Reflection of a Girl And a Husband who must Find a Robot in The Canadian Rockies	2006	1	\N	5	4.99	163	11.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'find':14 'girl':8 'kiss':1 'must':13 'glori':2 'robot':16 'rocki':20 'husband':11 'reflect':5 'canadian':19 'lacklustur':4
+501	KISSING DOLLS	A Insightful Reflection of a Pioneer And a Teacher who must Build a Composer in The First Manned Space Station	2006	1	\N	3	4.99	141	9.99	R	2007-09-10 17:46:03.905795	{Trailers}	'man':20 'doll':2 'kiss':1 'must':13 'build':14 'first':19 'space':21 'compos':16 'insight':4 'pioneer':8 'reflect':5 'station':22 'teacher':11
+502	KNOCK WARLOCK	A Unbelieveable Story of a Teacher And a Boat who must Confront a Moose in A Baloon	2006	1	\N	4	2.99	71	21.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'boat':11 'moos':16 'must':13 'knock':1 'stori':5 'baloon':19 'teacher':8 'warlock':2 'confront':14 'unbeliev':4
+503	KRAMER CHOCOLATE	A Amazing Yarn of a Robot And a Pastry Chef who must Redeem a Mad Scientist in The Outback	2006	1	\N	3	2.99	171	24.99	R	2007-09-10 17:46:03.905795	{Trailers}	'mad':17 'amaz':4 'chef':12 'must':14 'yarn':5 'robot':8 'chocol':2 'kramer':1 'pastri':11 'redeem':15 'outback':21 'scientist':18
+504	KWAI HOMEWARD	A Amazing Drama of a Car And a Squirrel who must Pursue a Car in Soviet Georgia	2006	1	\N	5	0.99	46	25.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'car':8,16 'amaz':4 'kwai':1 'must':13 'drama':5 'pursu':14 'soviet':18 'georgia':19 'homeward':2 'squirrel':11
+505	LABYRINTH LEAGUE	A Awe-Inspiring Saga of a Composer And a Frisbee who must Succumb a Pioneer in The Sahara Desert	2006	1	\N	6	2.99	46	24.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'awe':5 'must':15 'saga':7 'leagu':2 'compos':10 'desert':22 'frisbe':13 'inspir':6 'sahara':21 'pioneer':18 'succumb':16 'labyrinth':1 'awe-inspir':4
+506	LADY STAGE	A Beautiful Character Study of a Woman And a Man who must Pursue a Explorer in A U-Boat	2006	1	\N	4	4.99	67	14.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'u':21 'man':12 'boat':22 'ladi':1 'must':14 'pursu':15 'stage':2 'studi':6 'woman':9 'beauti':4 'explor':17 'u-boat':20 'charact':5
+507	LADYBUGS ARMAGEDDON	A Fateful Reflection of a Dog And a Mad Scientist who must Meet a Mad Scientist in New Orleans	2006	1	\N	4	0.99	113	13.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'dog':8 'mad':11,17 'new':20 'fate':4 'meet':15 'must':14 'orlean':21 'ladybug':1 'reflect':5 'scientist':12,18 'armageddon':2
+508	LAMBS CINCINATTI	A Insightful Story of a Man And a Feminist who must Fight a Composer in Australia	2006	1	\N	6	4.99	144	18.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'man':8 'lamb':1 'must':13 'fight':14 'stori':5 'compos':16 'insight':4 'feminist':11 'australia':18 'cincinatti':2
+509	LANGUAGE COWBOY	A Epic Yarn of a Cat And a Madman who must Vanquish a Dentist in An Abandoned Amusement Park	2006	1	\N	5	0.99	78	26.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'cat':8 'amus':20 'epic':4 'must':13 'park':21 'yarn':5 'cowboy':2 'madman':11 'abandon':19 'dentist':16 'languag':1 'vanquish':14
+510	LAWLESS VISION	A Insightful Yarn of a Boy And a Sumo Wrestler who must Outgun a Car in The Outback	2006	1	\N	6	4.99	181	29.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boy':8 'car':17 'must':14 'sumo':11 'yarn':5 'outgun':15 'vision':2 'insight':4 'lawless':1 'outback':20 'wrestler':12
+511	LAWRENCE LOVE	A Fanciful Yarn of a Database Administrator And a Mad Cow who must Pursue a Womanizer in Berlin	2006	1	\N	7	0.99	175	23.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':13 'mad':12 'love':2 'must':15 'yarn':5 'fanci':4 'pursu':16 'woman':18 'berlin':20 'databas':8 'lawrenc':1 'administr':9
+512	LEAGUE HELLFIGHTERS	A Thoughtful Saga of a A Shark And a Monkey who must Outgun a Student in Ancient China	2006	1	\N	5	4.99	110	25.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'must':14 'saga':5 'china':20 'leagu':1 'shark':9 'monkey':12 'outgun':15 'ancient':19 'student':17 'thought':4 'hellfight':2
+513	LEATHERNECKS DWARFS	A Fateful Reflection of a Dog And a Mad Cow who must Outrace a Teacher in An Abandoned Mine Shaft	2006	1	\N	6	2.99	153	21.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cow':12 'dog':8 'mad':11 'fate':4 'mine':21 'must':14 'dwarf':2 'shaft':22 'outrac':15 'abandon':20 'reflect':5 'teacher':17 'leatherneck':1
+514	LEBOWSKI SOLDIERS	A Beautiful Epistle of a Secret Agent And a Pioneer who must Chase a Astronaut in Ancient China	2006	1	\N	6	2.99	69	17.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':14 'agent':9 'chase':15 'china':20 'beauti':4 'epistl':5 'secret':8 'ancient':19 'pioneer':12 'soldier':2 'lebowski':1 'astronaut':17
+515	LEGALLY SECRETARY	A Astounding Tale of a A Shark And a Moose who must Meet a Womanizer in The Sahara Desert	2006	1	\N	7	4.99	113	14.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'meet':15 'moos':12 'must':14 'tale':5 'legal':1 'shark':9 'woman':17 'desert':21 'sahara':20 'astound':4 'secretari':2
+516	LEGEND JEDI	A Awe-Inspiring Epistle of a Pioneer And a Student who must Outgun a Crocodile in The Outback	2006	1	\N	7	0.99	59	18.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'awe':5 'jedi':2 'must':15 'epistl':7 'inspir':6 'legend':1 'outgun':16 'outback':21 'pioneer':10 'student':13 'crocodil':18 'awe-inspir':4
+517	LESSON CLEOPATRA	A Emotional Display of a Man And a Explorer who must Build a Boy in A Manhattan Penthouse	2006	1	\N	3	0.99	167	28.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'man':8 'emot':4 'must':13 'build':14 'explor':11 'lesson':1 'display':5 'penthous':20 'cleopatra':2 'manhattan':19
+518	LIAISONS SWEET	A Boring Drama of a A Shark And a Explorer who must Redeem a Waitress in The Canadian Rockies	2006	1	\N	5	4.99	140	15.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'bore':4 'must':14 'drama':5 'rocki':21 'shark':9 'sweet':2 'explor':12 'redeem':15 'liaison':1 'canadian':20 'waitress':17
+519	LIBERTY MAGNIFICENT	A Boring Drama of a Student And a Cat who must Sink a Technical Writer in A Baloon	2006	1	\N	3	2.99	138	27.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':11 'bore':4 'must':13 'sink':14 'drama':5 'baloon':20 'writer':17 'liberti':1 'student':8 'technic':16 'magnific':2
+520	LICENSE WEEKEND	A Insightful Story of a Man And a Husband who must Overcome a Madman in A Monastery	2006	1	\N	7	2.99	91	28.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':8 'must':13 'stori':5 'licens':1 'madman':16 'husband':11 'insight':4 'overcom':14 'weekend':2 'monasteri':19
+521	LIES TREATMENT	A Fast-Paced Character Study of a Dentist And a Moose who must Defeat a Composer in The First Manned Space Station	2006	1	\N	7	4.99	147	28.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'lie':1 'man':23 'fast':5 'moos':14 'must':16 'pace':6 'first':22 'space':24 'studi':8 'compos':19 'defeat':17 'charact':7 'dentist':11 'station':25 'fast-pac':4 'treatment':2
+522	LIFE TWISTED	A Thrilling Reflection of a Teacher And a Composer who must Find a Man in The First Manned Space Station	2006	1	\N	4	2.99	137	9.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'man':16,20 'find':14 'life':1 'must':13 'first':19 'space':21 'twist':2 'compos':11 'thrill':4 'reflect':5 'station':22 'teacher':8
+523	LIGHTS DEER	A Unbelieveable Epistle of a Dog And a Woman who must Confront a Moose in The Gulf of Mexico	2006	1	\N	7	0.99	174	21.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'dog':8 'deer':2 'gulf':19 'moos':16 'must':13 'light':1 'woman':11 'epistl':5 'mexico':21 'confront':14 'unbeliev':4
+524	LION UNCUT	A Intrepid Display of a Pastry Chef And a Cat who must Kill a A Shark in Ancient China	2006	1	\N	6	0.99	50	13.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'cat':12 'chef':9 'kill':15 'lion':1 'must':14 'china':21 'shark':18 'uncut':2 'pastri':8 'ancient':20 'display':5 'intrepid':4
+525	LOATHING LEGALLY	A Boring Epistle of a Pioneer And a Mad Scientist who must Escape a Frisbee in The Gulf of Mexico	2006	1	\N	4	0.99	140	29.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'mad':11 'bore':4 'gulf':20 'must':14 'escap':15 'legal':2 'loath':1 'epistl':5 'frisbe':17 'mexico':22 'pioneer':8 'scientist':12
+526	LOCK REAR	A Thoughtful Character Study of a Squirrel And a Technical Writer who must Outrace a Student in Ancient Japan	2006	1	\N	7	2.99	120	10.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'lock':1 'must':15 'rear':2 'japan':21 'studi':6 'outrac':16 'writer':13 'ancient':20 'charact':5 'student':18 'technic':12 'thought':4 'squirrel':9
+527	LOLA AGENT	A Astounding Tale of a Mad Scientist And a Husband who must Redeem a Database Administrator in Ancient Japan	2006	1	\N	4	4.99	85	24.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'mad':8 'lola':1 'must':14 'tale':5 'agent':2 'japan':21 'redeem':15 'ancient':20 'astound':4 'databas':17 'husband':12 'administr':18 'scientist':9
+528	LOLITA WORLD	A Thrilling Drama of a Girl And a Robot who must Redeem a Waitress in An Abandoned Mine Shaft	2006	1	\N	4	2.99	155	25.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'girl':8 'mine':20 'must':13 'drama':5 'robot':11 'shaft':21 'world':2 'lolita':1 'redeem':14 'thrill':4 'abandon':19 'waitress':16
+529	LONELY ELEPHANT	A Intrepid Story of a Student And a Dog who must Challenge a Explorer in Soviet Georgia	2006	1	\N	3	2.99	67	12.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':11 'lone':1 'must':13 'eleph':2 'stori':5 'explor':16 'soviet':18 'georgia':19 'student':8 'challeng':14 'intrepid':4
+530	LORD ARIZONA	A Action-Packed Display of a Frisbee And a Pastry Chef who must Pursue a Crocodile in A Jet Boat	2006	1	\N	5	2.99	108	27.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'jet':22 'boat':23 'chef':14 'lord':1 'must':16 'pack':6 'pursu':17 'action':5 'frisbe':10 'pastri':13 'arizona':2 'display':7 'crocodil':19 'action-pack':4
+531	LOSE INCH	A Stunning Reflection of a Student And a Technical Writer who must Battle a Butler in The First Manned Space Station	2006	1	\N	3	0.99	137	18.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'man':21 'inch':2 'lose':1 'must':14 'stun':4 'battl':15 'first':20 'space':22 'butler':17 'writer':12 'reflect':5 'station':23 'student':8 'technic':11
+532	LOSER HUSTLER	A Stunning Drama of a Robot And a Feminist who must Outgun a Butler in Nigeria	2006	1	\N	5	4.99	80	28.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'must':13 'stun':4 'drama':5 'loser':1 'robot':8 'butler':16 'outgun':14 'hustler':2 'nigeria':18 'feminist':11
+533	LOST BIRD	A Emotional Character Study of a Robot And a A Shark who must Defeat a Technical Writer in A Manhattan Penthouse	2006	1	\N	4	2.99	98	21.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'bird':2 'emot':4 'lost':1 'must':15 'robot':9 'shark':13 'studi':6 'defeat':16 'writer':19 'charact':5 'technic':18 'penthous':23 'manhattan':22
+534	LOUISIANA HARRY	A Lacklusture Drama of a Girl And a Technical Writer who must Redeem a Monkey in A Shark Tank	2006	1	\N	5	0.99	70	18.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'girl':8 'must':14 'tank':21 'drama':5 'harri':2 'shark':20 'monkey':17 'redeem':15 'writer':12 'technic':11 'louisiana':1 'lacklustur':4
+535	LOVE SUICIDES	A Brilliant Panorama of a Hunter And a Explorer who must Pursue a Dentist in An Abandoned Fun House	2006	1	\N	6	0.99	181	21.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'fun':20 'hous':21 'love':1 'must':13 'pursu':14 'explor':11 'hunter':8 'suicid':2 'abandon':19 'dentist':16 'panorama':5 'brilliant':4
+536	LOVELY JINGLE	A Fanciful Yarn of a Crocodile And a Forensic Psychologist who must Discover a Crocodile in The Outback	2006	1	\N	3	2.99	65	18.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'love':1 'must':14 'yarn':5 'fanci':4 'jingl':2 'discov':15 'forens':11 'outback':20 'crocodil':8,17 'psychologist':12
+537	LOVER TRUMAN	A Emotional Yarn of a Robot And a Boy who must Outgun a Technical Writer in A U-Boat	2006	1	\N	3	2.99	75	29.99	G	2007-09-10 17:46:03.905795	{Trailers}	'u':21 'boy':11 'boat':22 'emot':4 'must':13 'yarn':5 'lover':1 'robot':8 'outgun':14 'truman':2 'u-boat':20 'writer':17 'technic':16
+538	LOVERBOY ATTACKS	A Boring Story of a Car And a Butler who must Build a Girl in Soviet Georgia	2006	1	\N	7	0.99	162	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'car':8 'bore':4 'girl':16 'must':13 'build':14 'stori':5 'attack':2 'butler':11 'soviet':18 'georgia':19 'loverboy':1
+539	LUCK OPUS	A Boring Display of a Moose And a Squirrel who must Outrace a Teacher in A Shark Tank	2006	1	\N	7	2.99	152	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'bore':4 'luck':1 'moos':8 'must':13 'opus':2 'tank':20 'shark':19 'outrac':14 'display':5 'teacher':16 'squirrel':11
+540	LUCKY FLYING	A Lacklusture Character Study of a A Shark And a Man who must Find a Forensic Psychologist in A U-Boat	2006	1	\N	7	2.99	97	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'u':23 'fli':2 'man':13 'boat':24 'find':16 'must':15 'lucki':1 'shark':10 'studi':6 'forens':18 'u-boat':22 'charact':5 'lacklustur':4 'psychologist':19
+541	LUKE MUMMY	A Taut Character Study of a Boy And a Robot who must Redeem a Mad Scientist in Ancient India	2006	1	\N	5	2.99	74	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'boy':9 'mad':17 'luke':1 'must':14 'taut':4 'india':21 'mummi':2 'robot':12 'studi':6 'redeem':15 'ancient':20 'charact':5 'scientist':18
+542	LUST LOCK	A Fanciful Panorama of a Hunter And a Dentist who must Meet a Secret Agent in The Sahara Desert	2006	1	\N	3	2.99	52	28.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'lock':2 'lust':1 'meet':14 'must':13 'agent':17 'fanci':4 'desert':21 'hunter':8 'sahara':20 'secret':16 'dentist':11 'panorama':5
+543	MADIGAN DORADO	A Astounding Character Study of a A Shark And a A Shark who must Discover a Crocodile in The Outback	2006	1	\N	5	4.99	116	20.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'must':16 'shark':10,14 'studi':6 'discov':17 'dorado':2 'astound':4 'charact':5 'madigan':1 'outback':22 'crocodil':19
+544	MADISON TRAP	A Awe-Inspiring Reflection of a Monkey And a Dentist who must Overcome a Pioneer in A U-Boat	2006	1	\N	4	2.99	147	11.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':22 'awe':5 'boat':23 'must':15 'trap':2 'inspir':6 'monkey':10 'u-boat':21 'dentist':13 'madison':1 'overcom':16 'pioneer':18 'reflect':7 'awe-inspir':4
+545	MADNESS ATTACKS	A Fanciful Tale of a Squirrel And a Boat who must Defeat a Crocodile in The Gulf of Mexico	2006	1	\N	4	0.99	178	14.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'mad':1 'boat':11 'gulf':19 'must':13 'tale':5 'fanci':4 'attack':2 'defeat':14 'mexico':21 'crocodil':16 'squirrel':8
+546	MADRE GABLES	A Intrepid Panorama of a Sumo Wrestler And a Forensic Psychologist who must Discover a Moose in The First Manned Space Station	2006	1	\N	7	2.99	98	27.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'man':22 'gabl':2 'madr':1 'moos':18 'must':15 'sumo':8 'first':21 'space':23 'discov':16 'forens':12 'station':24 'intrepid':4 'panorama':5 'wrestler':9 'psychologist':13
+547	MAGIC MALLRATS	A Touching Documentary of a Pastry Chef And a Pastry Chef who must Build a Mad Scientist in California	2006	1	\N	3	0.99	117	19.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'mad':18 'chef':9,13 'must':15 'build':16 'magic':1 'touch':4 'pastri':8,12 'mallrat':2 'scientist':19 'california':21 'documentari':5
+548	MAGNIFICENT CHITTY	A Insightful Story of a Teacher And a Hunter who must Face a Mad Cow in California	2006	1	\N	3	2.99	53	27.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'cow':17 'mad':16 'face':14 'must':13 'stori':5 'chitti':2 'hunter':11 'insight':4 'teacher':8 'magnific':1 'california':19
+549	MAGNOLIA FORRESTER	A Thoughtful Documentary of a Composer And a Explorer who must Conquer a Dentist in New Orleans	2006	1	\N	4	0.99	171	28.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'new':18 'must':13 'compos':8 'explor':11 'orlean':19 'conquer':14 'dentist':16 'forrest':2 'thought':4 'magnolia':1 'documentari':5
+550	MAGUIRE APACHE	A Fast-Paced Reflection of a Waitress And a Hunter who must Defeat a Forensic Psychologist in A Baloon	2006	1	\N	6	2.99	74	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'fast':5 'must':15 'pace':6 'apach':2 'baloon':22 'defeat':16 'forens':18 'hunter':13 'maguir':1 'reflect':7 'fast-pac':4 'waitress':10 'psychologist':19
+551	MAIDEN HOME	A Lacklusture Saga of a Moose And a Teacher who must Kill a Forensic Psychologist in A MySQL Convention	2006	1	\N	3	4.99	138	9.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'home':2 'kill':14 'moos':8 'must':13 'saga':5 'mysql':20 'forens':16 'maiden':1 'convent':21 'teacher':11 'lacklustur':4 'psychologist':17
+552	MAJESTIC FLOATS	A Thrilling Character Study of a Moose And a Student who must Escape a Butler in The First Manned Space Station	2006	1	\N	5	0.99	130	15.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'man':21 'moos':9 'must':14 'escap':15 'first':20 'float':2 'space':22 'studi':6 'butler':17 'majest':1 'thrill':4 'charact':5 'station':23 'student':12
+553	MAKER GABLES	A Stunning Display of a Moose And a Database Administrator who must Pursue a Composer in A Jet Boat	2006	1	\N	4	0.99	136	12.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'jet':20 'boat':21 'gabl':2 'moos':8 'must':14 'stun':4 'maker':1 'pursu':15 'compos':17 'databas':11 'display':5 'administr':12
+554	MALKOVICH PET	A Intrepid Reflection of a Waitress And a A Shark who must Kill a Squirrel in The Outback	2006	1	\N	6	2.99	159	22.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'pet':2 'kill':15 'must':14 'shark':12 'outback':20 'reflect':5 'intrepid':4 'squirrel':17 'waitress':8 'malkovich':1
+555	MALLRATS UNITED	A Thrilling Yarn of a Waitress And a Dentist who must Find a Hunter in A Monastery	2006	1	\N	4	0.99	133	25.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'find':14 'must':13 'unit':2 'yarn':5 'hunter':16 'thrill':4 'dentist':11 'mallrat':1 'waitress':8 'monasteri':19
+556	MALTESE HOPE	A Fast-Paced Documentary of a Crocodile And a Sumo Wrestler who must Conquer a Explorer in California	2006	1	\N	6	4.99	127	26.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'fast':5 'hope':2 'must':16 'pace':6 'sumo':13 'explor':19 'maltes':1 'conquer':17 'crocodil':10 'fast-pac':4 'wrestler':14 'california':21 'documentari':7
+557	MANCHURIAN CURTAIN	A Stunning Tale of a Mad Cow And a Boy who must Battle a Boy in Berlin	2006	1	\N	5	2.99	177	27.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'boy':12,17 'cow':9 'mad':8 'must':14 'stun':4 'tale':5 'battl':15 'berlin':19 'curtain':2 'manchurian':1
+558	MANNEQUIN WORST	A Astounding Saga of a Mad Cow And a Pastry Chef who must Discover a Husband in Ancient India	2006	1	\N	3	2.99	71	18.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'cow':9 'mad':8 'chef':13 'must':15 'saga':5 'india':21 'worst':2 'discov':16 'pastri':12 'ancient':20 'astound':4 'husband':18 'mannequin':1
+559	MARRIED GO	A Fanciful Story of a Womanizer And a Dog who must Face a Forensic Psychologist in The Sahara Desert	2006	1	\N	7	2.99	114	22.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'go':2 'dog':11 'face':14 'must':13 'fanci':4 'marri':1 'stori':5 'woman':8 'desert':21 'forens':16 'sahara':20 'psychologist':17
+560	MARS ROMAN	A Boring Drama of a Car And a Dog who must Succumb a Madman in Soviet Georgia	2006	1	\N	6	0.99	62	21.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'car':8 'dog':11 'mar':1 'bore':4 'must':13 'drama':5 'roman':2 'madman':16 'soviet':18 'georgia':19 'succumb':14
+561	MASK PEACH	A Boring Character Study of a Student And a Robot who must Meet a Woman in California	2006	1	\N	6	2.99	123	26.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'bore':4 'mask':1 'meet':15 'must':14 'peach':2 'robot':12 'studi':6 'woman':17 'charact':5 'student':9 'california':19
+562	MASKED BUBBLE	A Fanciful Documentary of a Pioneer And a Boat who must Pursue a Pioneer in An Abandoned Mine Shaft	2006	1	\N	6	0.99	151	12.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'boat':11 'mask':1 'mine':20 'must':13 'bubbl':2 'fanci':4 'pursu':14 'shaft':21 'abandon':19 'pioneer':8,16 'documentari':5
+563	MASSACRE USUAL	A Fateful Reflection of a Waitress And a Crocodile who must Challenge a Forensic Psychologist in California	2006	1	\N	6	4.99	165	16.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'fate':4 'must':13 'usual':2 'forens':16 'massacr':1 'reflect':5 'challeng':14 'crocodil':11 'waitress':8 'california':19 'psychologist':17
+564	MASSAGE IMAGE	A Fateful Drama of a Frisbee And a Crocodile who must Vanquish a Dog in The First Manned Space Station	2006	1	\N	4	2.99	161	11.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'dog':16 'man':20 'fate':4 'imag':2 'must':13 'drama':5 'first':19 'space':21 'frisbe':8 'massag':1 'station':22 'crocodil':11 'vanquish':14
+565	MATRIX SNOWMAN	A Action-Packed Saga of a Womanizer And a Woman who must Overcome a Student in California	2006	1	\N	6	4.99	56	9.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'must':15 'pack':6 'saga':7 'woman':10,13 'action':5 'matrix':1 'overcom':16 'snowman':2 'student':18 'california':20 'action-pack':4
+566	MAUDE MOD	A Beautiful Documentary of a Forensic Psychologist And a Cat who must Reach a Astronaut in Nigeria	2006	1	\N	6	0.99	72	20.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'cat':12 'mod':2 'maud':1 'must':14 'reach':15 'beauti':4 'forens':8 'nigeria':19 'astronaut':17 'documentari':5 'psychologist':9
+567	MEET CHOCOLATE	A Boring Documentary of a Dentist And a Butler who must Confront a Monkey in A MySQL Convention	2006	1	\N	3	2.99	80	26.99	G	2007-09-10 17:46:03.905795	{Trailers}	'bore':4 'meet':1 'must':13 'mysql':19 'butler':11 'chocol':2 'monkey':16 'convent':20 'dentist':8 'confront':14 'documentari':5
+568	MEMENTO ZOOLANDER	A Touching Epistle of a Squirrel And a Explorer who must Redeem a Pastry Chef in The Sahara Desert	2006	1	\N	4	4.99	77	11.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'chef':17 'must':13 'touch':4 'desert':21 'epistl':5 'explor':11 'pastri':16 'redeem':14 'sahara':20 'memento':1 'zooland':2 'squirrel':8
+569	MENAGERIE RUSHMORE	A Unbelieveable Panorama of a Composer And a Butler who must Overcome a Database Administrator in The First Manned Space Station	2006	1	\N	7	2.99	147	18.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'man':21 'must':13 'first':20 'space':22 'butler':11 'compos':8 'databas':16 'overcom':14 'rushmor':2 'station':23 'menageri':1 'panorama':5 'unbeliev':4 'administr':17
+570	MERMAID INSECTS	A Lacklusture Drama of a Waitress And a Husband who must Fight a Husband in California	2006	1	\N	5	4.99	104	20.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'must':13 'drama':5 'fight':14 'insect':2 'husband':11,16 'mermaid':1 'waitress':8 'california':18 'lacklustur':4
+571	METAL ARMAGEDDON	A Thrilling Display of a Lumberjack And a Crocodile who must Meet a Monkey in A Baloon Factory	2006	1	\N	6	2.99	161	26.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'meet':14 'must':13 'metal':1 'baloon':19 'monkey':16 'thrill':4 'display':5 'factori':20 'crocodil':11 'armageddon':2 'lumberjack':8
+572	METROPOLIS COMA	A Emotional Saga of a Database Administrator And a Pastry Chef who must Confront a Teacher in A Baloon Factory	2006	1	\N	4	2.99	64	9.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'chef':13 'coma':2 'emot':4 'must':15 'saga':5 'baloon':21 'pastri':12 'databas':8 'factori':22 'teacher':18 'confront':16 'administr':9 'metropoli':1
+573	MICROCOSMOS PARADISE	A Touching Character Study of a Boat And a Student who must Sink a A Shark in Nigeria	2006	1	\N	6	2.99	105	22.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'boat':9 'must':14 'sink':15 'shark':18 'studi':6 'touch':4 'charact':5 'nigeria':20 'paradis':2 'student':12 'microcosmo':1
+574	MIDNIGHT WESTWARD	A Taut Reflection of a Husband And a A Shark who must Redeem a Pastry Chef in A Monastery	2006	1	\N	3	0.99	86	19.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'chef':18 'must':14 'taut':4 'shark':12 'pastri':17 'redeem':15 'husband':8 'reflect':5 'midnight':1 'westward':2 'monasteri':21
+575	MIDSUMMER GROUNDHOG	A Fateful Panorama of a Moose And a Dog who must Chase a Crocodile in Ancient Japan	2006	1	\N	3	4.99	48	27.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'dog':11 'fate':4 'moos':8 'must':13 'chase':14 'japan':19 'ancient':18 'midsumm':1 'crocodil':16 'panorama':5 'groundhog':2
+576	MIGHTY LUCK	A Astounding Epistle of a Mad Scientist And a Pioneer who must Escape a Database Administrator in A MySQL Convention	2006	1	\N	7	2.99	122	13.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'mad':8 'luck':2 'must':14 'escap':15 'mysql':21 'epistl':5 'mighti':1 'astound':4 'convent':22 'databas':17 'pioneer':12 'administr':18 'scientist':9
+577	MILE MULAN	A Lacklusture Epistle of a Cat And a Husband who must Confront a Boy in A MySQL Convention	2006	1	\N	4	0.99	64	10.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'cat':8 'mile':1 'must':13 'mulan':2 'mysql':19 'epistl':5 'convent':20 'husband':11 'confront':14 'lacklustur':4
+578	MILLION ACE	A Brilliant Documentary of a Womanizer And a Squirrel who must Find a Technical Writer in The Sahara Desert	2006	1	\N	4	4.99	142	16.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'ace':2 'find':14 'must':13 'woman':8 'desert':21 'sahara':20 'writer':17 'million':1 'technic':16 'squirrel':11 'brilliant':4 'documentari':5
+579	MINDS TRUMAN	A Taut Yarn of a Mad Scientist And a Crocodile who must Outgun a Database Administrator in A Monastery	2006	1	\N	3	4.99	149	22.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'mad':8 'mind':1 'must':14 'taut':4 'yarn':5 'outgun':15 'truman':2 'databas':17 'crocodil':12 'administr':18 'monasteri':21 'scientist':9
+580	MINE TITANS	A Amazing Yarn of a Robot And a Womanizer who must Discover a Forensic Psychologist in Berlin	2006	1	\N	3	4.99	166	12.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'amaz':4 'mine':1 'must':13 'yarn':5 'robot':8 'titan':2 'woman':11 'berlin':19 'discov':14 'forens':16 'psychologist':17
+581	MINORITY KISS	A Insightful Display of a Lumberjack And a Sumo Wrestler who must Meet a Man in The Outback	2006	1	\N	4	0.99	59	16.99	G	2007-09-10 17:46:03.905795	{Trailers}	'man':17 'kiss':2 'meet':15 'must':14 'sumo':11 'minor':1 'display':5 'insight':4 'outback':20 'wrestler':12 'lumberjack':8
+582	MIRACLE VIRTUAL	A Touching Epistle of a Butler And a Boy who must Find a Mad Scientist in The Sahara Desert	2006	1	\N	3	2.99	162	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'boy':11 'mad':16 'find':14 'must':13 'touch':4 'butler':8 'desert':21 'epistl':5 'miracl':1 'sahara':20 'virtual':2 'scientist':17
+583	MISSION ZOOLANDER	A Intrepid Story of a Sumo Wrestler And a Teacher who must Meet a A Shark in An Abandoned Fun House	2006	1	\N	3	4.99	164	26.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'fun':22 'hous':23 'meet':15 'must':14 'sumo':8 'shark':18 'stori':5 'abandon':21 'mission':1 'teacher':12 'zooland':2 'intrepid':4 'wrestler':9
+584	MIXED DOORS	A Taut Drama of a Womanizer And a Lumberjack who must Succumb a Pioneer in Ancient India	2006	1	\N	6	2.99	180	26.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'mix':1 'door':2 'must':13 'taut':4 'drama':5 'india':19 'woman':8 'ancient':18 'pioneer':16 'succumb':14 'lumberjack':11
+585	MOB DUFFEL	A Unbelieveable Documentary of a Frisbee And a Boat who must Meet a Boy in The Canadian Rockies	2006	1	\N	4	0.99	105	25.99	G	2007-09-10 17:46:03.905795	{Trailers}	'boy':16 'mob':1 'boat':11 'meet':14 'must':13 'rocki':20 'duffel':2 'frisbe':8 'canadian':19 'unbeliev':4 'documentari':5
+586	MOCKINGBIRD HOLLYWOOD	A Thoughtful Panorama of a Man And a Car who must Sink a Composer in Berlin	2006	1	\N	4	0.99	60	27.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'car':11 'man':8 'must':13 'sink':14 'berlin':18 'compos':16 'thought':4 'panorama':5 'hollywood':2 'mockingbird':1
+587	MOD SECRETARY	A Boring Documentary of a Mad Cow And a Cat who must Build a Lumberjack in New Orleans	2006	1	\N	6	4.99	77	20.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cat':12 'cow':9 'mad':8 'mod':1 'new':19 'bore':4 'must':14 'build':15 'orlean':20 'secretari':2 'lumberjack':17 'documentari':5
+588	MODEL FISH	A Beautiful Panorama of a Boat And a Crocodile who must Outrace a Dog in Australia	2006	1	\N	4	4.99	175	11.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'dog':16 'boat':8 'fish':2 'must':13 'model':1 'beauti':4 'outrac':14 'crocodil':11 'panorama':5 'australia':18
+589	MODERN DORADO	A Awe-Inspiring Story of a Butler And a Sumo Wrestler who must Redeem a Boy in New Orleans	2006	1	\N	3	0.99	74	20.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'awe':5 'boy':19 'new':21 'must':16 'sumo':13 'stori':7 'butler':10 'dorado':2 'inspir':6 'modern':1 'orlean':22 'redeem':17 'wrestler':14 'awe-inspir':4
+590	MONEY HAROLD	A Touching Tale of a Explorer And a Boat who must Defeat a Robot in Australia	2006	1	\N	3	2.99	135	17.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'boat':11 'must':13 'tale':5 'money':1 'robot':16 'touch':4 'defeat':14 'explor':8 'harold':2 'australia':18
+591	MONSOON CAUSE	A Astounding Tale of a Crocodile And a Car who must Outrace a Squirrel in A U-Boat	2006	1	\N	6	4.99	182	20.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'u':20 'car':11 'boat':21 'caus':2 'must':13 'tale':5 'outrac':14 'u-boat':19 'astound':4 'monsoon':1 'crocodil':8 'squirrel':16
+592	MONSTER SPARTACUS	A Fast-Paced Story of a Waitress And a Cat who must Fight a Girl in Australia	2006	1	\N	6	2.99	107	28.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cat':13 'fast':5 'girl':18 'must':15 'pace':6 'fight':16 'stori':7 'monster':1 'fast-pac':4 'waitress':10 'australia':20 'spartacus':2
+593	MONTEREY LABYRINTH	A Awe-Inspiring Drama of a Monkey And a Composer who must Escape a Feminist in A U-Boat	2006	1	\N	6	0.99	158	13.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'u':22 'awe':5 'boat':23 'must':15 'drama':7 'escap':16 'compos':13 'inspir':6 'monkey':10 'u-boat':21 'feminist':18 'monterey':1 'labyrinth':2 'awe-inspir':4
+594	MONTEZUMA COMMAND	A Thrilling Reflection of a Waitress And a Butler who must Battle a Butler in A Jet Boat	2006	1	\N	6	0.99	126	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'jet':19 'boat':20 'must':13 'battl':14 'butler':11,16 'thrill':4 'command':2 'reflect':5 'waitress':8 'montezuma':1
+595	MOON BUNCH	A Beautiful Tale of a Astronaut And a Mad Cow who must Challenge a Cat in A Baloon Factory	2006	1	\N	7	0.99	83	20.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'cat':17 'cow':12 'mad':11 'moon':1 'must':14 'tale':5 'bunch':2 'baloon':20 'beauti':4 'factori':21 'challeng':15 'astronaut':8
+596	MOONSHINE CABIN	A Thoughtful Display of a Astronaut And a Feminist who must Chase a Frisbee in A Jet Boat	2006	1	\N	4	4.99	171	25.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'jet':19 'boat':20 'must':13 'cabin':2 'chase':14 'frisbe':16 'display':5 'thought':4 'feminist':11 'moonshin':1 'astronaut':8
+597	MOONWALKER FOOL	A Epic Drama of a Feminist And a Pioneer who must Sink a Composer in New Orleans	2006	1	\N	5	4.99	184	12.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'new':18 'epic':4 'fool':2 'must':13 'sink':14 'drama':5 'compos':16 'orlean':19 'pioneer':11 'feminist':8 'moonwalk':1
+598	MOSQUITO ARMAGEDDON	A Thoughtful Character Study of a Waitress And a Feminist who must Build a Teacher in Ancient Japan	2006	1	\N	6	0.99	57	22.99	G	2007-09-10 17:46:03.905795	{Trailers}	'must':14 'build':15 'japan':20 'studi':6 'ancient':19 'charact':5 'teacher':17 'thought':4 'feminist':12 'mosquito':1 'waitress':9 'armageddon':2
+599	MOTHER OLEANDER	A Boring Tale of a Husband And a Boy who must Fight a Squirrel in Ancient China	2006	1	\N	3	0.99	103	20.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'boy':11 'bore':4 'must':13 'tale':5 'china':19 'fight':14 'mother':1 'oleand':2 'ancient':18 'husband':8 'squirrel':16
+600	MOTIONS DETAILS	A Awe-Inspiring Reflection of a Dog And a Student who must Kill a Car in An Abandoned Fun House	2006	1	\N	5	0.99	166	16.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'awe':5 'car':18 'dog':10 'fun':22 'hous':23 'kill':16 'must':15 'detail':2 'inspir':6 'motion':1 'abandon':21 'reflect':7 'student':13 'awe-inspir':4
+601	MOULIN WAKE	A Astounding Story of a Forensic Psychologist And a Cat who must Battle a Teacher in An Abandoned Mine Shaft	2006	1	\N	4	0.99	79	20.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'cat':12 'mine':21 'must':14 'wake':2 'battl':15 'shaft':22 'stori':5 'forens':8 'moulin':1 'abandon':20 'astound':4 'teacher':17 'psychologist':9
+602	MOURNING PURPLE	A Lacklusture Display of a Waitress And a Lumberjack who must Chase a Pioneer in New Orleans	2006	1	\N	5	0.99	146	14.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'new':18 'must':13 'chase':14 'mourn':1 'purpl':2 'orlean':19 'display':5 'pioneer':16 'waitress':8 'lacklustur':4 'lumberjack':11
+603	MOVIE SHAKESPEARE	A Insightful Display of a Database Administrator And a Student who must Build a Hunter in Berlin	2006	1	\N	6	4.99	53	27.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'movi':1 'must':14 'build':15 'berlin':19 'hunter':17 'databas':8 'display':5 'insight':4 'student':12 'administr':9 'shakespear':2
+604	MULAN MOON	A Emotional Saga of a Womanizer And a Pioneer who must Overcome a Dentist in A Baloon	2006	1	\N	4	0.99	160	10.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'emot':4 'moon':2 'must':13 'saga':5 'mulan':1 'woman':8 'baloon':19 'dentist':16 'overcom':14 'pioneer':11
+605	MULHOLLAND BEAST	A Awe-Inspiring Display of a Husband And a Squirrel who must Battle a Sumo Wrestler in A Jet Boat	2006	1	\N	7	2.99	157	13.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'awe':5 'jet':22 'boat':23 'must':15 'sumo':18 'battl':16 'beast':2 'inspir':6 'display':7 'husband':10 'squirrel':13 'wrestler':19 'awe-inspir':4 'mulholland':1
+606	MUMMY CREATURES	A Fateful Character Study of a Crocodile And a Monkey who must Meet a Dentist in Australia	2006	1	\N	3	0.99	160	15.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'fate':4 'meet':15 'must':14 'mummi':1 'studi':6 'monkey':12 'charact':5 'creatur':2 'dentist':17 'crocodil':9 'australia':19
+607	MUPPET MILE	A Lacklusture Story of a Madman And a Teacher who must Kill a Frisbee in The Gulf of Mexico	2006	1	\N	5	4.99	50	18.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'gulf':19 'kill':14 'mile':2 'must':13 'stori':5 'frisbe':16 'madman':8 'mexico':21 'muppet':1 'teacher':11 'lacklustur':4
+608	MURDER ANTITRUST	A Brilliant Yarn of a Car And a Database Administrator who must Escape a Boy in A MySQL Convention	2006	1	\N	6	2.99	166	11.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'boy':17 'car':8 'must':14 'yarn':5 'escap':15 'mysql':20 'murder':1 'convent':21 'databas':11 'administr':12 'antitrust':2 'brilliant':4
+609	MUSCLE BRIGHT	A Stunning Panorama of a Sumo Wrestler And a Husband who must Redeem a Madman in Ancient India	2006	1	\N	7	2.99	185	23.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'must':14 'stun':4 'sumo':8 'india':20 'muscl':1 'bright':2 'madman':17 'redeem':15 'ancient':19 'husband':12 'panorama':5 'wrestler':9
+610	MUSIC BOONDOCK	A Thrilling Tale of a Butler And a Astronaut who must Battle a Explorer in The First Manned Space Station	2006	1	\N	7	0.99	129	17.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'man':20 'must':13 'tale':5 'battl':14 'first':19 'music':1 'space':21 'butler':8 'explor':16 'thrill':4 'station':22 'boondock':2 'astronaut':11
+611	MUSKETEERS WAIT	A Touching Yarn of a Student And a Moose who must Fight a Mad Cow in Australia	2006	1	\N	7	4.99	73	17.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'cow':17 'mad':16 'moos':11 'must':13 'wait':2 'yarn':5 'fight':14 'touch':4 'musket':1 'student':8 'australia':19
+612	MUSSOLINI SPOILERS	A Thrilling Display of a Boat And a Monkey who must Meet a Composer in Ancient China	2006	1	\N	6	2.99	180	10.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boat':8 'meet':14 'must':13 'china':19 'compos':16 'monkey':11 'thrill':4 'ancient':18 'display':5 'spoiler':2 'mussolini':1
+613	MYSTIC TRUMAN	A Epic Yarn of a Teacher And a Hunter who must Outgun a Explorer in Soviet Georgia	2006	1	\N	5	0.99	92	19.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'epic':4 'must':13 'yarn':5 'explor':16 'hunter':11 'mystic':1 'outgun':14 'soviet':18 'truman':2 'georgia':19 'teacher':8
+614	NAME DETECTIVE	A Touching Saga of a Sumo Wrestler And a Cat who must Pursue a Mad Scientist in Nigeria	2006	1	\N	5	4.99	178	11.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cat':12 'mad':17 'must':14 'name':1 'saga':5 'sumo':8 'pursu':15 'touch':4 'detect':2 'nigeria':20 'wrestler':9 'scientist':18
+615	NASH CHOCOLAT	A Epic Reflection of a Monkey And a Mad Cow who must Kill a Forensic Psychologist in An Abandoned Mine Shaft	2006	1	\N	6	2.99	180	21.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cow':12 'mad':11 'epic':4 'kill':15 'mine':22 'must':14 'nash':1 'shaft':23 'forens':17 'monkey':8 'abandon':21 'reflect':5 'chocolat':2 'psychologist':18
+616	NATIONAL STORY	A Taut Epistle of a Mad Scientist And a Girl who must Escape a Monkey in California	2006	1	\N	4	2.99	92	19.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'mad':8 'girl':12 'must':14 'taut':4 'escap':15 'stori':2 'epistl':5 'monkey':17 'nation':1 'scientist':9 'california':19
+617	NATURAL STOCK	A Fast-Paced Story of a Sumo Wrestler And a Girl who must Defeat a Car in A Baloon Factory	2006	1	\N	4	0.99	50	24.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'car':19 'fast':5 'girl':14 'must':16 'pace':6 'sumo':10 'natur':1 'stock':2 'stori':7 'baloon':22 'defeat':17 'factori':23 'fast-pac':4 'wrestler':11
+618	NECKLACE OUTBREAK	A Astounding Epistle of a Database Administrator And a Mad Scientist who must Pursue a Cat in California	2006	1	\N	3	0.99	132	21.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cat':18 'mad':12 'must':15 'pursu':16 'epistl':5 'astound':4 'databas':8 'necklac':1 'outbreak':2 'administr':9 'scientist':13 'california':20
+619	NEIGHBORS CHARADE	A Fanciful Reflection of a Crocodile And a Astronaut who must Outrace a Feminist in An Abandoned Amusement Park	2006	1	\N	3	0.99	161	20.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'amus':20 'must':13 'park':21 'fanci':4 'charad':2 'outrac':14 'abandon':19 'reflect':5 'crocodil':8 'feminist':16 'neighbor':1 'astronaut':11
+620	NEMO CAMPUS	A Lacklusture Reflection of a Monkey And a Squirrel who must Outrace a Womanizer in A Manhattan Penthouse	2006	1	\N	5	2.99	131	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'must':13 'nemo':1 'woman':16 'campus':2 'monkey':8 'outrac':14 'reflect':5 'penthous':20 'squirrel':11 'manhattan':19 'lacklustur':4
+621	NETWORK PEAK	A Unbelieveable Reflection of a Butler And a Boat who must Outgun a Mad Scientist in California	2006	1	\N	5	2.99	75	23.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'mad':16 'boat':11 'must':13 'peak':2 'butler':8 'outgun':14 'network':1 'reflect':5 'unbeliev':4 'scientist':17 'california':19
+622	NEWSIES STORY	A Action-Packed Character Study of a Dog And a Lumberjack who must Outrace a Moose in The Gulf of Mexico	2006	1	\N	4	0.99	159	25.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'dog':11 'gulf':22 'moos':19 'must':16 'pack':6 'newsi':1 'stori':2 'studi':8 'action':5 'mexico':24 'outrac':17 'charact':7 'lumberjack':14 'action-pack':4
+623	NEWTON LABYRINTH	A Intrepid Character Study of a Moose And a Waitress who must Find a A Shark in Ancient India	2006	1	\N	4	0.99	75	9.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'find':15 'moos':9 'must':14 'india':21 'shark':18 'studi':6 'newton':1 'ancient':20 'charact':5 'intrepid':4 'waitress':12 'labyrinth':2
+624	NIGHTMARE CHILL	A Brilliant Display of a Robot And a Butler who must Fight a Waitress in An Abandoned Mine Shaft	2006	1	\N	3	4.99	149	25.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'mine':20 'must':13 'chill':2 'fight':14 'robot':8 'shaft':21 'butler':11 'abandon':19 'display':5 'nightmar':1 'waitress':16 'brilliant':4
+625	NONE SPIKING	A Boring Reflection of a Secret Agent And a Astronaut who must Face a Composer in A Manhattan Penthouse	2006	1	\N	3	0.99	83	18.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'bore':4 'face':15 'must':14 'none':1 'agent':9 'spike':2 'compos':17 'secret':8 'reflect':5 'penthous':21 'astronaut':12 'manhattan':20
+626	NOON PAPI	A Unbelieveable Character Study of a Mad Scientist And a Astronaut who must Find a Pioneer in A Manhattan Penthouse	2006	1	\N	5	2.99	57	12.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'mad':9 'find':16 'must':15 'noon':1 'papi':2 'studi':6 'charact':5 'pioneer':18 'penthous':22 'unbeliev':4 'astronaut':13 'manhattan':21 'scientist':10
+627	NORTH TEQUILA	A Beautiful Character Study of a Mad Cow And a Robot who must Reach a Womanizer in New Orleans	2006	1	\N	4	4.99	67	9.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':10 'mad':9 'new':20 'must':15 'north':1 'reach':16 'robot':13 'studi':6 'woman':18 'beauti':4 'orlean':21 'charact':5 'tequila':2
+628	NORTHWEST POLISH	A Boring Character Study of a Boy And a A Shark who must Outrace a Womanizer in The Outback	2006	1	\N	5	2.99	172	24.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'boy':9 'bore':4 'must':15 'shark':13 'studi':6 'woman':18 'outrac':16 'polish':2 'charact':5 'outback':21 'northwest':1
+629	NOTORIOUS REUNION	A Amazing Epistle of a Woman And a Squirrel who must Fight a Hunter in A Baloon	2006	1	\N	7	0.99	128	9.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'amaz':4 'must':13 'fight':14 'woman':8 'baloon':19 'epistl':5 'hunter':16 'notori':1 'reunion':2 'squirrel':11
+630	NOTTING SPEAKEASY	A Thoughtful Display of a Butler And a Womanizer who must Find a Waitress in The Canadian Rockies	2006	1	\N	7	0.99	48	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'not':1 'find':14 'must':13 'rocki':20 'woman':11 'butler':8 'display':5 'thought':4 'canadian':19 'waitress':16 'speakeasi':2
+631	NOVOCAINE FLIGHT	A Fanciful Display of a Student And a Teacher who must Outgun a Crocodile in Nigeria	2006	1	\N	4	0.99	64	11.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'must':13 'fanci':4 'flight':2 'outgun':14 'display':5 'nigeria':18 'student':8 'teacher':11 'crocodil':16 'novocain':1
+632	NUTS TIES	A Thoughtful Drama of a Explorer And a Womanizer who must Meet a Teacher in California	2006	1	\N	5	4.99	145	10.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'nut':1 'tie':2 'meet':14 'must':13 'drama':5 'woman':11 'explor':8 'teacher':16 'thought':4 'california':18
+633	OCTOBER SUBMARINE	A Taut Epistle of a Monkey And a Boy who must Confront a Husband in A Jet Boat	2006	1	\N	6	4.99	54	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'boy':11 'jet':19 'boat':20 'must':13 'taut':4 'octob':1 'epistl':5 'monkey':8 'husband':16 'confront':14 'submarin':2
+634	ODDS BOOGIE	A Thrilling Yarn of a Feminist And a Madman who must Battle a Hunter in Berlin	2006	1	\N	6	0.99	48	14.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'odd':1 'must':13 'yarn':5 'battl':14 'boogi':2 'berlin':18 'hunter':16 'madman':11 'thrill':4 'feminist':8
+635	OKLAHOMA JUMANJI	A Thoughtful Drama of a Dentist And a Womanizer who must Meet a Husband in The Sahara Desert	2006	1	\N	7	0.99	58	15.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'meet':14 'must':13 'drama':5 'woman':11 'desert':20 'sahara':19 'dentist':8 'husband':16 'jumanji':2 'thought':4 'oklahoma':1
+636	OLEANDER CLUE	A Boring Story of a Teacher And a Monkey who must Succumb a Forensic Psychologist in A Jet Boat	2006	1	\N	5	0.99	161	12.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'jet':20 'boat':21 'bore':4 'clue':2 'must':13 'stori':5 'forens':16 'monkey':11 'oleand':1 'succumb':14 'teacher':8 'psychologist':17
+637	OPEN AFRICAN	A Lacklusture Drama of a Secret Agent And a Explorer who must Discover a Car in A U-Boat	2006	1	\N	7	4.99	131	16.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'u':21 'car':17 'boat':22 'must':14 'open':1 'agent':9 'drama':5 'discov':15 'explor':12 'secret':8 'u-boat':20 'african':2 'lacklustur':4
+638	OPERATION OPERATION	A Intrepid Character Study of a Man And a Frisbee who must Overcome a Madman in Ancient China	2006	1	\N	7	2.99	156	23.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'man':9 'must':14 'oper':1,2 'china':20 'studi':6 'frisbe':12 'madman':17 'ancient':19 'charact':5 'overcom':15 'intrepid':4
+639	OPPOSITE NECKLACE	A Fateful Epistle of a Crocodile And a Moose who must Kill a Explorer in Nigeria	2006	1	\N	7	4.99	92	9.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'fate':4 'kill':14 'moos':11 'must':13 'epistl':5 'explor':16 'necklac':2 'nigeria':18 'opposit':1 'crocodil':8
+640	OPUS ICE	A Fast-Paced Drama of a Hunter And a Boy who must Discover a Feminist in The Sahara Desert	2006	1	\N	5	4.99	102	21.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'boy':13 'ice':2 'fast':5 'must':15 'opus':1 'pace':6 'drama':7 'desert':22 'discov':16 'hunter':10 'sahara':21 'fast-pac':4 'feminist':18
+641	ORANGE GRAPES	A Astounding Documentary of a Butler And a Womanizer who must Face a Dog in A U-Boat	2006	1	\N	4	0.99	76	21.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'u':20 'dog':16 'boat':21 'face':14 'must':13 'grape':2 'orang':1 'woman':11 'butler':8 'u-boat':19 'astound':4 'documentari':5
+642	ORDER BETRAYED	A Amazing Saga of a Dog And a A Shark who must Challenge a Cat in The Sahara Desert	2006	1	\N	7	2.99	120	13.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'cat':17 'dog':8 'amaz':4 'must':14 'saga':5 'order':1 'shark':12 'betray':2 'desert':21 'sahara':20 'challeng':15
+643	ORIENT CLOSER	A Astounding Epistle of a Technical Writer And a Teacher who must Fight a Squirrel in The Sahara Desert	2006	1	\N	3	2.99	118	22.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':14 'fight':15 'closer':2 'desert':21 'epistl':5 'orient':1 'sahara':20 'writer':9 'astound':4 'teacher':12 'technic':8 'squirrel':17
+644	OSCAR GOLD	A Insightful Tale of a Database Administrator And a Dog who must Face a Madman in Soviet Georgia	2006	1	\N	7	2.99	115	29.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'dog':12 'face':15 'gold':2 'must':14 'tale':5 'oscar':1 'madman':17 'soviet':19 'databas':8 'georgia':20 'insight':4 'administr':9
+645	OTHERS SOUP	A Lacklusture Documentary of a Mad Cow And a Madman who must Sink a Moose in The Gulf of Mexico	2006	1	\N	7	2.99	118	18.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'cow':9 'mad':8 'gulf':20 'moos':17 'must':14 'sink':15 'soup':2 'other':1 'madman':12 'mexico':22 'lacklustur':4 'documentari':5
+646	OUTBREAK DIVINE	A Unbelieveable Yarn of a Database Administrator And a Woman who must Succumb a A Shark in A U-Boat	2006	1	\N	6	0.99	169	12.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'u':22 'boat':23 'must':14 'yarn':5 'divin':2 'shark':18 'woman':12 'u-boat':21 'databas':8 'succumb':15 'outbreak':1 'unbeliev':4 'administr':9
+647	OUTFIELD MASSACRE	A Thoughtful Drama of a Husband And a Secret Agent who must Pursue a Database Administrator in Ancient India	2006	1	\N	4	0.99	129	18.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'must':14 'agent':12 'drama':5 'india':21 'pursu':15 'secret':11 'ancient':20 'databas':17 'husband':8 'massacr':2 'thought':4 'outfield':1 'administr':18
+648	OUTLAW HANKY	A Thoughtful Story of a Astronaut And a Composer who must Conquer a Dog in The Sahara Desert	2006	1	\N	7	4.99	148	17.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'dog':16 'must':13 'hanki':2 'stori':5 'compos':11 'desert':20 'outlaw':1 'sahara':19 'conquer':14 'thought':4 'astronaut':8
+649	OZ LIAISONS	A Epic Yarn of a Mad Scientist And a Cat who must Confront a Womanizer in A Baloon Factory	2006	1	\N	4	2.99	85	14.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'oz':1 'cat':12 'mad':8 'epic':4 'must':14 'yarn':5 'woman':17 'baloon':20 'factori':21 'liaison':2 'confront':15 'scientist':9
+650	PACIFIC AMISTAD	A Thrilling Yarn of a Dog And a Moose who must Kill a Pastry Chef in A Manhattan Penthouse	2006	1	\N	3	0.99	144	27.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':8 'chef':17 'kill':14 'moos':11 'must':13 'yarn':5 'pacif':1 'pastri':16 'thrill':4 'amistad':2 'penthous':21 'manhattan':20
+651	PACKER MADIGAN	A Epic Display of a Sumo Wrestler And a Forensic Psychologist who must Build a Woman in An Abandoned Amusement Park	2006	1	\N	3	0.99	84	20.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'amus':22 'epic':4 'must':15 'park':23 'sumo':8 'build':16 'woman':18 'forens':12 'packer':1 'abandon':21 'display':5 'madigan':2 'wrestler':9 'psychologist':13
+652	PAJAMA JAWBREAKER	A Emotional Drama of a Boy And a Technical Writer who must Redeem a Sumo Wrestler in California	2006	1	\N	3	0.99	126	14.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'boy':8 'emot':4 'must':14 'sumo':17 'drama':5 'pajama':1 'redeem':15 'writer':12 'technic':11 'jawbreak':2 'wrestler':18 'california':20
+653	PANIC CLUB	A Fanciful Display of a Teacher And a Crocodile who must Succumb a Girl in A Baloon	2006	1	\N	3	4.99	102	15.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'club':2 'girl':16 'must':13 'fanci':4 'panic':1 'baloon':19 'display':5 'succumb':14 'teacher':8 'crocodil':11
+654	PANKY SUBMARINE	A Touching Documentary of a Dentist And a Sumo Wrestler who must Overcome a Boy in The Gulf of Mexico	2006	1	\N	4	4.99	93	19.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':17 'gulf':20 'must':14 'sumo':11 'panki':1 'touch':4 'mexico':22 'dentist':8 'overcom':15 'submarin':2 'wrestler':12 'documentari':5
+655	PANTHER REDS	A Brilliant Panorama of a Moose And a Man who must Reach a Teacher in The Gulf of Mexico	2006	1	\N	5	4.99	109	22.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':11 'red':2 'gulf':19 'moos':8 'must':13 'reach':14 'mexico':21 'panther':1 'teacher':16 'panorama':5 'brilliant':4
+656	PAPI NECKLACE	A Fanciful Display of a Car And a Monkey who must Escape a Squirrel in Ancient Japan	2006	1	\N	3	0.99	128	9.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'car':8 'must':13 'papi':1 'escap':14 'fanci':4 'japan':19 'monkey':11 'ancient':18 'display':5 'necklac':2 'squirrel':16
+657	PARADISE SABRINA	A Intrepid Yarn of a Car And a Moose who must Outrace a Crocodile in A Manhattan Penthouse	2006	1	\N	5	2.99	48	12.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'car':8 'moos':11 'must':13 'yarn':5 'outrac':14 'paradis':1 'sabrina':2 'crocodil':16 'intrepid':4 'penthous':20 'manhattan':19
+658	PARIS WEEKEND	A Intrepid Story of a Squirrel And a Crocodile who must Defeat a Monkey in The Outback	2006	1	\N	7	2.99	121	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'must':13 'pari':1 'stori':5 'defeat':14 'monkey':16 'outback':19 'weekend':2 'crocodil':11 'intrepid':4 'squirrel':8
+659	PARK CITIZEN	A Taut Epistle of a Sumo Wrestler And a Girl who must Face a Husband in Ancient Japan	2006	1	\N	3	4.99	109	14.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'face':15 'girl':12 'must':14 'park':1 'sumo':8 'taut':4 'japan':20 'epistl':5 'ancient':19 'citizen':2 'husband':17 'wrestler':9
+660	PARTY KNOCK	A Fateful Display of a Technical Writer And a Butler who must Battle a Sumo Wrestler in An Abandoned Mine Shaft	2006	1	\N	7	2.99	107	11.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'fate':4 'mine':22 'must':14 'sumo':17 'battl':15 'knock':2 'parti':1 'shaft':23 'butler':12 'writer':9 'abandon':21 'display':5 'technic':8 'wrestler':18
+661	PAST SUICIDES	A Intrepid Tale of a Madman And a Astronaut who must Challenge a Hunter in A Monastery	2006	1	\N	5	4.99	157	17.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'must':13 'past':1 'tale':5 'hunter':16 'madman':8 'suicid':2 'challeng':14 'intrepid':4 'astronaut':11 'monasteri':19
+662	PATHS CONTROL	A Astounding Documentary of a Butler And a Cat who must Find a Frisbee in Ancient China	2006	1	\N	3	4.99	118	9.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'cat':11 'find':14 'must':13 'path':1 'china':19 'butler':8 'frisbe':16 'ancient':18 'astound':4 'control':2 'documentari':5
+663	PATIENT SISTER	A Emotional Epistle of a Squirrel And a Robot who must Confront a Lumberjack in Soviet Georgia	2006	1	\N	7	0.99	99	29.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'emot':4 'must':13 'robot':11 'epistl':5 'sister':2 'soviet':18 'georgia':19 'patient':1 'confront':14 'squirrel':8 'lumberjack':16
+664	PATRIOT ROMAN	A Taut Saga of a Robot And a Database Administrator who must Challenge a Astronaut in California	2006	1	\N	6	2.99	65	12.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'must':14 'saga':5 'taut':4 'robot':8 'roman':2 'databas':11 'patriot':1 'challeng':15 'administr':12 'astronaut':17 'california':19
+665	PATTON INTERVIEW	A Thrilling Documentary of a Composer And a Secret Agent who must Succumb a Cat in Berlin	2006	1	\N	4	2.99	175	22.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'cat':17 'must':14 'agent':12 'berlin':19 'compos':8 'patton':1 'secret':11 'thrill':4 'succumb':15 'interview':2 'documentari':5
+666	PAYCHECK WAIT	A Awe-Inspiring Reflection of a Boy And a Man who must Discover a Moose in The Sahara Desert	2006	1	\N	4	4.99	145	27.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'awe':5 'boy':10 'man':13 'moos':18 'must':15 'wait':2 'desert':22 'discov':16 'inspir':6 'sahara':21 'reflect':7 'paycheck':1 'awe-inspir':4
+667	PEACH INNOCENT	A Action-Packed Drama of a Monkey And a Dentist who must Chase a Butler in Berlin	2006	1	\N	3	2.99	160	20.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'must':15 'pack':6 'chase':16 'drama':7 'innoc':2 'peach':1 'action':5 'berlin':20 'butler':18 'monkey':10 'dentist':13 'action-pack':4
+668	PEAK FOREVER	A Insightful Reflection of a Boat And a Secret Agent who must Vanquish a Astronaut in An Abandoned Mine Shaft	2006	1	\N	7	4.99	80	25.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':8 'mine':21 'must':14 'peak':1 'agent':12 'forev':2 'shaft':22 'secret':11 'abandon':20 'insight':4 'reflect':5 'vanquish':15 'astronaut':17
+669	PEARL DESTINY	A Lacklusture Yarn of a Astronaut And a Pastry Chef who must Sink a Dog in A U-Boat	2006	1	\N	3	2.99	74	10.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'u':21 'dog':17 'boat':22 'chef':12 'must':14 'sink':15 'yarn':5 'pearl':1 'pastri':11 'u-boat':20 'destini':2 'astronaut':8 'lacklustur':4
+670	PELICAN COMFORTS	A Epic Documentary of a Boy And a Monkey who must Pursue a Astronaut in Berlin	2006	1	\N	4	4.99	48	17.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'boy':8 'epic':4 'must':13 'pursu':14 'berlin':18 'monkey':11 'comfort':2 'pelican':1 'astronaut':16 'documentari':5
+671	PERDITION FARGO	A Fast-Paced Story of a Car And a Cat who must Outgun a Hunter in Berlin	2006	1	\N	7	4.99	99	27.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'car':10 'cat':13 'fast':5 'must':15 'pace':6 'fargo':2 'stori':7 'berlin':20 'hunter':18 'outgun':16 'perdit':1 'fast-pac':4
+672	PERFECT GROOVE	A Thrilling Yarn of a Dog And a Dog who must Build a Husband in A Baloon	2006	1	\N	7	2.99	82	17.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':8,11 'must':13 'yarn':5 'build':14 'groov':2 'baloon':19 'thrill':4 'husband':16 'perfect':1
+673	PERSONAL LADYBUGS	A Epic Saga of a Hunter And a Technical Writer who must Conquer a Cat in Ancient Japan	2006	1	\N	3	0.99	118	19.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'cat':17 'epic':4 'must':14 'saga':5 'japan':20 'hunter':8 'person':1 'writer':12 'ancient':19 'conquer':15 'ladybug':2 'technic':11
+674	PET HAUNTING	A Unbelieveable Reflection of a Explorer And a Boat who must Conquer a Woman in California	2006	1	\N	3	0.99	99	11.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'pet':1 'boat':11 'must':13 'haunt':2 'woman':16 'explor':8 'conquer':14 'reflect':5 'unbeliev':4 'california':18
+675	PHANTOM GLORY	A Beautiful Documentary of a Astronaut And a Crocodile who must Discover a Madman in A Monastery	2006	1	\N	6	2.99	60	17.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'must':13 'glori':2 'beauti':4 'discov':14 'madman':16 'phantom':1 'crocodil':11 'astronaut':8 'monasteri':19 'documentari':5
+676	PHILADELPHIA WIFE	A Taut Yarn of a Hunter And a Astronaut who must Conquer a Database Administrator in The Sahara Desert	2006	1	\N	7	4.99	137	16.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'must':13 'taut':4 'wife':2 'yarn':5 'desert':21 'hunter':8 'sahara':20 'conquer':14 'databas':16 'administr':17 'astronaut':11 'philadelphia':1
+677	PIANIST OUTFIELD	A Intrepid Story of a Boy And a Technical Writer who must Pursue a Lumberjack in A Monastery	2006	1	\N	6	0.99	136	25.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'boy':8 'must':14 'pursu':15 'stori':5 'writer':12 'pianist':1 'technic':11 'intrepid':4 'outfield':2 'monasteri':20 'lumberjack':17
+678	PICKUP DRIVING	A Touching Documentary of a Husband And a Boat who must Meet a Pastry Chef in A Baloon Factory	2006	1	\N	3	2.99	77	23.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':11 'chef':17 'meet':14 'must':13 'drive':2 'touch':4 'baloon':20 'pastri':16 'pickup':1 'factori':21 'husband':8 'documentari':5
+679	PILOT HOOSIERS	A Awe-Inspiring Reflection of a Crocodile And a Sumo Wrestler who must Meet a Forensic Psychologist in An Abandoned Mine Shaft	2006	1	\N	6	2.99	50	17.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'awe':5 'meet':17 'mine':24 'must':16 'sumo':13 'pilot':1 'shaft':25 'forens':19 'inspir':6 'abandon':23 'hoosier':2 'reflect':7 'crocodil':10 'wrestler':14 'awe-inspir':4 'psychologist':20
+680	PINOCCHIO SIMON	A Action-Packed Reflection of a Mad Scientist And a A Shark who must Find a Feminist in California	2006	1	\N	4	4.99	103	21.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'mad':10 'find':18 'must':17 'pack':6 'shark':15 'simon':2 'action':5 'reflect':7 'feminist':20 'pinocchio':1 'scientist':11 'california':22 'action-pack':4
+681	PIRATES ROXANNE	A Stunning Drama of a Woman And a Lumberjack who must Overcome a A Shark in The Canadian Rockies	2006	1	\N	4	0.99	100	20.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':13 'stun':4 'drama':5 'pirat':1 'rocki':21 'shark':17 'woman':8 'roxann':2 'overcom':14 'canadian':20 'lumberjack':11
+682	PITTSBURGH HUNCHBACK	A Thrilling Epistle of a Boy And a Boat who must Find a Student in Soviet Georgia	2006	1	\N	4	4.99	134	17.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'boy':8 'boat':11 'find':14 'must':13 'epistl':5 'soviet':18 'thrill':4 'georgia':19 'student':16 'hunchback':2 'pittsburgh':1
+683	PITY BOUND	A Boring Panorama of a Feminist And a Moose who must Defeat a Database Administrator in Nigeria	2006	1	\N	5	4.99	60	19.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'bore':4 'moos':11 'must':13 'piti':1 'bound':2 'defeat':14 'databas':16 'nigeria':19 'feminist':8 'panorama':5 'administr':17
+684	PIZZA JUMANJI	A Epic Saga of a Cat And a Squirrel who must Outgun a Robot in A U-Boat	2006	1	\N	4	2.99	173	11.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'u':20 'cat':8 'boat':21 'epic':4 'must':13 'saga':5 'pizza':1 'robot':16 'outgun':14 'u-boat':19 'jumanji':2 'squirrel':11
+685	PLATOON INSTINCT	A Thrilling Panorama of a Man And a Woman who must Reach a Woman in Australia	2006	1	\N	6	4.99	132	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'man':8 'must':13 'reach':14 'woman':11,16 'thrill':4 'platoon':1 'instinct':2 'panorama':5 'australia':18
+686	PLUTO OLEANDER	A Action-Packed Reflection of a Car And a Moose who must Outgun a Car in A Shark Tank	2006	1	\N	5	4.99	84	9.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'car':10,18 'moos':13 'must':15 'pack':6 'tank':22 'pluto':1 'shark':21 'action':5 'oleand':2 'outgun':16 'reflect':7 'action-pack':4
+687	POCUS PULP	A Intrepid Yarn of a Frisbee And a Dog who must Build a Astronaut in A Baloon Factory	2006	1	\N	6	0.99	138	15.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':11 'must':13 'pulp':2 'yarn':5 'build':14 'pocus':1 'baloon':19 'frisbe':8 'factori':20 'intrepid':4 'astronaut':16
+688	POLISH BROOKLYN	A Boring Character Study of a Database Administrator And a Lumberjack who must Reach a Madman in The Outback	2006	1	\N	6	0.99	61	12.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'bore':4 'must':15 'reach':16 'studi':6 'madman':18 'polish':1 'charact':5 'databas':9 'outback':21 'brooklyn':2 'administr':10 'lumberjack':13
+689	POLLOCK DELIVERANCE	A Intrepid Story of a Madman And a Frisbee who must Outgun a Boat in The Sahara Desert	2006	1	\N	5	2.99	137	14.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'boat':16 'must':13 'stori':5 'desert':20 'frisbe':11 'madman':8 'outgun':14 'sahara':19 'deliver':2 'pollock':1 'intrepid':4
+690	POND SEATTLE	A Stunning Drama of a Teacher And a Boat who must Battle a Feminist in Ancient China	2006	1	\N	7	2.99	185	25.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'boat':11 'must':13 'pond':1 'stun':4 'battl':14 'china':19 'drama':5 'seattl':2 'ancient':18 'teacher':8 'feminist':16
+691	POSEIDON FOREVER	A Thoughtful Epistle of a Womanizer And a Monkey who must Vanquish a Dentist in A Monastery	2006	1	\N	6	4.99	159	29.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'must':13 'forev':2 'woman':8 'epistl':5 'monkey':11 'dentist':16 'thought':4 'poseidon':1 'vanquish':14 'monasteri':19
+692	POTLUCK MIXED	A Beautiful Story of a Dog And a Technical Writer who must Outgun a Student in A Baloon	2006	1	\N	3	2.99	179	10.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'dog':8 'mix':2 'must':14 'stori':5 'baloon':20 'beauti':4 'outgun':15 'writer':12 'potluck':1 'student':17 'technic':11
+693	POTTER CONNECTICUT	A Thrilling Epistle of a Frisbee And a Cat who must Fight a Technical Writer in Berlin	2006	1	\N	5	2.99	115	16.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cat':11 'must':13 'fight':14 'berlin':19 'epistl':5 'frisbe':8 'potter':1 'thrill':4 'writer':17 'technic':16 'connecticut':2
+694	PREJUDICE OLEANDER	A Epic Saga of a Boy And a Dentist who must Outrace a Madman in A U-Boat	2006	1	\N	6	4.99	98	15.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'u':20 'boy':8 'boat':21 'epic':4 'must':13 'saga':5 'madman':16 'oleand':2 'outrac':14 'u-boat':19 'dentist':11 'prejudic':1
+695	PRESIDENT BANG	A Fateful Panorama of a Technical Writer And a Moose who must Battle a Robot in Soviet Georgia	2006	1	\N	6	4.99	144	12.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'bang':2 'fate':4 'moos':12 'must':14 'battl':15 'robot':17 'presid':1 'soviet':19 'writer':9 'georgia':20 'technic':8 'panorama':5
+696	PRIDE ALAMO	A Thoughtful Drama of a A Shark And a Forensic Psychologist who must Vanquish a Student in Ancient India	2006	1	\N	6	0.99	114	20.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'must':15 'alamo':2 'drama':5 'india':21 'pride':1 'shark':9 'forens':12 'ancient':20 'student':18 'thought':4 'vanquish':16 'psychologist':13
+697	PRIMARY GLASS	A Fateful Documentary of a Pastry Chef And a Butler who must Build a Dog in The Canadian Rockies	2006	1	\N	7	0.99	53	16.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dog':17 'chef':9 'fate':4 'must':14 'build':15 'glass':2 'rocki':21 'butler':12 'pastri':8 'primari':1 'canadian':20 'documentari':5
+698	PRINCESS GIANT	A Thrilling Yarn of a Pastry Chef And a Monkey who must Battle a Monkey in A Shark Tank	2006	1	\N	3	2.99	71	29.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'chef':9 'must':14 'tank':21 'yarn':5 'battl':15 'giant':2 'shark':20 'monkey':12,17 'pastri':8 'thrill':4 'princess':1
+699	PRIVATE DROP	A Stunning Story of a Technical Writer And a Hunter who must Succumb a Secret Agent in A Baloon	2006	1	\N	7	4.99	106	26.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'drop':2 'must':14 'stun':4 'agent':18 'stori':5 'baloon':21 'hunter':12 'privat':1 'secret':17 'writer':9 'succumb':15 'technic':8
+700	PRIX UNDEFEATED	A Stunning Saga of a Mad Scientist And a Boat who must Overcome a Dentist in Ancient China	2006	1	\N	4	2.99	115	13.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'mad':8 'boat':12 'must':14 'prix':1 'saga':5 'stun':4 'china':20 'undef':2 'ancient':19 'dentist':17 'overcom':15 'scientist':9
+701	PSYCHO SHRUNK	A Amazing Panorama of a Crocodile And a Explorer who must Fight a Husband in Nigeria	2006	1	\N	5	2.99	155	11.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'amaz':4 'must':13 'fight':14 'explor':11 'psycho':1 'shrunk':2 'husband':16 'nigeria':18 'crocodil':8 'panorama':5
+702	PULP BEVERLY	A Unbelieveable Display of a Dog And a Crocodile who must Outrace a Man in Nigeria	2006	1	\N	4	2.99	89	12.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'dog':8 'man':16 'must':13 'pulp':1 'bever':2 'outrac':14 'display':5 'nigeria':18 'crocodil':11 'unbeliev':4
+703	PUNK DIVORCE	A Fast-Paced Tale of a Pastry Chef And a Boat who must Face a Frisbee in The Canadian Rockies	2006	1	\N	6	4.99	100	18.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'boat':14 'chef':11 'face':17 'fast':5 'must':16 'pace':6 'punk':1 'tale':7 'rocki':23 'divorc':2 'frisbe':19 'pastri':10 'canadian':22 'fast-pac':4
+704	PURE RUNNER	A Thoughtful Documentary of a Student And a Madman who must Challenge a Squirrel in A Manhattan Penthouse	2006	1	\N	3	2.99	121	25.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'must':13 'pure':1 'madman':11 'runner':2 'student':8 'thought':4 'challeng':14 'penthous':20 'squirrel':16 'manhattan':19 'documentari':5
+705	PURPLE MOVIE	A Boring Display of a Pastry Chef And a Sumo Wrestler who must Discover a Frisbee in An Abandoned Amusement Park	2006	1	\N	4	2.99	88	9.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'amus':22 'bore':4 'chef':9 'movi':2 'must':15 'park':23 'sumo':12 'purpl':1 'discov':16 'frisbe':18 'pastri':8 'abandon':21 'display':5 'wrestler':13
+706	QUEEN LUKE	A Astounding Story of a Girl And a Boy who must Challenge a Composer in New Orleans	2006	1	\N	5	4.99	163	22.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':11 'new':18 'girl':8 'luke':2 'must':13 'queen':1 'stori':5 'compos':16 'orlean':19 'astound':4 'challeng':14
+707	QUEST MUSSOLINI	A Fateful Drama of a Husband And a Sumo Wrestler who must Battle a Pastry Chef in A Baloon Factory	2006	1	\N	5	2.99	177	29.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'chef':18 'fate':4 'must':14 'sumo':11 'battl':15 'drama':5 'quest':1 'baloon':21 'pastri':17 'factori':22 'husband':8 'wrestler':12 'mussolini':2
+708	QUILLS BULL	A Thoughtful Story of a Pioneer And a Woman who must Reach a Moose in Australia	2006	1	\N	4	4.99	112	19.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'bull':2 'moos':16 'must':13 'quill':1 'reach':14 'stori':5 'woman':11 'pioneer':8 'thought':4 'australia':18
+709	RACER EGG	A Emotional Display of a Monkey And a Waitress who must Reach a Secret Agent in California	2006	1	\N	7	2.99	147	19.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'egg':2 'emot':4 'must':13 'agent':17 'racer':1 'reach':14 'monkey':8 'secret':16 'display':5 'waitress':11 'california':19
+710	RAGE GAMES	A Fast-Paced Saga of a Astronaut And a Secret Agent who must Escape a Hunter in An Abandoned Amusement Park	2006	1	\N	4	4.99	120	18.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'amus':23 'fast':5 'game':2 'must':16 'pace':6 'park':24 'rage':1 'saga':7 'agent':14 'escap':17 'hunter':19 'secret':13 'abandon':22 'fast-pac':4 'astronaut':10
+711	RAGING AIRPLANE	A Astounding Display of a Secret Agent And a Technical Writer who must Escape a Mad Scientist in A Jet Boat	2006	1	\N	4	4.99	154	18.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'jet':22 'mad':18 'boat':23 'must':15 'rage':1 'agent':9 'escap':16 'secret':8 'writer':13 'airplan':2 'astound':4 'display':5 'technic':12 'scientist':19
+712	RAIDERS ANTITRUST	A Amazing Drama of a Teacher And a Feminist who must Meet a Woman in The First Manned Space Station	2006	1	\N	4	0.99	82	11.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'man':20 'amaz':4 'meet':14 'must':13 'drama':5 'first':19 'space':21 'woman':16 'raider':1 'station':22 'teacher':8 'feminist':11 'antitrust':2
+713	RAINBOW SHOCK	A Action-Packed Story of a Hunter And a Boy who must Discover a Lumberjack in Ancient India	2006	1	\N	3	4.99	74	14.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':13 'must':15 'pack':6 'india':21 'shock':2 'stori':7 'action':5 'discov':16 'hunter':10 'ancient':20 'rainbow':1 'lumberjack':18 'action-pack':4
+714	RANDOM GO	A Fateful Drama of a Frisbee And a Student who must Confront a Cat in A Shark Tank	2006	1	\N	6	2.99	73	29.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'go':2 'cat':16 'fate':4 'must':13 'tank':20 'drama':5 'shark':19 'frisbe':8 'random':1 'student':11 'confront':14
+715	RANGE MOONWALKER	A Insightful Documentary of a Hunter And a Dentist who must Confront a Crocodile in A Baloon	2006	1	\N	3	4.99	147	25.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'must':13 'rang':1 'baloon':19 'hunter':8 'dentist':11 'insight':4 'confront':14 'crocodil':16 'moonwalk':2 'documentari':5
+716	REAP UNFAITHFUL	A Thrilling Epistle of a Composer And a Sumo Wrestler who must Challenge a Mad Cow in A MySQL Convention	2006	1	\N	6	2.99	136	26.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cow':18 'mad':17 'must':14 'reap':1 'sumo':11 'mysql':21 'compos':8 'epistl':5 'thrill':4 'convent':22 'unfaith':2 'challeng':15 'wrestler':12
+717	REAR TRADING	A Awe-Inspiring Reflection of a Forensic Psychologist And a Secret Agent who must Succumb a Pastry Chef in Soviet Georgia	2006	1	\N	6	0.99	97	23.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'awe':5 'chef':21 'must':17 'rear':1 'agent':15 'trade':2 'forens':10 'inspir':6 'pastri':20 'secret':14 'soviet':23 'georgia':24 'reflect':7 'succumb':18 'awe-inspir':4 'psychologist':11
+718	REBEL AIRPORT	A Intrepid Yarn of a Database Administrator And a Boat who must Outrace a Husband in Ancient India	2006	1	\N	7	0.99	73	24.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'boat':12 'must':14 'yarn':5 'india':20 'rebel':1 'outrac':15 'airport':2 'ancient':19 'databas':8 'husband':17 'intrepid':4 'administr':9
+719	RECORDS ZORRO	A Amazing Drama of a Mad Scientist And a Composer who must Build a Husband in The Outback	2006	1	\N	7	4.99	182	11.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'mad':8 'amaz':4 'must':14 'build':15 'drama':5 'zorro':2 'compos':12 'record':1 'husband':17 'outback':20 'scientist':9
+720	REDEMPTION COMFORTS	A Emotional Documentary of a Dentist And a Woman who must Battle a Mad Scientist in Ancient China	2006	1	\N	3	2.99	179	20.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'mad':16 'emot':4 'must':13 'battl':14 'china':20 'woman':11 'ancient':19 'comfort':2 'dentist':8 'redempt':1 'scientist':17 'documentari':5
+721	REDS POCUS	A Lacklusture Yarn of a Sumo Wrestler And a Squirrel who must Redeem a Monkey in Soviet Georgia	2006	1	\N	7	4.99	182	23.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'red':1 'must':14 'sumo':8 'yarn':5 'pocus':2 'monkey':17 'redeem':15 'soviet':19 'georgia':20 'squirrel':12 'wrestler':9 'lacklustur':4
+722	REEF SALUTE	A Action-Packed Saga of a Teacher And a Lumberjack who must Battle a Dentist in A Baloon	2006	1	\N	5	0.99	123	26.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'must':15 'pack':6 'reef':1 'saga':7 'battl':16 'salut':2 'action':5 'baloon':21 'dentist':18 'teacher':10 'lumberjack':13 'action-pack':4
+723	REIGN GENTLEMEN	A Emotional Yarn of a Composer And a Man who must Escape a Butler in The Gulf of Mexico	2006	1	\N	3	2.99	82	29.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':11 'emot':4 'gulf':19 'must':13 'yarn':5 'escap':14 'reign':1 'butler':16 'compos':8 'mexico':21 'gentlemen':2
+724	REMEMBER DIARY	A Insightful Tale of a Technical Writer And a Waitress who must Conquer a Monkey in Ancient India	2006	1	\N	5	2.99	110	15.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'must':14 'tale':5 'diari':2 'india':20 'monkey':17 'rememb':1 'writer':9 'ancient':19 'conquer':15 'insight':4 'technic':8 'waitress':12
+725	REQUIEM TYCOON	A Unbelieveable Character Study of a Cat And a Database Administrator who must Pursue a Teacher in A Monastery	2006	1	\N	6	4.99	167	25.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cat':9 'must':15 'pursu':16 'studi':6 'tycoon':2 'charact':5 'databas':12 'requiem':1 'teacher':18 'unbeliev':4 'administr':13 'monasteri':21
+726	RESERVOIR ADAPTATION	A Intrepid Drama of a Teacher And a Moose who must Kill a Car in California	2006	1	\N	7	2.99	61	29.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'car':16 'kill':14 'moos':11 'must':13 'adapt':2 'drama':5 'teacher':8 'intrepid':4 'reservoir':1 'california':18
+727	RESURRECTION SILVERADO	A Epic Yarn of a Robot And a Explorer who must Challenge a Girl in A MySQL Convention	2006	1	\N	6	0.99	117	12.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'epic':4 'girl':16 'must':13 'yarn':5 'mysql':19 'robot':8 'explor':11 'convent':20 'challeng':14 'resurrect':1 'silverado':2
+728	REUNION WITCHES	A Unbelieveable Documentary of a Database Administrator And a Frisbee who must Redeem a Mad Scientist in A Baloon Factory	2006	1	\N	3	0.99	63	26.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'mad':17 'must':14 'witch':2 'baloon':21 'frisbe':12 'redeem':15 'databas':8 'factori':22 'reunion':1 'unbeliev':4 'administr':9 'scientist':18 'documentari':5
+729	RIDER CADDYSHACK	A Taut Reflection of a Monkey And a Womanizer who must Chase a Moose in Nigeria	2006	1	\N	5	2.99	177	28.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'moos':16 'must':13 'taut':4 'chase':14 'rider':1 'woman':11 'monkey':8 'nigeria':18 'reflect':5 'caddyshack':2
+730	RIDGEMONT SUBMARINE	A Unbelieveable Drama of a Waitress And a Composer who must Sink a Mad Cow in Ancient Japan	2006	1	\N	3	0.99	46	28.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':17 'mad':16 'must':13 'sink':14 'drama':5 'japan':20 'compos':11 'ancient':19 'submarin':2 'unbeliev':4 'waitress':8 'ridgemont':1
+731	RIGHT CRANES	A Fateful Character Study of a Boat And a Cat who must Find a Database Administrator in A Jet Boat	2006	1	\N	7	4.99	153	29.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'cat':12 'jet':21 'boat':9,22 'fate':4 'find':15 'must':14 'crane':2 'right':1 'studi':6 'charact':5 'databas':17 'administr':18
+732	RINGS HEARTBREAKERS	A Amazing Yarn of a Sumo Wrestler And a Boat who must Conquer a Waitress in New Orleans	2006	1	\N	5	0.99	58	17.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'new':19 'amaz':4 'boat':12 'must':14 'ring':1 'sumo':8 'yarn':5 'orlean':20 'conquer':15 'waitress':17 'wrestler':9 'heartbreak':2
+733	RIVER OUTLAW	A Thrilling Character Study of a Squirrel And a Lumberjack who must Face a Hunter in A MySQL Convention	2006	1	\N	4	0.99	149	29.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'face':15 'must':14 'mysql':20 'river':1 'studi':6 'hunter':17 'outlaw':2 'thrill':4 'charact':5 'convent':21 'squirrel':9 'lumberjack':12
+734	ROAD ROXANNE	A Boring Character Study of a Waitress And a Astronaut who must Fight a Crocodile in Ancient Japan	2006	1	\N	4	4.99	158	12.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'bore':4 'must':14 'road':1 'fight':15 'japan':20 'studi':6 'roxann':2 'ancient':19 'charact':5 'crocodil':17 'waitress':9 'astronaut':12
+735	ROBBERS JOON	A Thoughtful Story of a Mad Scientist And a Waitress who must Confront a Forensic Psychologist in Soviet Georgia	2006	1	\N	7	2.99	102	26.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'mad':8 'joon':2 'must':14 'stori':5 'forens':17 'robber':1 'soviet':20 'georgia':21 'thought':4 'confront':15 'waitress':12 'scientist':9 'psychologist':18
+736	ROBBERY BRIGHT	A Taut Reflection of a Robot And a Squirrel who must Fight a Boat in Ancient Japan	2006	1	\N	4	0.99	134	21.99	R	2007-09-10 17:46:03.905795	{Trailers}	'boat':16 'must':13 'taut':4 'fight':14 'japan':19 'robot':8 'bright':2 'ancient':18 'reflect':5 'robberi':1 'squirrel':11
+737	ROCK INSTINCT	A Astounding Character Study of a Robot And a Moose who must Overcome a Astronaut in Ancient India	2006	1	\N	4	0.99	102	28.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'moos':12 'must':14 'rock':1 'india':20 'robot':9 'studi':6 'ancient':19 'astound':4 'charact':5 'overcom':15 'instinct':2 'astronaut':17
+738	ROCKETEER MOTHER	A Awe-Inspiring Character Study of a Robot And a Sumo Wrestler who must Discover a Womanizer in A Shark Tank	2006	1	\N	3	0.99	178	27.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'awe':5 'must':17 'sumo':14 'tank':24 'robot':11 'shark':23 'studi':8 'woman':20 'discov':18 'inspir':6 'mother':2 'rocket':1 'charact':7 'wrestler':15 'awe-inspir':4
+739	ROCKY WAR	A Fast-Paced Display of a Squirrel And a Explorer who must Outgun a Mad Scientist in Nigeria	2006	1	\N	4	4.99	145	17.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'mad':18 'war':2 'fast':5 'must':15 'pace':6 'rocki':1 'explor':13 'outgun':16 'display':7 'nigeria':21 'fast-pac':4 'squirrel':10 'scientist':19
+740	ROLLERCOASTER BRINGING	A Beautiful Drama of a Robot And a Lumberjack who must Discover a Technical Writer in A Shark Tank	2006	1	\N	5	2.99	153	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'must':13 'tank':21 'bring':2 'drama':5 'robot':8 'shark':20 'beauti':4 'discov':14 'writer':17 'technic':16 'lumberjack':11 'rollercoast':1
+741	ROMAN PUNK	A Thoughtful Panorama of a Mad Cow And a Student who must Battle a Forensic Psychologist in Berlin	2006	1	\N	7	0.99	81	28.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'cow':9 'mad':8 'must':14 'punk':2 'battl':15 'roman':1 'berlin':20 'forens':17 'student':12 'thought':4 'panorama':5 'psychologist':18
+742	ROOF CHAMPION	A Lacklusture Reflection of a Car And a Explorer who must Find a Monkey in A Baloon	2006	1	\N	7	0.99	101	25.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'car':8 'find':14 'must':13 'roof':1 'baloon':19 'explor':11 'monkey':16 'reflect':5 'champion':2 'lacklustur':4
+743	ROOM ROMAN	A Awe-Inspiring Panorama of a Composer And a Secret Agent who must Sink a Composer in A Shark Tank	2006	1	\N	7	0.99	60	27.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'awe':5 'must':16 'room':1 'sink':17 'tank':23 'agent':14 'roman':2 'shark':22 'compos':10,19 'inspir':6 'secret':13 'panorama':7 'awe-inspir':4
+744	ROOTS REMEMBER	A Brilliant Drama of a Mad Cow And a Hunter who must Escape a Hunter in Berlin	2006	1	\N	4	0.99	89	23.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':9 'mad':8 'must':14 'root':1 'drama':5 'escap':15 'berlin':19 'hunter':12,17 'rememb':2 'brilliant':4
+745	ROSES TREASURE	A Astounding Panorama of a Monkey And a Secret Agent who must Defeat a Woman in The First Manned Space Station	2006	1	\N	5	4.99	162	23.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'man':21 'must':14 'rose':1 'agent':12 'first':20 'space':22 'woman':17 'defeat':15 'monkey':8 'secret':11 'astound':4 'station':23 'treasur':2 'panorama':5
+746	ROUGE SQUAD	A Awe-Inspiring Drama of a Astronaut And a Frisbee who must Conquer a Mad Scientist in Australia	2006	1	\N	3	0.99	118	10.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'mad':18 'must':15 'roug':1 'drama':7 'squad':2 'frisbe':13 'inspir':6 'conquer':16 'astronaut':10 'australia':21 'scientist':19 'awe-inspir':4
+747	ROXANNE REBEL	A Astounding Story of a Pastry Chef And a Database Administrator who must Fight a Man in The Outback	2006	1	\N	5	0.99	171	9.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':18 'chef':9 'must':15 'fight':16 'rebel':2 'stori':5 'pastri':8 'roxann':1 'astound':4 'databas':12 'outback':21 'administr':13
+748	RUGRATS SHAKESPEARE	A Touching Saga of a Crocodile And a Crocodile who must Discover a Technical Writer in Nigeria	2006	1	\N	4	0.99	109	16.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'must':13 'saga':5 'touch':4 'discov':14 'rugrat':1 'writer':17 'nigeria':19 'technic':16 'crocodil':8,11 'shakespear':2
+749	RULES HUMAN	A Beautiful Epistle of a Astronaut And a Student who must Confront a Monkey in An Abandoned Fun House	2006	1	\N	6	4.99	153	19.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'fun':20 'hous':21 'must':13 'rule':1 'human':2 'beauti':4 'epistl':5 'monkey':16 'abandon':19 'student':11 'confront':14 'astronaut':8
+750	RUN PACIFIC	A Touching Tale of a Cat And a Pastry Chef who must Conquer a Pastry Chef in A MySQL Convention	2006	1	\N	3	0.99	145	25.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':8 'run':1 'chef':12,18 'must':14 'tale':5 'mysql':21 'pacif':2 'touch':4 'pastri':11,17 'conquer':15 'convent':22
+751	RUNAWAY TENENBAUMS	A Thoughtful Documentary of a Boat And a Man who must Meet a Boat in An Abandoned Fun House	2006	1	\N	6	0.99	181	17.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'fun':20 'man':11 'boat':8,16 'hous':21 'meet':14 'must':13 'abandon':19 'runaway':1 'thought':4 'tenenbaum':2 'documentari':5
+752	RUNNER MADIGAN	A Thoughtful Documentary of a Crocodile And a Robot who must Outrace a Womanizer in The Outback	2006	1	\N	6	0.99	101	27.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'must':13 'robot':11 'woman':16 'outrac':14 'runner':1 'madigan':2 'outback':19 'thought':4 'crocodil':8 'documentari':5
+753	RUSH GOODFELLAS	A Emotional Display of a Man And a Dentist who must Challenge a Squirrel in Australia	2006	1	\N	3	0.99	48	20.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'man':8 'emot':4 'must':13 'rush':1 'dentist':11 'display':5 'challeng':14 'squirrel':16 'australia':18 'goodfella':2
+754	RUSHMORE MERMAID	A Boring Story of a Woman And a Moose who must Reach a Husband in A Shark Tank	2006	1	\N	6	2.99	150	17.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'bore':4 'moos':11 'must':13 'tank':20 'reach':14 'shark':19 'stori':5 'woman':8 'husband':16 'mermaid':2 'rushmor':1
+755	SABRINA MIDNIGHT	A Emotional Story of a Squirrel And a Crocodile who must Succumb a Husband in The Sahara Desert	2006	1	\N	5	4.99	99	11.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'emot':4 'must':13 'stori':5 'desert':20 'sahara':19 'husband':16 'sabrina':1 'succumb':14 'crocodil':11 'midnight':2 'squirrel':8
+756	SADDLE ANTITRUST	A Stunning Epistle of a Feminist And a A Shark who must Battle a Woman in An Abandoned Fun House	2006	1	\N	7	2.99	80	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'fun':21 'hous':22 'must':14 'stun':4 'battl':15 'saddl':1 'shark':12 'woman':17 'epistl':5 'abandon':20 'feminist':8 'antitrust':2
+757	SAGEBRUSH CLUELESS	A Insightful Story of a Lumberjack And a Hunter who must Kill a Boy in Ancient Japan	2006	1	\N	4	2.99	106	28.99	G	2007-09-10 17:46:03.905795	{Trailers}	'boy':16 'kill':14 'must':13 'japan':19 'stori':5 'hunter':11 'ancient':18 'insight':4 'clueless':2 'sagebrush':1 'lumberjack':8
+758	SAINTS BRIDE	A Fateful Tale of a Technical Writer And a Composer who must Pursue a Explorer in The Gulf of Mexico	2006	1	\N	5	2.99	125	11.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'fate':4 'gulf':20 'must':14 'tale':5 'bride':2 'pursu':15 'saint':1 'compos':12 'explor':17 'mexico':22 'writer':9 'technic':8
+759	SALUTE APOLLO	A Awe-Inspiring Character Study of a Boy And a Feminist who must Sink a Crocodile in Ancient China	2006	1	\N	4	2.99	73	29.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'boy':11 'must':16 'sink':17 'china':22 'salut':1 'studi':8 'apollo':2 'inspir':6 'ancient':21 'charact':7 'crocodil':19 'feminist':14 'awe-inspir':4
+760	SAMURAI LION	A Fast-Paced Story of a Pioneer And a Astronaut who must Reach a Boat in A Baloon	2006	1	\N	5	2.99	110	21.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'boat':18 'fast':5 'lion':2 'must':15 'pace':6 'reach':16 'stori':7 'baloon':21 'pioneer':10 'samurai':1 'fast-pac':4 'astronaut':13
+761	SANTA PARIS	A Emotional Documentary of a Moose And a Car who must Redeem a Mad Cow in A Baloon Factory	2006	1	\N	7	2.99	154	23.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'car':11 'cow':17 'mad':16 'emot':4 'moos':8 'must':13 'pari':2 'santa':1 'baloon':20 'redeem':14 'factori':21 'documentari':5
+762	SASSY PACKER	A Fast-Paced Documentary of a Dog And a Teacher who must Find a Moose in A Manhattan Penthouse	2006	1	\N	6	0.99	154	29.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'dog':10 'fast':5 'find':16 'moos':18 'must':15 'pace':6 'sassi':1 'packer':2 'teacher':13 'fast-pac':4 'penthous':22 'manhattan':21 'documentari':7
+763	SATISFACTION CONFIDENTIAL	A Lacklusture Yarn of a Dentist And a Butler who must Meet a Secret Agent in Ancient China	2006	1	\N	3	4.99	75	26.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'meet':14 'must':13 'yarn':5 'agent':17 'china':20 'butler':11 'secret':16 'ancient':19 'dentist':8 'satisfact':1 'confidenti':2 'lacklustur':4
+764	SATURDAY LAMBS	A Thoughtful Reflection of a Mad Scientist And a Moose who must Kill a Husband in A Baloon	2006	1	\N	3	4.99	150	28.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'mad':8 'kill':15 'lamb':2 'moos':12 'must':14 'baloon':20 'husband':17 'reflect':5 'thought':4 'saturday':1 'scientist':9
+765	SATURN NAME	A Fateful Epistle of a Butler And a Boy who must Redeem a Teacher in Berlin	2006	1	\N	7	4.99	182	18.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':11 'fate':4 'must':13 'name':2 'berlin':18 'butler':8 'epistl':5 'redeem':14 'saturn':1 'teacher':16
+766	SAVANNAH TOWN	A Awe-Inspiring Tale of a Astronaut And a Database Administrator who must Chase a Secret Agent in The Gulf of Mexico	2006	1	\N	5	0.99	84	25.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'gulf':23 'must':16 'tale':7 'town':2 'agent':20 'chase':17 'inspir':6 'mexico':25 'secret':19 'databas':13 'savannah':1 'administr':14 'astronaut':10 'awe-inspir':4
+767	SCALAWAG DUCK	A Fateful Reflection of a Car And a Teacher who must Confront a Waitress in A Monastery	2006	1	\N	6	4.99	183	13.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'car':8 'duck':2 'fate':4 'must':13 'reflect':5 'teacher':11 'confront':14 'scalawag':1 'waitress':16 'monasteri':19
+768	SCARFACE BANG	A Emotional Yarn of a Teacher And a Girl who must Find a Teacher in A Baloon Factory	2006	1	\N	3	4.99	102	11.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'bang':2 'emot':4 'find':14 'girl':11 'must':13 'yarn':5 'baloon':19 'factori':20 'scarfac':1 'teacher':8,16
+769	SCHOOL JACKET	A Intrepid Yarn of a Monkey And a Boy who must Fight a Composer in A Manhattan Penthouse	2006	1	\N	5	4.99	151	21.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'boy':11 'must':13 'yarn':5 'fight':14 'compos':16 'jacket':2 'monkey':8 'school':1 'intrepid':4 'penthous':20 'manhattan':19
+770	SCISSORHANDS SLUMS	A Awe-Inspiring Drama of a Girl And a Technical Writer who must Meet a Feminist in The Canadian Rockies	2006	1	\N	5	2.99	147	13.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'girl':10 'meet':17 'must':16 'slum':2 'drama':7 'rocki':23 'inspir':6 'writer':14 'technic':13 'canadian':22 'feminist':19 'awe-inspir':4 'scissorhand':1
+771	SCORPION APOLLO	A Awe-Inspiring Documentary of a Technical Writer And a Husband who must Meet a Monkey in An Abandoned Fun House	2006	1	\N	3	4.99	137	23.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'awe':5 'fun':23 'hous':24 'meet':17 'must':16 'apollo':2 'inspir':6 'monkey':19 'writer':11 'abandon':22 'husband':14 'technic':10 'scorpion':1 'awe-inspir':4 'documentari':7
+772	SEA VIRGIN	A Fast-Paced Documentary of a Technical Writer And a Pastry Chef who must Escape a Moose in A U-Boat	2006	1	\N	4	2.99	80	24.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'u':24 'sea':1 'boat':25 'chef':15 'fast':5 'moos':20 'must':17 'pace':6 'escap':18 'pastri':14 'u-boat':23 'virgin':2 'writer':11 'technic':10 'fast-pac':4 'documentari':7
+773	SEABISCUIT PUNK	A Insightful Saga of a Man And a Forensic Psychologist who must Discover a Mad Cow in A MySQL Convention	2006	1	\N	6	2.99	112	28.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'cow':18 'mad':17 'man':8 'must':14 'punk':2 'saga':5 'mysql':21 'discov':15 'forens':11 'convent':22 'insight':4 'seabiscuit':1 'psychologist':12
+774	SEARCHERS WAIT	A Fast-Paced Tale of a Car And a Mad Scientist who must Kill a Womanizer in Ancient Japan	2006	1	\N	3	2.99	182	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'car':10 'mad':13 'fast':5 'kill':17 'must':16 'pace':6 'tale':7 'wait':2 'japan':22 'woman':19 'ancient':21 'fast-pac':4 'searcher':1 'scientist':14
+775	SEATTLE EXPECATIONS	A Insightful Reflection of a Crocodile And a Sumo Wrestler who must Meet a Technical Writer in The Sahara Desert	2006	1	\N	4	4.99	110	18.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'meet':15 'must':14 'sumo':11 'expec':2 'desert':22 'sahara':21 'seattl':1 'writer':18 'insight':4 'reflect':5 'technic':17 'crocodil':8 'wrestler':12
+776	SECRET GROUNDHOG	A Astounding Story of a Cat And a Database Administrator who must Build a Technical Writer in New Orleans	2006	1	\N	6	4.99	90	11.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'cat':8 'new':20 'must':14 'build':15 'stori':5 'orlean':21 'secret':1 'writer':18 'astound':4 'databas':11 'technic':17 'administr':12 'groundhog':2
+777	SECRETARY ROUGE	A Action-Packed Panorama of a Mad Cow And a Composer who must Discover a Robot in A Baloon Factory	2006	1	\N	5	4.99	158	10.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cow':11 'mad':10 'must':16 'pack':6 'roug':2 'robot':19 'action':5 'baloon':22 'compos':14 'discov':17 'factori':23 'panorama':7 'secretari':1 'action-pack':4
+778	SECRETS PARADISE	A Fateful Saga of a Cat And a Frisbee who must Kill a Girl in A Manhattan Penthouse	2006	1	\N	3	4.99	109	24.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cat':8 'fate':4 'girl':16 'kill':14 'must':13 'saga':5 'frisbe':11 'secret':1 'paradis':2 'penthous':20 'manhattan':19
+779	SENSE GREEK	A Taut Saga of a Lumberjack And a Pastry Chef who must Escape a Sumo Wrestler in An Abandoned Fun House	2006	1	\N	4	4.99	54	23.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'fun':22 'chef':12 'hous':23 'must':14 'saga':5 'sens':1 'sumo':17 'taut':4 'escap':15 'greek':2 'pastri':11 'abandon':21 'wrestler':18 'lumberjack':8
+780	SENSIBILITY REAR	A Emotional Tale of a Robot And a Sumo Wrestler who must Redeem a Pastry Chef in A Baloon Factory	2006	1	\N	7	4.99	98	15.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'chef':18 'emot':4 'must':14 'rear':2 'sumo':11 'tale':5 'robot':8 'baloon':21 'pastri':17 'redeem':15 'factori':22 'sensibl':1 'wrestler':12
+781	SEVEN SWARM	A Unbelieveable Character Study of a Dog And a Mad Cow who must Kill a Monkey in Berlin	2006	1	\N	4	4.99	127	15.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'cow':13 'dog':9 'mad':12 'kill':16 'must':15 'seven':1 'studi':6 'swarm':2 'berlin':20 'monkey':18 'charact':5 'unbeliev':4
+782	SHAKESPEARE SADDLE	A Fast-Paced Panorama of a Lumberjack And a Database Administrator who must Defeat a Madman in A MySQL Convention	2006	1	\N	6	2.99	60	26.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'fast':5 'must':16 'pace':6 'mysql':22 'saddl':2 'defeat':17 'madman':19 'convent':23 'databas':13 'fast-pac':4 'panorama':7 'administr':14 'lumberjack':10 'shakespear':1
+783	SHANE DARKNESS	A Action-Packed Saga of a Moose And a Lumberjack who must Find a Woman in Berlin	2006	1	\N	5	2.99	93	22.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'dark':2 'find':16 'moos':10 'must':15 'pack':6 'saga':7 'shane':1 'woman':18 'action':5 'berlin':20 'lumberjack':13 'action-pack':4
+784	SHANGHAI TYCOON	A Fast-Paced Character Study of a Crocodile And a Lumberjack who must Build a Husband in An Abandoned Fun House	2006	1	\N	7	2.99	47	20.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'fun':23 'fast':5 'hous':24 'must':16 'pace':6 'build':17 'studi':8 'tycoon':2 'abandon':22 'charact':7 'husband':19 'crocodil':11 'fast-pac':4 'shanghai':1 'lumberjack':14
+785	SHAWSHANK BUBBLE	A Lacklusture Story of a Moose And a Monkey who must Confront a Butler in An Abandoned Amusement Park	2006	1	\N	6	4.99	80	20.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'amus':20 'moos':8 'must':13 'park':21 'bubbl':2 'stori':5 'butler':16 'monkey':11 'abandon':19 'confront':14 'shawshank':1 'lacklustur':4
+786	SHEPHERD MIDSUMMER	A Thoughtful Drama of a Robot And a Womanizer who must Kill a Lumberjack in A Baloon	2006	1	\N	7	0.99	113	14.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'kill':14 'must':13 'drama':5 'robot':8 'woman':11 'baloon':19 'midsumm':2 'thought':4 'shepherd':1 'lumberjack':16
+787	SHINING ROSES	A Awe-Inspiring Character Study of a Astronaut And a Forensic Psychologist who must Challenge a Madman in Ancient India	2006	1	\N	4	0.99	125	12.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'must':17 'rose':2 'india':23 'shine':1 'studi':8 'forens':14 'inspir':6 'madman':20 'ancient':22 'charact':7 'challeng':18 'astronaut':11 'awe-inspir':4 'psychologist':15
+788	SHIP WONDERLAND	A Thrilling Saga of a Monkey And a Frisbee who must Escape a Explorer in The Outback	2006	1	\N	5	2.99	104	15.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'must':13 'saga':5 'ship':1 'escap':14 'explor':16 'frisbe':11 'monkey':8 'thrill':4 'outback':19 'wonderland':2
+789	SHOCK CABIN	A Fateful Tale of a Mad Cow And a Crocodile who must Meet a Husband in New Orleans	2006	1	\N	7	2.99	79	15.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'cow':9 'mad':8 'new':19 'fate':4 'meet':15 'must':14 'tale':5 'cabin':2 'shock':1 'orlean':20 'husband':17 'crocodil':12
+790	SHOOTIST SUPERFLY	A Fast-Paced Story of a Crocodile And a A Shark who must Sink a Pioneer in Berlin	2006	1	\N	6	0.99	67	22.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'fast':5 'must':16 'pace':6 'sink':17 'shark':14 'stori':7 'berlin':21 'pioneer':19 'crocodil':10 'fast-pac':4 'shootist':1 'superfli':2
+791	SHOW LORD	A Fanciful Saga of a Student And a Girl who must Find a Butler in Ancient Japan	2006	1	\N	3	4.99	167	24.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'find':14 'girl':11 'lord':2 'must':13 'saga':5 'show':1 'fanci':4 'japan':19 'butler':16 'ancient':18 'student':8
+792	SHREK LICENSE	A Fateful Yarn of a Secret Agent And a Feminist who must Find a Feminist in A Jet Boat	2006	1	\N	7	2.99	154	15.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'jet':20 'boat':21 'fate':4 'find':15 'must':14 'yarn':5 'agent':9 'shrek':1 'licens':2 'secret':8 'feminist':12,17
+793	SHRUNK DIVINE	A Fateful Character Study of a Waitress And a Technical Writer who must Battle a Hunter in A Baloon	2006	1	\N	6	2.99	139	14.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'fate':4 'must':15 'battl':16 'divin':2 'studi':6 'baloon':21 'hunter':18 'shrunk':1 'writer':13 'charact':5 'technic':12 'waitress':9
+794	SIDE ARK	A Stunning Panorama of a Crocodile And a Womanizer who must Meet a Feminist in The Canadian Rockies	2006	1	\N	5	0.99	52	28.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'ark':2 'meet':14 'must':13 'side':1 'stun':4 'rocki':20 'woman':11 'canadian':19 'crocodil':8 'feminist':16 'panorama':5
+795	SIEGE MADRE	A Boring Tale of a Frisbee And a Crocodile who must Vanquish a Moose in An Abandoned Mine Shaft	2006	1	\N	7	0.99	111	23.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'bore':4 'madr':2 'mine':20 'moos':16 'must':13 'sieg':1 'tale':5 'shaft':21 'frisbe':8 'abandon':19 'crocodil':11 'vanquish':14
+796	SIERRA DIVIDE	A Emotional Character Study of a Frisbee And a Mad Scientist who must Build a Madman in California	2006	1	\N	3	0.99	135	12.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'mad':12 'emot':4 'must':15 'build':16 'divid':2 'studi':6 'frisbe':9 'madman':18 'sierra':1 'charact':5 'scientist':13 'california':20
+797	SILENCE KANE	A Emotional Drama of a Sumo Wrestler And a Dentist who must Confront a Sumo Wrestler in A Baloon	2006	1	\N	7	0.99	67	23.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'emot':4 'kane':2 'must':14 'sumo':8,17 'drama':5 'baloon':21 'silenc':1 'dentist':12 'confront':15 'wrestler':9,18
+798	SILVERADO GOLDFINGER	A Stunning Epistle of a Sumo Wrestler And a Man who must Challenge a Waitress in Ancient India	2006	1	\N	4	4.99	74	11.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'man':12 'must':14 'stun':4 'sumo':8 'india':20 'epistl':5 'ancient':19 'challeng':15 'goldfing':2 'waitress':17 'wrestler':9 'silverado':1
+799	SIMON NORTH	A Thrilling Documentary of a Technical Writer And a A Shark who must Face a Pioneer in A Shark Tank	2006	1	\N	3	0.99	51	26.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'face':16 'must':15 'tank':22 'north':2 'shark':13,21 'simon':1 'thrill':4 'writer':9 'pioneer':18 'technic':8 'documentari':5
+800	SINNERS ATLANTIS	A Epic Display of a Dog And a Boat who must Succumb a Mad Scientist in An Abandoned Mine Shaft	2006	1	\N	7	2.99	126	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'dog':8 'mad':16 'boat':11 'epic':4 'mine':21 'must':13 'shaft':22 'sinner':1 'abandon':20 'atlanti':2 'display':5 'succumb':14 'scientist':17
+801	SISTER FREDDY	A Stunning Saga of a Butler And a Woman who must Pursue a Explorer in Australia	2006	1	\N	5	4.99	152	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'must':13 'saga':5 'stun':4 'pursu':14 'woman':11 'butler':8 'explor':16 'freddi':2 'sister':1 'australia':18
+802	SKY MIRACLE	A Epic Drama of a Mad Scientist And a Explorer who must Succumb a Waitress in An Abandoned Fun House	2006	1	\N	7	2.99	132	15.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'fun':21 'mad':8 'sky':1 'epic':4 'hous':22 'must':14 'drama':5 'explor':12 'miracl':2 'abandon':20 'succumb':15 'waitress':17 'scientist':9
+803	SLACKER LIAISONS	A Fast-Paced Tale of a A Shark And a Student who must Meet a Crocodile in Ancient China	2006	1	\N	7	4.99	179	29.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'fast':5 'meet':17 'must':16 'pace':6 'tale':7 'china':22 'shark':11 'ancient':21 'liaison':2 'slacker':1 'student':14 'crocodil':19 'fast-pac':4
+804	SLEEPING SUSPECTS	A Stunning Reflection of a Sumo Wrestler And a Explorer who must Sink a Frisbee in A MySQL Convention	2006	1	\N	7	4.99	129	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'must':14 'sink':15 'stun':4 'sumo':8 'mysql':20 'sleep':1 'explor':12 'frisbe':17 'convent':21 'reflect':5 'suspect':2 'wrestler':9
+805	SLEEPLESS MONSOON	A Amazing Saga of a Moose And a Pastry Chef who must Escape a Butler in Australia	2006	1	\N	5	4.99	64	12.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'amaz':4 'chef':12 'moos':8 'must':14 'saga':5 'escap':15 'butler':17 'pastri':11 'monsoon':2 'australia':19 'sleepless':1
+806	SLEEPY JAPANESE	A Emotional Epistle of a Moose And a Composer who must Fight a Technical Writer in The Outback	2006	1	\N	4	2.99	137	25.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'emot':4 'moos':8 'must':13 'fight':14 'compos':11 'epistl':5 'sleepi':1 'writer':17 'japanes':2 'outback':20 'technic':16
+807	SLEUTH ORIENT	A Fateful Character Study of a Husband And a Dog who must Find a Feminist in Ancient India	2006	1	\N	4	0.99	87	25.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'dog':12 'fate':4 'find':15 'must':14 'india':20 'studi':6 'orient':2 'sleuth':1 'ancient':19 'charact':5 'husband':9 'feminist':17
+808	SLING LUKE	A Intrepid Character Study of a Robot And a Monkey who must Reach a Secret Agent in An Abandoned Amusement Park	2006	1	\N	5	0.99	84	10.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'amus':22 'luke':2 'must':14 'park':23 'agent':18 'reach':15 'robot':9 'sling':1 'studi':6 'monkey':12 'secret':17 'abandon':21 'charact':5 'intrepid':4
+809	SLIPPER FIDELITY	A Taut Reflection of a Secret Agent And a Man who must Redeem a Explorer in A MySQL Convention	2006	1	\N	5	0.99	156	14.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'man':12 'must':14 'taut':4 'agent':9 'fidel':2 'mysql':20 'explor':17 'redeem':15 'secret':8 'convent':21 'reflect':5 'slipper':1
+810	SLUMS DUCK	A Amazing Character Study of a Teacher And a Database Administrator who must Defeat a Waitress in A Jet Boat	2006	1	\N	5	0.99	147	21.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'jet':21 'amaz':4 'boat':22 'duck':2 'must':15 'slum':1 'studi':6 'defeat':16 'charact':5 'databas':12 'teacher':9 'waitress':18 'administr':13
+811	SMILE EARRING	A Intrepid Drama of a Teacher And a Butler who must Build a Pastry Chef in Berlin	2006	1	\N	4	2.99	60	29.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'chef':17 'must':13 'build':14 'drama':5 'smile':1 'berlin':19 'butler':11 'pastri':16 'earring':2 'teacher':8 'intrepid':4
+812	SMOKING BARBARELLA	A Lacklusture Saga of a Mad Cow And a Mad Scientist who must Sink a Cat in A MySQL Convention	2006	1	\N	7	0.99	50	13.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'cat':18 'cow':9 'mad':8,12 'must':15 'saga':5 'sink':16 'mysql':21 'smoke':1 'convent':22 'scientist':13 'barbarella':2 'lacklustur':4
+813	SMOOCHY CONTROL	A Thrilling Documentary of a Husband And a Feminist who must Face a Mad Scientist in Ancient China	2006	1	\N	7	0.99	184	18.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'mad':16 'face':14 'must':13 'china':20 'thrill':4 'ancient':19 'control':2 'husband':8 'smoochi':1 'feminist':11 'scientist':17 'documentari':5
+814	SNATCH SLIPPER	A Insightful Panorama of a Woman And a Feminist who must Defeat a Forensic Psychologist in Berlin	2006	1	\N	6	4.99	110	15.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'must':13 'woman':8 'berlin':19 'defeat':14 'forens':16 'snatch':1 'insight':4 'slipper':2 'feminist':11 'panorama':5 'psychologist':17
+815	SNATCHERS MONTEZUMA	A Boring Epistle of a Sumo Wrestler And a Woman who must Escape a Man in The Canadian Rockies	2006	1	\N	4	2.99	74	14.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'man':17 'bore':4 'must':14 'sumo':8 'escap':15 'rocki':21 'woman':12 'epistl':5 'canadian':20 'snatcher':1 'wrestler':9 'montezuma':2
+816	SNOWMAN ROLLERCOASTER	A Fateful Display of a Lumberjack And a Girl who must Succumb a Mad Cow in A Manhattan Penthouse	2006	1	\N	3	0.99	62	27.99	G	2007-09-10 17:46:03.905795	{Trailers}	'cow':17 'mad':16 'fate':4 'girl':11 'must':13 'display':5 'snowman':1 'succumb':14 'penthous':21 'manhattan':20 'lumberjack':8 'rollercoast':2
+817	SOLDIERS EVOLUTION	A Lacklusture Panorama of a A Shark And a Pioneer who must Confront a Student in The First Manned Space Station	2006	1	\N	7	4.99	185	27.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'man':21 'must':14 'first':20 'shark':9 'space':22 'evolut':2 'pioneer':12 'soldier':1 'station':23 'student':17 'confront':15 'panorama':5 'lacklustur':4
+818	SOMETHING DUCK	A Boring Character Study of a Car And a Husband who must Outgun a Frisbee in The First Manned Space Station	2006	1	\N	4	4.99	180	17.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'car':9 'man':21 'bore':4 'duck':2 'must':14 'first':20 'space':22 'studi':6 'frisbe':17 'outgun':15 'someth':1 'charact':5 'husband':12 'station':23
+819	SONG HEDWIG	A Amazing Documentary of a Man And a Husband who must Confront a Squirrel in A MySQL Convention	2006	1	\N	3	0.99	165	29.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'man':8 'amaz':4 'must':13 'song':1 'mysql':19 'hedwig':2 'convent':20 'husband':11 'confront':14 'squirrel':16 'documentari':5
+820	SONS INTERVIEW	A Taut Character Study of a Explorer And a Mad Cow who must Battle a Hunter in Ancient China	2006	1	\N	3	2.99	184	11.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cow':13 'mad':12 'son':1 'must':15 'taut':4 'battl':16 'china':21 'studi':6 'explor':9 'hunter':18 'ancient':20 'charact':5 'interview':2
+821	SORORITY QUEEN	A Fast-Paced Display of a Squirrel And a Composer who must Fight a Forensic Psychologist in A Jet Boat	2006	1	\N	6	0.99	184	17.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'jet':22 'boat':23 'fast':5 'must':15 'pace':6 'fight':16 'queen':2 'soror':1 'compos':13 'forens':18 'display':7 'fast-pac':4 'squirrel':10 'psychologist':19
+822	SOUP WISDOM	A Fast-Paced Display of a Robot And a Butler who must Defeat a Butler in A MySQL Convention	2006	1	\N	6	0.99	169	12.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'fast':5 'must':15 'pace':6 'soup':1 'mysql':21 'robot':10 'butler':13,18 'defeat':16 'wisdom':2 'convent':22 'display':7 'fast-pac':4
+823	SOUTH WAIT	A Amazing Documentary of a Car And a Robot who must Escape a Lumberjack in An Abandoned Amusement Park	2006	1	\N	4	2.99	143	21.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'car':8 'amaz':4 'amus':20 'must':13 'park':21 'wait':2 'escap':14 'robot':11 'south':1 'abandon':19 'lumberjack':16 'documentari':5
+824	SPARTACUS CHEAPER	A Thrilling Panorama of a Pastry Chef And a Secret Agent who must Overcome a Student in A Manhattan Penthouse	2006	1	\N	4	4.99	52	19.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'chef':9 'must':15 'agent':13 'pastri':8 'secret':12 'thrill':4 'cheaper':2 'overcom':16 'student':18 'panorama':5 'penthous':22 'manhattan':21 'spartacus':1
+825	SPEAKEASY DATE	A Lacklusture Drama of a Forensic Psychologist And a Car who must Redeem a Man in A Manhattan Penthouse	2006	1	\N	6	2.99	165	22.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'car':12 'man':17 'date':2 'must':14 'drama':5 'forens':8 'redeem':15 'penthous':21 'manhattan':20 'speakeasi':1 'lacklustur':4 'psychologist':9
+826	SPEED SUIT	A Brilliant Display of a Frisbee And a Mad Scientist who must Succumb a Robot in Ancient China	2006	1	\N	7	4.99	124	19.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'mad':11 'must':14 'suit':2 'china':20 'robot':17 'speed':1 'frisbe':8 'ancient':19 'display':5 'succumb':15 'brilliant':4 'scientist':12
+827	SPICE SORORITY	A Fateful Display of a Pioneer And a Hunter who must Defeat a Husband in An Abandoned Mine Shaft	2006	1	\N	5	4.99	141	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'fate':4 'mine':20 'must':13 'shaft':21 'soror':2 'spice':1 'defeat':14 'hunter':11 'abandon':19 'display':5 'husband':16 'pioneer':8
+828	SPIKING ELEMENT	A Lacklusture Epistle of a Dentist And a Technical Writer who must Find a Dog in A Monastery	2006	1	\N	7	2.99	79	12.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dog':17 'find':15 'must':14 'spike':1 'epistl':5 'writer':12 'dentist':8 'element':2 'technic':11 'monasteri':20 'lacklustur':4
+829	SPINAL ROCKY	A Lacklusture Epistle of a Sumo Wrestler And a Squirrel who must Defeat a Explorer in California	2006	1	\N	7	2.99	138	12.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':14 'sumo':8 'rocki':2 'defeat':15 'epistl':5 'explor':17 'spinal':1 'squirrel':12 'wrestler':9 'california':19 'lacklustur':4
+830	SPIRIT FLINTSTONES	A Brilliant Yarn of a Cat And a Car who must Confront a Explorer in Ancient Japan	2006	1	\N	7	0.99	149	23.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'car':11 'cat':8 'must':13 'yarn':5 'japan':19 'explor':16 'spirit':1 'ancient':18 'confront':14 'brilliant':4 'flintston':2
+831	SPIRITED CASUALTIES	A Taut Story of a Waitress And a Man who must Face a Car in A Baloon Factory	2006	1	\N	5	0.99	138	20.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'car':16 'man':11 'face':14 'must':13 'taut':4 'stori':5 'baloon':19 'spirit':1 'factori':20 'casualti':2 'waitress':8
+832	SPLASH GUMP	A Taut Saga of a Crocodile And a Boat who must Conquer a Hunter in A Shark Tank	2006	1	\N	5	0.99	175	16.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boat':11 'gump':2 'must':13 'saga':5 'tank':20 'taut':4 'shark':19 'hunter':16 'splash':1 'conquer':14 'crocodil':8
+833	SPLENDOR PATTON	A Taut Story of a Dog And a Explorer who must Find a Astronaut in Berlin	2006	1	\N	5	0.99	134	20.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':8 'find':14 'must':13 'taut':4 'stori':5 'berlin':18 'explor':11 'patton':2 'splendor':1 'astronaut':16
+834	SPOILERS HELLFIGHTERS	A Fanciful Story of a Technical Writer And a Squirrel who must Defeat a Dog in The Gulf of Mexico	2006	1	\N	4	0.99	151	26.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':17 'gulf':20 'must':14 'fanci':4 'stori':5 'defeat':15 'mexico':22 'writer':9 'spoiler':1 'technic':8 'squirrel':12 'hellfight':2
+835	SPY MILE	A Thrilling Documentary of a Feminist And a Feminist who must Confront a Feminist in A Baloon	2006	1	\N	6	2.99	112	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'spi':1 'mile':2 'must':13 'baloon':19 'thrill':4 'confront':14 'feminist':8,11,16 'documentari':5
+836	SQUAD FISH	A Fast-Paced Display of a Pastry Chef And a Dog who must Kill a Teacher in Berlin	2006	1	\N	3	2.99	136	14.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':14 'chef':11 'fast':5 'fish':2 'kill':17 'must':16 'pace':6 'squad':1 'berlin':21 'pastri':10 'display':7 'teacher':19 'fast-pac':4
+837	STAGE WORLD	A Lacklusture Panorama of a Woman And a Frisbee who must Chase a Crocodile in A Jet Boat	2006	1	\N	4	2.99	85	19.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'jet':19 'boat':20 'must':13 'chase':14 'stage':1 'woman':8 'world':2 'frisbe':11 'crocodil':16 'panorama':5 'lacklustur':4
+838	STAGECOACH ARMAGEDDON	A Touching Display of a Pioneer And a Butler who must Chase a Car in California	2006	1	\N	5	4.99	112	25.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'car':16 'must':13 'chase':14 'touch':4 'butler':11 'display':5 'pioneer':8 'armageddon':2 'california':18 'stagecoach':1
+839	STALLION SUNDANCE	A Fast-Paced Tale of a Car And a Dog who must Outgun a A Shark in Australia	2006	1	\N	5	0.99	130	23.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'car':10 'dog':13 'fast':5 'must':15 'pace':6 'tale':7 'shark':19 'outgun':16 'sundanc':2 'fast-pac':4 'stallion':1 'australia':21
+840	STAMPEDE DISTURBING	A Unbelieveable Tale of a Woman And a Lumberjack who must Fight a Frisbee in A U-Boat	2006	1	\N	5	0.99	75	26.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':20 'boat':21 'must':13 'tale':5 'fight':14 'woman':8 'frisbe':16 'u-boat':19 'disturb':2 'stamped':1 'unbeliev':4 'lumberjack':11
+841	STAR OPERATION	A Insightful Character Study of a Girl And a Car who must Pursue a Mad Cow in A Shark Tank	2006	1	\N	5	2.99	181	9.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'car':12 'cow':18 'mad':17 'girl':9 'must':14 'oper':2 'star':1 'tank':22 'pursu':15 'shark':21 'studi':6 'charact':5 'insight':4
+842	STATE WASTELAND	A Beautiful Display of a Cat And a Pastry Chef who must Outrace a Mad Cow in A Jet Boat	2006	1	\N	4	2.99	113	13.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'cat':8 'cow':18 'jet':21 'mad':17 'boat':22 'chef':12 'must':14 'state':1 'beauti':4 'outrac':15 'pastri':11 'display':5 'wasteland':2
+843	STEEL SANTA	A Fast-Paced Yarn of a Composer And a Frisbee who must Face a Moose in Nigeria	2006	1	\N	4	4.99	143	15.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'face':16 'fast':5 'moos':18 'must':15 'pace':6 'yarn':7 'santa':2 'steel':1 'compos':10 'frisbe':13 'nigeria':20 'fast-pac':4
+844	STEERS ARMAGEDDON	A Stunning Character Study of a Car And a Girl who must Succumb a Car in A MySQL Convention	2006	1	\N	6	4.99	140	16.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'car':9,17 'girl':12 'must':14 'stun':4 'mysql':20 'steer':1 'studi':6 'charact':5 'convent':21 'succumb':15 'armageddon':2
+845	STEPMOM DREAM	A Touching Epistle of a Crocodile And a Teacher who must Build a Forensic Psychologist in A MySQL Convention	2006	1	\N	7	4.99	48	9.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'must':13 'build':14 'dream':2 'mysql':20 'touch':4 'epistl':5 'forens':16 'convent':21 'stepmom':1 'teacher':11 'crocodil':8 'psychologist':17
+846	STING PERSONAL	A Fanciful Drama of a Frisbee And a Dog who must Fight a Madman in A Jet Boat	2006	1	\N	3	4.99	93	9.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':11 'jet':19 'boat':20 'must':13 'drama':5 'fanci':4 'fight':14 'sting':1 'frisbe':8 'madman':16 'person':2
+847	STOCK GLASS	A Boring Epistle of a Crocodile And a Lumberjack who must Outgun a Moose in Ancient China	2006	1	\N	7	2.99	160	10.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'bore':4 'moos':16 'must':13 'china':19 'glass':2 'stock':1 'epistl':5 'outgun':14 'ancient':18 'crocodil':8 'lumberjack':11
+848	STONE FIRE	A Intrepid Drama of a Astronaut And a Crocodile who must Find a Boat in Soviet Georgia	2006	1	\N	3	0.99	94	19.99	G	2007-09-10 17:46:03.905795	{Trailers}	'boat':16 'find':14 'fire':2 'must':13 'drama':5 'stone':1 'soviet':18 'georgia':19 'crocodil':11 'intrepid':4 'astronaut':8
+849	STORM HAPPINESS	A Insightful Drama of a Feminist And a A Shark who must Vanquish a Boat in A Shark Tank	2006	1	\N	6	0.99	57	28.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'boat':17 'must':14 'tank':21 'drama':5 'happi':2 'shark':12,20 'storm':1 'insight':4 'feminist':8 'vanquish':15
+850	STORY SIDE	A Lacklusture Saga of a Boy And a Cat who must Sink a Dentist in An Abandoned Mine Shaft	2006	1	\N	7	0.99	163	27.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'boy':8 'cat':11 'mine':20 'must':13 'saga':5 'side':2 'sink':14 'shaft':21 'stori':1 'abandon':19 'dentist':16 'lacklustur':4
+851	STRAIGHT HOURS	A Boring Panorama of a Secret Agent And a Girl who must Sink a Waitress in The Outback	2006	1	\N	3	0.99	151	19.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'bore':4 'girl':12 'hour':2 'must':14 'sink':15 'agent':9 'secret':8 'outback':20 'panorama':5 'straight':1 'waitress':17
+852	STRANGELOVE DESIRE	A Awe-Inspiring Panorama of a Lumberjack And a Waitress who must Defeat a Crocodile in An Abandoned Amusement Park	2006	1	\N	4	0.99	103	27.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'awe':5 'amus':22 'must':15 'park':23 'desir':2 'defeat':16 'inspir':6 'abandon':21 'crocodil':18 'panorama':7 'waitress':13 'awe-inspir':4 'lumberjack':10 'strangelov':1
+853	STRANGER STRANGERS	A Awe-Inspiring Yarn of a Womanizer And a Explorer who must Fight a Woman in The First Manned Space Station	2006	1	\N	3	4.99	139	12.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'awe':5 'man':22 'must':15 'yarn':7 'fight':16 'first':21 'space':23 'woman':10,18 'explor':13 'inspir':6 'station':24 'stranger':1,2 'awe-inspir':4
+854	STRANGERS GRAFFITI	A Brilliant Character Study of a Secret Agent And a Man who must Find a Cat in The Gulf of Mexico	2006	1	\N	4	4.99	119	22.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'cat':18 'man':13 'find':16 'gulf':21 'must':15 'agent':10 'studi':6 'mexico':23 'secret':9 'charact':5 'graffiti':2 'stranger':1 'brilliant':4
+855	STREAK RIDGEMONT	A Astounding Character Study of a Hunter And a Waitress who must Sink a Man in New Orleans	2006	1	\N	7	0.99	132	28.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'man':17 'new':19 'must':14 'sink':15 'studi':6 'hunter':9 'orlean':20 'streak':1 'astound':4 'charact':5 'waitress':12 'ridgemont':2
+856	STREETCAR INTENTIONS	A Insightful Character Study of a Waitress And a Crocodile who must Sink a Waitress in The Gulf of Mexico	2006	1	\N	5	4.99	73	11.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'gulf':20 'must':14 'sink':15 'studi':6 'intent':2 'mexico':22 'charact':5 'insight':4 'crocodil':12 'waitress':9,17 'streetcar':1
+857	STRICTLY SCARFACE	A Touching Reflection of a Crocodile And a Dog who must Chase a Hunter in An Abandoned Fun House	2006	1	\N	3	2.99	144	24.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'dog':11 'fun':20 'hous':21 'must':13 'chase':14 'touch':4 'hunter':16 'strict':1 'abandon':19 'reflect':5 'scarfac':2 'crocodil':8
+858	SUBMARINE BED	A Amazing Display of a Car And a Monkey who must Fight a Teacher in Soviet Georgia	2006	1	\N	5	4.99	127	21.99	R	2007-09-10 17:46:03.905795	{Trailers}	'bed':2 'car':8 'amaz':4 'must':13 'fight':14 'monkey':11 'soviet':18 'display':5 'georgia':19 'teacher':16 'submarin':1
+859	SUGAR WONKA	A Touching Story of a Dentist And a Database Administrator who must Conquer a Astronaut in An Abandoned Amusement Park	2006	1	\N	3	4.99	114	20.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'amus':21 'must':14 'park':22 'stori':5 'sugar':1 'touch':4 'wonka':2 'abandon':20 'conquer':15 'databas':11 'dentist':8 'administr':12 'astronaut':17
+860	SUICIDES SILENCE	A Emotional Character Study of a Car And a Girl who must Face a Composer in A U-Boat	2006	1	\N	4	4.99	93	13.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'u':21 'car':9 'boat':22 'emot':4 'face':15 'girl':12 'must':14 'studi':6 'compos':17 'silenc':2 'suicid':1 'u-boat':20 'charact':5
+861	SUIT WALLS	A Touching Panorama of a Lumberjack And a Frisbee who must Build a Dog in Australia	2006	1	\N	3	4.99	111	12.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'dog':16 'must':13 'suit':1 'wall':2 'build':14 'touch':4 'frisbe':11 'panorama':5 'australia':18 'lumberjack':8
+862	SUMMER SCARFACE	A Emotional Panorama of a Lumberjack And a Hunter who must Meet a Girl in A Shark Tank	2006	1	\N	5	0.99	53	25.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'emot':4 'girl':16 'meet':14 'must':13 'tank':20 'shark':19 'hunter':11 'summer':1 'scarfac':2 'panorama':5 'lumberjack':8
+863	SUN CONFESSIONS	A Beautiful Display of a Mad Cow And a Dog who must Redeem a Waitress in An Abandoned Amusement Park	2006	1	\N	5	0.99	141	9.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'cow':9 'dog':12 'mad':8 'sun':1 'amus':21 'must':14 'park':22 'beauti':4 'redeem':15 'abandon':20 'confess':2 'display':5 'waitress':17
+864	SUNDANCE INVASION	A Epic Drama of a Lumberjack And a Explorer who must Confront a Hunter in A Baloon Factory	2006	1	\N	5	0.99	92	21.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'epic':4 'must':13 'drama':5 'invas':2 'baloon':19 'explor':11 'hunter':16 'factori':20 'sundanc':1 'confront':14 'lumberjack':8
+865	SUNRISE LEAGUE	A Beautiful Epistle of a Madman And a Butler who must Face a Crocodile in A Manhattan Penthouse	2006	1	\N	3	4.99	135	19.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'face':14 'must':13 'leagu':2 'beauti':4 'butler':11 'epistl':5 'madman':8 'sunris':1 'crocodil':16 'penthous':20 'manhattan':19
+866	SUNSET RACER	A Awe-Inspiring Reflection of a Astronaut And a A Shark who must Defeat a Forensic Psychologist in California	2006	1	\N	6	0.99	48	28.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'awe':5 'must':16 'racer':2 'shark':14 'defeat':17 'forens':19 'inspir':6 'sunset':1 'reflect':7 'astronaut':10 'awe-inspir':4 'california':22 'psychologist':20
+867	SUPER WYOMING	A Action-Packed Saga of a Pastry Chef And a Explorer who must Discover a A Shark in The Outback	2006	1	\N	5	4.99	58	10.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'chef':11 'must':16 'pack':6 'saga':7 'wyom':2 'shark':20 'super':1 'action':5 'discov':17 'explor':14 'pastri':10 'outback':23 'action-pack':4
+868	SUPERFLY TRIP	A Beautiful Saga of a Lumberjack And a Teacher who must Build a Technical Writer in An Abandoned Fun House	2006	1	\N	5	0.99	114	27.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'fun':21 'hous':22 'must':13 'saga':5 'trip':2 'build':14 'beauti':4 'writer':17 'abandon':20 'teacher':11 'technic':16 'superfli':1 'lumberjack':8
+869	SUSPECTS QUILLS	A Emotional Epistle of a Pioneer And a Crocodile who must Battle a Man in A Manhattan Penthouse	2006	1	\N	4	2.99	47	22.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'man':16 'emot':4 'must':13 'battl':14 'quill':2 'epistl':5 'pioneer':8 'suspect':1 'crocodil':11 'penthous':20 'manhattan':19
+870	SWARM GOLD	A Insightful Panorama of a Crocodile And a Boat who must Conquer a Sumo Wrestler in A MySQL Convention	2006	1	\N	4	0.99	123	12.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'boat':11 'gold':2 'must':13 'sumo':16 'mysql':20 'swarm':1 'conquer':14 'convent':21 'insight':4 'crocodil':8 'panorama':5 'wrestler':17
+871	SWEDEN SHINING	A Taut Documentary of a Car And a Robot who must Conquer a Boy in The Canadian Rockies	2006	1	\N	6	4.99	176	19.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'car':8 'must':13 'taut':4 'robot':11 'rocki':20 'shine':2 'sweden':1 'conquer':14 'canadian':19 'documentari':5
+872	SWEET BROTHERHOOD	A Unbelieveable Epistle of a Sumo Wrestler And a Hunter who must Chase a Forensic Psychologist in A Baloon	2006	1	\N	3	2.99	185	27.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'must':14 'sumo':8 'chase':15 'sweet':1 'baloon':21 'epistl':5 'forens':17 'hunter':12 'unbeliev':4 'wrestler':9 'brotherhood':2 'psychologist':18
+873	SWEETHEARTS SUSPECTS	A Brilliant Character Study of a Frisbee And a Sumo Wrestler who must Confront a Woman in The Gulf of Mexico	2006	1	\N	3	0.99	108	13.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'gulf':21 'must':15 'sumo':12 'studi':6 'woman':18 'frisbe':9 'mexico':23 'charact':5 'suspect':2 'confront':16 'wrestler':13 'brilliant':4 'sweetheart':1
+874	TADPOLE PARK	A Beautiful Tale of a Frisbee And a Moose who must Vanquish a Dog in An Abandoned Amusement Park	2006	1	\N	6	2.99	155	13.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'dog':16 'amus':20 'moos':11 'must':13 'park':2,21 'tale':5 'beauti':4 'frisbe':8 'tadpol':1 'abandon':19 'vanquish':14
+875	TALENTED HOMICIDE	A Lacklusture Panorama of a Dentist And a Forensic Psychologist who must Outrace a Pioneer in A U-Boat	2006	1	\N	6	0.99	173	9.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'u':21 'boat':22 'must':14 'forens':11 'outrac':15 'talent':1 'u-boat':20 'dentist':8 'homicid':2 'pioneer':17 'panorama':5 'lacklustur':4 'psychologist':12
+876	TARZAN VIDEOTAPE	A Fast-Paced Display of a Lumberjack And a Mad Scientist who must Succumb a Sumo Wrestler in The Sahara Desert	2006	1	\N	3	2.99	91	11.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'mad':13 'fast':5 'must':16 'pace':6 'sumo':19 'desert':24 'sahara':23 'tarzan':1 'display':7 'succumb':17 'fast-pac':4 'videotap':2 'wrestler':20 'scientist':14 'lumberjack':10
+877	TAXI KICK	A Amazing Epistle of a Girl And a Woman who must Outrace a Waitress in Soviet Georgia	2006	1	\N	4	0.99	64	23.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'amaz':4 'girl':8 'kick':2 'must':13 'taxi':1 'woman':11 'epistl':5 'outrac':14 'soviet':18 'georgia':19 'waitress':16
+878	TEEN APOLLO	A Awe-Inspiring Drama of a Dog And a Man who must Escape a Robot in A Shark Tank	2006	1	\N	3	4.99	74	25.99	G	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'awe':5 'dog':10 'man':13 'must':15 'tank':22 'teen':1 'drama':7 'escap':16 'robot':18 'shark':21 'apollo':2 'inspir':6 'awe-inspir':4
+879	TELEGRAPH VOYAGE	A Fateful Yarn of a Husband And a Dog who must Battle a Waitress in A Jet Boat	2006	1	\N	3	4.99	148	20.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'dog':11 'jet':19 'boat':20 'fate':4 'must':13 'yarn':5 'battl':14 'voyag':2 'husband':8 'waitress':16 'telegraph':1
+880	TELEMARK HEARTBREAKERS	A Action-Packed Panorama of a Technical Writer And a Man who must Build a Forensic Psychologist in A Manhattan Penthouse	2006	1	\N	6	2.99	152	9.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'man':14 'must':16 'pack':6 'build':17 'action':5 'forens':19 'writer':11 'technic':10 'panorama':7 'penthous':24 'telemark':1 'manhattan':23 'heartbreak':2 'action-pack':4 'psychologist':20
+881	TEMPLE ATTRACTION	A Action-Packed Saga of a Forensic Psychologist And a Woman who must Battle a Womanizer in Soviet Georgia	2006	1	\N	5	4.99	71	13.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':16 'pack':6 'saga':7 'battl':17 'templ':1 'woman':14,19 'action':5 'forens':10 'soviet':21 'attract':2 'georgia':22 'action-pack':4 'psychologist':11
+882	TENENBAUMS COMMAND	A Taut Display of a Pioneer And a Man who must Reach a Girl in The Gulf of Mexico	2006	1	\N	4	0.99	99	24.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'man':11 'girl':16 'gulf':19 'must':13 'taut':4 'reach':14 'mexico':21 'command':2 'display':5 'pioneer':8 'tenenbaum':1
+883	TEQUILA PAST	A Action-Packed Panorama of a Mad Scientist And a Robot who must Challenge a Student in Nigeria	2006	1	\N	6	4.99	53	17.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'mad':10 'must':16 'pack':6 'past':2 'robot':14 'action':5 'nigeria':21 'student':19 'tequila':1 'challeng':17 'panorama':7 'scientist':11 'action-pack':4
+884	TERMINATOR CLUB	A Touching Story of a Crocodile And a Girl who must Sink a Man in The Gulf of Mexico	2006	1	\N	5	4.99	88	11.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'man':16 'club':2 'girl':11 'gulf':19 'must':13 'sink':14 'stori':5 'touch':4 'mexico':21 'termin':1 'crocodil':8
+885	TEXAS WATCH	A Awe-Inspiring Yarn of a Student And a Teacher who must Fight a Teacher in An Abandoned Amusement Park	2006	1	\N	7	0.99	179	22.99	NC-17	2007-09-10 17:46:03.905795	{Trailers}	'awe':5 'amus':22 'must':15 'park':23 'texa':1 'yarn':7 'fight':16 'watch':2 'inspir':6 'abandon':21 'student':10 'teacher':13,18 'awe-inspir':4
+886	THEORY MERMAID	A Fateful Yarn of a Composer And a Monkey who must Vanquish a Womanizer in The First Manned Space Station	2006	1	\N	5	0.99	184	9.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':20 'fate':4 'must':13 'yarn':5 'first':19 'space':21 'woman':16 'compos':8 'monkey':11 'theori':1 'mermaid':2 'station':22 'vanquish':14
+887	THIEF PELICAN	A Touching Documentary of a Madman And a Mad Scientist who must Outrace a Feminist in An Abandoned Mine Shaft	2006	1	\N	5	4.99	135	28.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'mad':11 'mine':21 'must':14 'shaft':22 'thief':1 'touch':4 'madman':8 'outrac':15 'abandon':20 'pelican':2 'feminist':17 'scientist':12 'documentari':5
+888	THIN SAGEBRUSH	A Emotional Drama of a Husband And a Lumberjack who must Build a Cat in Ancient India	2006	1	\N	5	4.99	53	9.99	PG-13	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'cat':16 'emot':4 'must':13 'thin':1 'build':14 'drama':5 'india':19 'ancient':18 'husband':8 'sagebrush':2 'lumberjack':11
+889	TIES HUNGER	A Insightful Saga of a Astronaut And a Explorer who must Pursue a Mad Scientist in A U-Boat	2006	1	\N	3	4.99	111	28.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'u':21 'mad':16 'tie':1 'boat':22 'must':13 'saga':5 'pursu':14 'explor':11 'hunger':2 'u-boat':20 'insight':4 'astronaut':8 'scientist':17
+890	TIGHTS DAWN	A Thrilling Epistle of a Boat And a Secret Agent who must Face a Boy in A Baloon	2006	1	\N	5	0.99	172	14.99	R	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'boy':17 'boat':8 'dawn':2 'face':15 'must':14 'agent':12 'tight':1 'baloon':20 'epistl':5 'secret':11 'thrill':4
+891	TIMBERLAND SKY	A Boring Display of a Man And a Dog who must Redeem a Girl in A U-Boat	2006	1	\N	3	0.99	69	13.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'u':20 'dog':11 'man':8 'sky':2 'boat':21 'bore':4 'girl':16 'must':13 'redeem':14 'u-boat':19 'display':5 'timberland':1
+892	TITANIC BOONDOCK	A Brilliant Reflection of a Feminist And a Dog who must Fight a Boy in A Baloon Factory	2006	1	\N	3	4.99	104	18.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'boy':16 'dog':11 'must':13 'fight':14 'titan':1 'baloon':19 'factori':20 'reflect':5 'boondock':2 'feminist':8 'brilliant':4
+893	TITANS JERK	A Unbelieveable Panorama of a Feminist And a Sumo Wrestler who must Challenge a Technical Writer in Ancient China	2006	1	\N	4	4.99	91	11.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'jerk':2 'must':14 'sumo':11 'china':21 'titan':1 'writer':18 'ancient':20 'technic':17 'challeng':15 'feminist':8 'panorama':5 'unbeliev':4 'wrestler':12
+894	TOMATOES HELLFIGHTERS	A Thoughtful Epistle of a Madman And a Astronaut who must Overcome a Monkey in A Shark Tank	2006	1	\N	6	0.99	68	23.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'must':13 'tank':20 'shark':19 'epistl':5 'madman':8 'monkey':16 'tomato':1 'overcom':14 'thought':4 'astronaut':11 'hellfight':2
+895	TOMORROW HUSTLER	A Thoughtful Story of a Moose And a Husband who must Face a Secret Agent in The Sahara Desert	2006	1	\N	3	2.99	142	21.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'face':14 'moos':8 'must':13 'agent':17 'stori':5 'desert':21 'sahara':20 'secret':16 'husband':11 'hustler':2 'thought':4 'tomorrow':1
+896	TOOTSIE PILOT	A Awe-Inspiring Documentary of a Womanizer And a Pastry Chef who must Kill a Lumberjack in Berlin	2006	1	\N	3	0.99	157	10.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'chef':14 'kill':17 'must':16 'pilot':2 'woman':10 'berlin':21 'inspir':6 'pastri':13 'tootsi':1 'awe-inspir':4 'lumberjack':19 'documentari':7
+897	TORQUE BOUND	A Emotional Display of a Crocodile And a Husband who must Reach a Man in Ancient Japan	2006	1	\N	3	4.99	179	27.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'man':16 'emot':4 'must':13 'bound':2 'japan':19 'reach':14 'torqu':1 'ancient':18 'display':5 'husband':11 'crocodil':8
+898	TOURIST PELICAN	A Boring Story of a Butler And a Astronaut who must Outrace a Pioneer in Australia	2006	1	\N	4	4.99	152	18.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'bore':4 'must':13 'stori':5 'butler':8 'outrac':14 'pelican':2 'pioneer':16 'tourist':1 'astronaut':11 'australia':18
+899	TOWERS HURRICANE	A Fateful Display of a Monkey And a Car who must Sink a Husband in A MySQL Convention	2006	1	\N	7	0.99	144	14.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'car':11 'fate':4 'must':13 'sink':14 'mysql':19 'tower':1 'monkey':8 'convent':20 'display':5 'husband':16 'hurrican':2
+900	TOWN ARK	A Awe-Inspiring Documentary of a Moose And a Madman who must Meet a Dog in An Abandoned Mine Shaft	2006	1	\N	6	2.99	136	17.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'ark':2 'awe':5 'dog':18 'meet':16 'mine':22 'moos':10 'must':15 'town':1 'shaft':23 'inspir':6 'madman':13 'abandon':21 'awe-inspir':4 'documentari':7
+901	TRACY CIDER	A Touching Reflection of a Database Administrator And a Madman who must Build a Lumberjack in Nigeria	2006	1	\N	3	0.99	142	29.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':14 'build':15 'cider':2 'touch':4 'traci':1 'madman':12 'databas':8 'nigeria':19 'reflect':5 'administr':9 'lumberjack':17
+902	TRADING PINOCCHIO	A Emotional Character Study of a Student And a Explorer who must Discover a Frisbee in The First Manned Space Station	2006	1	\N	6	4.99	170	22.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'man':21 'emot':4 'must':14 'first':20 'space':22 'studi':6 'trade':1 'discov':15 'explor':12 'frisbe':17 'charact':5 'station':23 'student':9 'pinocchio':2
+903	TRAFFIC HOBBIT	A Amazing Epistle of a Squirrel And a Lumberjack who must Succumb a Database Administrator in A U-Boat	2006	1	\N	5	4.99	139	13.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'u':21 'amaz':4 'boat':22 'must':13 'epistl':5 'hobbit':2 'u-boat':20 'databas':16 'succumb':14 'traffic':1 'squirrel':8 'administr':17 'lumberjack':11
+904	TRAIN BUNCH	A Thrilling Character Study of a Robot And a Squirrel who must Face a Dog in Ancient India	2006	1	\N	3	4.99	71	26.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'dog':17 'face':15 'must':14 'bunch':2 'india':20 'robot':9 'studi':6 'train':1 'thrill':4 'ancient':19 'charact':5 'squirrel':12
+905	TRAINSPOTTING STRANGERS	A Fast-Paced Drama of a Pioneer And a Mad Cow who must Challenge a Madman in Ancient Japan	2006	1	\N	7	4.99	132	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'cow':14 'mad':13 'fast':5 'must':16 'pace':6 'drama':7 'japan':22 'madman':19 'ancient':21 'pioneer':10 'challeng':17 'fast-pac':4 'stranger':2 'trainspot':1
+906	TRAMP OTHERS	A Brilliant Display of a Composer And a Cat who must Succumb a A Shark in Ancient India	2006	1	\N	4	0.99	171	27.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'cat':11 'must':13 'india':20 'other':2 'shark':17 'tramp':1 'compos':8 'ancient':19 'display':5 'succumb':14 'brilliant':4
+907	TRANSLATION SUMMER	A Touching Reflection of a Man And a Monkey who must Pursue a Womanizer in A MySQL Convention	2006	1	\N	4	0.99	168	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'man':8 'must':13 'mysql':19 'pursu':14 'touch':4 'woman':16 'monkey':11 'summer':2 'convent':20 'reflect':5 'translat':1
+908	TRAP GUYS	A Unbelieveable Story of a Boy And a Mad Cow who must Challenge a Database Administrator in The Sahara Desert	2006	1	\N	3	4.99	110	11.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'boy':8 'cow':12 'guy':2 'mad':11 'must':14 'trap':1 'stori':5 'desert':22 'sahara':21 'databas':17 'challeng':15 'unbeliev':4 'administr':18
+909	TREASURE COMMAND	A Emotional Saga of a Car And a Madman who must Discover a Pioneer in California	2006	1	\N	3	0.99	102	28.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'car':8 'emot':4 'must':13 'saga':5 'discov':14 'madman':11 'command':2 'pioneer':16 'treasur':1 'california':18
+910	TREATMENT JEKYLL	A Boring Story of a Teacher And a Student who must Outgun a Cat in An Abandoned Mine Shaft	2006	1	\N	3	0.99	87	19.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'cat':16 'bore':4 'mine':20 'must':13 'jekyl':2 'shaft':21 'stori':5 'outgun':14 'abandon':19 'student':11 'teacher':8 'treatment':1
+911	TRIP NEWTON	A Fanciful Character Study of a Lumberjack And a Car who must Discover a Cat in An Abandoned Amusement Park	2006	1	\N	7	4.99	64	14.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'car':12 'cat':17 'amus':21 'must':14 'park':22 'trip':1 'fanci':4 'studi':6 'discov':15 'newton':2 'abandon':20 'charact':5 'lumberjack':9
+912	TROJAN TOMORROW	A Astounding Panorama of a Husband And a Sumo Wrestler who must Pursue a Boat in Ancient India	2006	1	\N	3	2.99	52	9.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'boat':17 'must':14 'sumo':11 'india':20 'pursu':15 'trojan':1 'ancient':19 'astound':4 'husband':8 'panorama':5 'tomorrow':2 'wrestler':12
+913	TROOPERS METAL	A Fanciful Drama of a Monkey And a Feminist who must Sink a Man in Berlin	2006	1	\N	3	0.99	115	20.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':16 'must':13 'sink':14 'drama':5 'fanci':4 'metal':2 'berlin':18 'monkey':8 'trooper':1 'feminist':11
+914	TROUBLE DATE	A Lacklusture Panorama of a Forensic Psychologist And a Woman who must Kill a Explorer in Ancient Japan	2006	1	\N	6	2.99	61	13.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'date':2 'kill':15 'must':14 'japan':20 'woman':12 'explor':17 'forens':8 'troubl':1 'ancient':19 'panorama':5 'lacklustur':4 'psychologist':9
+915	TRUMAN CRAZY	A Thrilling Epistle of a Moose And a Boy who must Meet a Database Administrator in A Monastery	2006	1	\N	7	4.99	92	9.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'boy':11 'meet':14 'moos':8 'must':13 'crazi':2 'epistl':5 'thrill':4 'truman':1 'databas':16 'administr':17 'monasteri':20
+916	TURN STAR	A Stunning Tale of a Man And a Monkey who must Chase a Student in New Orleans	2006	1	\N	3	2.99	80	10.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'man':8 'new':18 'must':13 'star':2 'stun':4 'tale':5 'turn':1 'chase':14 'monkey':11 'orlean':19 'student':16
+917	TUXEDO MILE	A Boring Drama of a Man And a Forensic Psychologist who must Face a Frisbee in Ancient India	2006	1	\N	3	2.99	152	24.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'man':8 'bore':4 'face':15 'mile':2 'must':14 'drama':5 'india':20 'forens':11 'frisbe':17 'tuxedo':1 'ancient':19 'psychologist':12
+918	TWISTED PIRATES	A Touching Display of a Frisbee And a Boat who must Kill a Girl in A MySQL Convention	2006	1	\N	4	4.99	152	23.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'boat':11 'girl':16 'kill':14 'must':13 'mysql':19 'pirat':2 'touch':4 'twist':1 'frisbe':8 'convent':20 'display':5
+919	TYCOON GATHERING	A Emotional Display of a Husband And a A Shark who must Succumb a Madman in A Manhattan Penthouse	2006	1	\N	3	4.99	82	17.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'emot':4 'must':14 'shark':12 'gather':2 'madman':17 'tycoon':1 'display':5 'husband':8 'succumb':15 'penthous':21 'manhattan':20
+920	UNBREAKABLE KARATE	A Amazing Character Study of a Robot And a Student who must Chase a Robot in Australia	2006	1	\N	3	0.99	62	16.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'amaz':4 'must':14 'chase':15 'karat':2 'robot':9,17 'studi':6 'charact':5 'student':12 'unbreak':1 'australia':19
+921	UNCUT SUICIDES	A Intrepid Yarn of a Explorer And a Pastry Chef who must Pursue a Mad Cow in A U-Boat	2006	1	\N	7	2.99	172	29.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'u':22 'cow':18 'mad':17 'boat':23 'chef':12 'must':14 'yarn':5 'pursu':15 'uncut':1 'explor':8 'pastri':11 'suicid':2 'u-boat':21 'intrepid':4
+922	UNDEFEATED DALMATIONS	A Unbelieveable Display of a Crocodile And a Feminist who must Overcome a Moose in An Abandoned Amusement Park	2006	1	\N	7	4.99	107	22.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries}	'amus':20 'moos':16 'must':13 'park':21 'undef':1 'dalmat':2 'abandon':19 'display':5 'overcom':14 'crocodil':8 'feminist':11 'unbeliev':4
+923	UNFAITHFUL KILL	A Taut Documentary of a Waitress And a Mad Scientist who must Battle a Technical Writer in New Orleans	2006	1	\N	7	2.99	78	12.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'mad':11 'new':20 'kill':2 'must':14 'taut':4 'battl':15 'orlean':21 'writer':18 'technic':17 'unfaith':1 'waitress':8 'scientist':12 'documentari':5
+924	UNFORGIVEN ZOOLANDER	A Taut Epistle of a Monkey And a Sumo Wrestler who must Vanquish a A Shark in A Baloon Factory	2006	1	\N	7	0.99	129	15.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':14 'sumo':11 'taut':4 'shark':18 'baloon':21 'epistl':5 'monkey':8 'factori':22 'zooland':2 'vanquish':15 'wrestler':12 'unforgiven':1
+925	UNITED PILOT	A Fast-Paced Reflection of a Cat And a Mad Cow who must Fight a Car in The Sahara Desert	2006	1	\N	3	0.99	164	27.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'car':19 'cat':10 'cow':14 'mad':13 'fast':5 'must':16 'pace':6 'unit':1 'fight':17 'pilot':2 'desert':23 'sahara':22 'reflect':7 'fast-pac':4
+926	UNTOUCHABLES SUNRISE	A Amazing Documentary of a Woman And a Astronaut who must Outrace a Teacher in An Abandoned Fun House	2006	1	\N	5	2.99	120	11.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'fun':20 'amaz':4 'hous':21 'must':13 'woman':8 'outrac':14 'sunris':2 'abandon':19 'teacher':16 'untouch':1 'astronaut':11 'documentari':5
+927	UPRISING UPTOWN	A Fanciful Reflection of a Boy And a Butler who must Pursue a Woman in Berlin	2006	1	\N	6	2.99	174	16.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'boy':8 'must':13 'fanci':4 'pursu':14 'upris':1 'woman':16 'berlin':18 'butler':11 'uptown':2 'reflect':5
+928	UPTOWN YOUNG	A Fateful Documentary of a Dog And a Hunter who must Pursue a Teacher in An Abandoned Amusement Park	2006	1	\N	5	2.99	84	16.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'dog':8 'amus':20 'fate':4 'must':13 'park':21 'pursu':14 'young':2 'hunter':11 'uptown':1 'abandon':19 'teacher':16 'documentari':5
+929	USUAL UNTOUCHABLES	A Touching Display of a Explorer And a Lumberjack who must Fight a Forensic Psychologist in A Shark Tank	2006	1	\N	5	4.99	128	21.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'must':13 'tank':21 'fight':14 'shark':20 'touch':4 'usual':1 'explor':8 'forens':16 'display':5 'untouch':2 'lumberjack':11 'psychologist':17
+930	VACATION BOONDOCK	A Fanciful Character Study of a Secret Agent And a Mad Scientist who must Reach a Teacher in Australia	2006	1	\N	4	2.99	145	23.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'mad':13 'must':16 'agent':10 'fanci':4 'reach':17 'studi':6 'vacat':1 'secret':9 'charact':5 'teacher':19 'boondock':2 'australia':21 'scientist':14
+931	VALENTINE VANISHING	A Thrilling Display of a Husband And a Butler who must Reach a Pastry Chef in California	2006	1	\N	7	0.99	48	9.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'chef':17 'must':13 'reach':14 'butler':11 'pastri':16 'thrill':4 'vanish':2 'display':5 'husband':8 'valentin':1 'california':19
+932	VALLEY PACKER	A Astounding Documentary of a Astronaut And a Boy who must Outrace a Sumo Wrestler in Berlin	2006	1	\N	3	0.99	73	21.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'boy':11 'must':13 'sumo':16 'berlin':19 'outrac':14 'packer':2 'valley':1 'astound':4 'wrestler':17 'astronaut':8 'documentari':5
+933	VAMPIRE WHALE	A Epic Story of a Lumberjack And a Monkey who must Confront a Pioneer in A MySQL Convention	2006	1	\N	4	4.99	126	11.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'epic':4 'must':13 'mysql':19 'stori':5 'whale':2 'monkey':11 'vampir':1 'convent':20 'pioneer':16 'confront':14 'lumberjack':8
+934	VANILLA DAY	A Fast-Paced Saga of a Girl And a Forensic Psychologist who must Redeem a Girl in Nigeria	2006	1	\N	7	4.99	122	20.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'day':2 'fast':5 'girl':10,19 'must':16 'pace':6 'saga':7 'forens':13 'redeem':17 'nigeria':21 'vanilla':1 'fast-pac':4 'psychologist':14
+935	VANISHED GARDEN	A Intrepid Character Study of a Squirrel And a A Shark who must Kill a Lumberjack in California	2006	1	\N	5	0.99	142	17.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'kill':16 'must':15 'shark':13 'studi':6 'garden':2 'vanish':1 'charact':5 'intrepid':4 'squirrel':9 'california':20 'lumberjack':18
+936	VANISHING ROCKY	A Brilliant Reflection of a Man And a Woman who must Conquer a Pioneer in A MySQL Convention	2006	1	\N	3	2.99	123	21.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'man':8 'must':13 'mysql':19 'rocki':2 'woman':11 'vanish':1 'conquer':14 'convent':20 'pioneer':16 'reflect':5 'brilliant':4
+937	VARSITY TRIP	A Action-Packed Character Study of a Astronaut And a Explorer who must Reach a Monkey in A MySQL Convention	2006	1	\N	7	2.99	85	14.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'must':16 'pack':6 'trip':2 'mysql':22 'reach':17 'studi':8 'action':5 'explor':14 'monkey':19 'charact':7 'convent':23 'varsiti':1 'astronaut':11 'action-pack':4
+938	VELVET TERMINATOR	A Lacklusture Tale of a Pastry Chef And a Technical Writer who must Confront a Crocodile in An Abandoned Amusement Park	2006	1	\N	3	4.99	173	14.99	R	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'amus':22 'chef':9 'must':15 'park':23 'tale':5 'pastri':8 'termin':2 'velvet':1 'writer':13 'abandon':21 'technic':12 'confront':16 'crocodil':18 'lacklustur':4
+939	VERTIGO NORTHWEST	A Unbelieveable Display of a Mad Scientist And a Mad Scientist who must Outgun a Mad Cow in Ancient Japan	2006	1	\N	4	2.99	90	17.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'cow':19 'mad':8,12,18 'must':15 'japan':22 'outgun':16 'ancient':21 'display':5 'vertigo':1 'unbeliev':4 'northwest':2 'scientist':9,13
+940	VICTORY ACADEMY	A Insightful Epistle of a Mad Scientist And a Explorer who must Challenge a Cat in The Sahara Desert	2006	1	\N	6	0.99	64	19.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'cat':17 'mad':8 'must':14 'desert':21 'epistl':5 'explor':12 'sahara':20 'academi':2 'insight':4 'victori':1 'challeng':15 'scientist':9
+941	VIDEOTAPE ARSENIC	A Lacklusture Display of a Girl And a Astronaut who must Succumb a Student in Australia	2006	1	\N	4	4.99	145	10.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'girl':8 'must':13 'arsenic':2 'display':5 'student':16 'succumb':14 'videotap':1 'astronaut':11 'australia':18 'lacklustur':4
+942	VIETNAM SMOOCHY	A Lacklusture Display of a Butler And a Man who must Sink a Explorer in Soviet Georgia	2006	1	\N	7	0.99	174	27.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':11 'must':13 'sink':14 'butler':8 'explor':16 'soviet':18 'display':5 'georgia':19 'smoochi':2 'vietnam':1 'lacklustur':4
+943	VILLAIN DESPERATE	A Boring Yarn of a Pioneer And a Feminist who must Redeem a Cat in An Abandoned Amusement Park	2006	1	\N	4	4.99	76	27.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'cat':16 'amus':20 'bore':4 'must':13 'park':21 'yarn':5 'desper':2 'redeem':14 'abandon':19 'pioneer':8 'villain':1 'feminist':11
+944	VIRGIN DAISY	A Awe-Inspiring Documentary of a Robot And a Mad Scientist who must Reach a Database Administrator in A Shark Tank	2006	1	\N	6	4.99	179	29.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'awe':5 'mad':13 'must':16 'tank':24 'daisi':2 'reach':17 'robot':10 'shark':23 'inspir':6 'virgin':1 'databas':19 'administr':20 'scientist':14 'awe-inspir':4 'documentari':7
+945	VIRGINIAN PLUTO	A Emotional Panorama of a Dentist And a Crocodile who must Meet a Boy in Berlin	2006	1	\N	5	0.99	164	22.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'boy':16 'emot':4 'meet':14 'must':13 'pluto':2 'berlin':18 'dentist':8 'crocodil':11 'panorama':5 'virginian':1
+946	VIRTUAL SPOILERS	A Fateful Tale of a Database Administrator And a Squirrel who must Discover a Student in Soviet Georgia	2006	1	\N	3	4.99	144	14.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'fate':4 'must':14 'tale':5 'discov':15 'soviet':19 'databas':8 'georgia':20 'spoiler':2 'student':17 'virtual':1 'squirrel':12 'administr':9
+947	VISION TORQUE	A Thoughtful Documentary of a Dog And a Man who must Sink a Man in A Shark Tank	2006	1	\N	5	0.99	59	16.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'dog':8 'man':11,16 'must':13 'sink':14 'tank':20 'shark':19 'torqu':2 'vision':1 'thought':4 'documentari':5
+948	VOICE PEACH	A Amazing Panorama of a Pioneer And a Student who must Overcome a Mad Scientist in A Manhattan Penthouse	2006	1	\N	6	0.99	139	22.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'mad':16 'amaz':4 'must':13 'voic':1 'peach':2 'overcom':14 'pioneer':8 'student':11 'panorama':5 'penthous':21 'manhattan':20 'scientist':17
+949	VOLCANO TEXAS	A Awe-Inspiring Yarn of a Hunter And a Feminist who must Challenge a Dentist in The Outback	2006	1	\N	6	0.99	157	27.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'awe':5 'must':15 'texa':2 'yarn':7 'hunter':10 'inspir':6 'dentist':18 'outback':21 'volcano':1 'challeng':16 'feminist':13 'awe-inspir':4
+950	VOLUME HOUSE	A Boring Tale of a Dog And a Woman who must Meet a Dentist in California	2006	1	\N	7	4.99	132	12.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'dog':8 'bore':4 'hous':2 'meet':14 'must':13 'tale':5 'volum':1 'woman':11 'dentist':16 'california':18
+951	VOYAGE LEGALLY	A Epic Tale of a Squirrel And a Hunter who must Conquer a Boy in An Abandoned Mine Shaft	2006	1	\N	6	0.99	78	28.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'boy':16 'epic':4 'mine':20 'must':13 'tale':5 'legal':2 'shaft':21 'voyag':1 'hunter':11 'abandon':19 'conquer':14 'squirrel':8
+952	WAGON JAWS	A Intrepid Drama of a Moose And a Boat who must Kill a Explorer in A Manhattan Penthouse	2006	1	\N	7	2.99	152	17.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'jaw':2 'boat':11 'kill':14 'moos':8 'must':13 'drama':5 'wagon':1 'explor':16 'intrepid':4 'penthous':20 'manhattan':19
+953	WAIT CIDER	A Intrepid Epistle of a Woman And a Forensic Psychologist who must Succumb a Astronaut in A Manhattan Penthouse	2006	1	\N	3	0.99	112	9.99	PG-13	2007-09-10 17:46:03.905795	{Trailers}	'must':14 'wait':1 'cider':2 'woman':8 'epistl':5 'forens':11 'succumb':15 'intrepid':4 'penthous':21 'astronaut':17 'manhattan':20 'psychologist':12
+954	WAKE JAWS	A Beautiful Saga of a Feminist And a Composer who must Challenge a Moose in Berlin	2006	1	\N	7	4.99	73	18.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'jaw':2 'moos':16 'must':13 'saga':5 'wake':1 'beauti':4 'berlin':18 'compos':11 'challeng':14 'feminist':8
+955	WALLS ARTIST	A Insightful Panorama of a Teacher And a Teacher who must Overcome a Mad Cow in An Abandoned Fun House	2006	1	\N	7	4.99	135	19.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'cow':17 'fun':21 'mad':16 'hous':22 'must':13 'wall':1 'artist':2 'abandon':20 'insight':4 'overcom':14 'teacher':8,11 'panorama':5
+956	WANDA CHAMBER	A Insightful Drama of a A Shark And a Pioneer who must Find a Womanizer in The Outback	2006	1	\N	7	4.99	107	23.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'find':15 'must':14 'drama':5 'shark':9 'wanda':1 'woman':17 'chamber':2 'insight':4 'outback':20 'pioneer':12
+957	WAR NOTTING	A Boring Drama of a Teacher And a Sumo Wrestler who must Challenge a Secret Agent in The Canadian Rockies	2006	1	\N	7	4.99	80	26.99	G	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'not':2 'war':1 'bore':4 'must':14 'sumo':11 'agent':18 'drama':5 'rocki':22 'secret':17 'teacher':8 'canadian':21 'challeng':15 'wrestler':12
+958	WARDROBE PHANTOM	A Action-Packed Display of a Mad Cow And a Astronaut who must Kill a Car in Ancient India	2006	1	\N	6	2.99	178	19.99	G	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'car':19 'cow':11 'mad':10 'kill':17 'must':16 'pack':6 'india':22 'action':5 'ancient':21 'display':7 'phantom':2 'wardrob':1 'astronaut':14 'action-pack':4
+959	WARLOCK WEREWOLF	A Astounding Yarn of a Pioneer And a Crocodile who must Defeat a A Shark in The Outback	2006	1	\N	6	2.99	83	10.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'must':13 'yarn':5 'shark':17 'defeat':14 'astound':4 'outback':20 'pioneer':8 'warlock':1 'crocodil':11 'werewolf':2
+960	WARS PLUTO	A Taut Reflection of a Teacher And a Database Administrator who must Chase a Madman in The Sahara Desert	2006	1	\N	5	2.99	128	15.99	G	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'war':1 'must':14 'taut':4 'chase':15 'pluto':2 'desert':21 'madman':17 'sahara':20 'databas':11 'reflect':5 'teacher':8 'administr':12
+961	WASH HEAVENLY	A Awe-Inspiring Reflection of a Cat And a Pioneer who must Escape a Hunter in Ancient China	2006	1	\N	7	4.99	161	22.99	R	2007-09-10 17:46:03.905795	{Commentaries}	'awe':5 'cat':10 'must':15 'wash':1 'china':21 'escap':16 'heaven':2 'hunter':18 'inspir':6 'ancient':20 'pioneer':13 'reflect':7 'awe-inspir':4
+962	WASTELAND DIVINE	A Fanciful Story of a Database Administrator And a Womanizer who must Fight a Database Administrator in Ancient China	2006	1	\N	7	2.99	85	18.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'must':14 'china':21 'divin':2 'fanci':4 'fight':15 'stori':5 'woman':12 'ancient':20 'databas':8,17 'administr':9,18 'wasteland':1
+963	WATCH TRACY	A Fast-Paced Yarn of a Dog And a Frisbee who must Conquer a Hunter in Nigeria	2006	1	\N	5	0.99	78	12.99	PG	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes","Behind the Scenes"}	'dog':10 'fast':5 'must':15 'pace':6 'yarn':7 'traci':2 'watch':1 'frisbe':13 'hunter':18 'conquer':16 'nigeria':20 'fast-pac':4
+964	WATERFRONT DELIVERANCE	A Unbelieveable Documentary of a Dentist And a Technical Writer who must Build a Womanizer in Nigeria	2006	1	\N	4	4.99	61	17.99	G	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'must':14 'build':15 'woman':17 'writer':12 'deliver':2 'dentist':8 'nigeria':19 'technic':11 'unbeliev':4 'waterfront':1 'documentari':5
+965	WATERSHIP FRONTIER	A Emotional Yarn of a Boat And a Crocodile who must Meet a Moose in Soviet Georgia	2006	1	\N	6	0.99	112	28.99	G	2007-09-10 17:46:03.905795	{Commentaries}	'boat':8 'emot':4 'meet':14 'moos':16 'must':13 'yarn':5 'soviet':18 'georgia':19 'crocodil':11 'frontier':2 'watership':1
+966	WEDDING APOLLO	A Action-Packed Tale of a Student And a Waitress who must Conquer a Lumberjack in An Abandoned Mine Shaft	2006	1	\N	3	0.99	70	14.99	PG	2007-09-10 17:46:03.905795	{Trailers}	'wed':1 'mine':22 'must':15 'pack':6 'tale':7 'shaft':23 'action':5 'apollo':2 'abandon':21 'conquer':16 'student':10 'waitress':13 'lumberjack':18 'action-pack':4
+967	WEEKEND PERSONAL	A Fast-Paced Documentary of a Car And a Butler who must Find a Frisbee in A Jet Boat	2006	1	\N	5	2.99	134	26.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'car':10 'jet':21 'boat':22 'fast':5 'find':16 'must':15 'pace':6 'butler':13 'frisbe':18 'person':2 'weekend':1 'fast-pac':4 'documentari':7
+968	WEREWOLF LOLA	A Fanciful Story of a Man And a Sumo Wrestler who must Outrace a Student in A Monastery	2006	1	\N	6	4.99	79	19.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'man':8 'lola':2 'must':14 'sumo':11 'fanci':4 'stori':5 'outrac':15 'student':17 'werewolf':1 'wrestler':12 'monasteri':20
+969	WEST LION	A Intrepid Drama of a Butler And a Lumberjack who must Challenge a Database Administrator in A Manhattan Penthouse	2006	1	\N	4	4.99	159	29.99	G	2007-09-10 17:46:03.905795	{Trailers}	'lion':2 'must':13 'west':1 'drama':5 'butler':8 'databas':16 'challeng':14 'intrepid':4 'penthous':21 'administr':17 'manhattan':20 'lumberjack':11
+970	WESTWARD SEABISCUIT	A Lacklusture Tale of a Butler And a Husband who must Face a Boy in Ancient China	2006	1	\N	7	0.99	52	11.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'boy':16 'face':14 'must':13 'tale':5 'china':19 'butler':8 'ancient':18 'husband':11 'westward':1 'lacklustur':4 'seabiscuit':2
+971	WHALE BIKINI	A Intrepid Story of a Pastry Chef And a Database Administrator who must Kill a Feminist in A MySQL Convention	2006	1	\N	4	4.99	109	11.99	PG-13	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'chef':9 'kill':16 'must':15 'mysql':21 'stori':5 'whale':1 'bikini':2 'pastri':8 'convent':22 'databas':12 'feminist':18 'intrepid':4 'administr':13
+972	WHISPERER GIANT	A Intrepid Story of a Dentist And a Hunter who must Confront a Monkey in Ancient Japan	2006	1	\N	4	4.99	59	24.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'must':13 'giant':2 'japan':19 'stori':5 'hunter':11 'monkey':16 'ancient':18 'dentist':8 'whisper':1 'confront':14 'intrepid':4
+973	WIFE TURN	A Awe-Inspiring Epistle of a Teacher And a Feminist who must Confront a Pioneer in Ancient Japan	2006	1	\N	3	4.99	183	27.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'awe':5 'must':15 'turn':2 'wife':1 'japan':21 'epistl':7 'inspir':6 'ancient':20 'pioneer':18 'teacher':10 'confront':16 'feminist':13 'awe-inspir':4
+974	WILD APOLLO	A Beautiful Story of a Monkey And a Sumo Wrestler who must Conquer a A Shark in A MySQL Convention	2006	1	\N	4	0.99	181	24.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes","Behind the Scenes"}	'must':14 'sumo':11 'wild':1 'mysql':21 'shark':18 'stori':5 'apollo':2 'beauti':4 'monkey':8 'conquer':15 'convent':22 'wrestler':12
+975	WILLOW TRACY	A Brilliant Panorama of a Boat And a Astronaut who must Challenge a Teacher in A Manhattan Penthouse	2006	1	\N	6	2.99	137	22.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'boat':8 'must':13 'traci':2 'willow':1 'teacher':16 'challeng':14 'panorama':5 'penthous':20 'astronaut':11 'brilliant':4 'manhattan':19
+976	WIND PHANTOM	A Touching Saga of a Madman And a Forensic Psychologist who must Build a Sumo Wrestler in An Abandoned Mine Shaft	2006	1	\N	6	0.99	111	12.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'mine':22 'must':14 'saga':5 'sumo':17 'wind':1 'build':15 'shaft':23 'touch':4 'forens':11 'madman':8 'abandon':21 'phantom':2 'wrestler':18 'psychologist':12
+977	WINDOW SIDE	A Astounding Character Study of a Womanizer And a Hunter who must Escape a Robot in A Monastery	2006	1	\N	3	2.99	85	25.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'must':14 'side':2 'escap':15 'robot':17 'studi':6 'woman':9 'hunter':12 'window':1 'astound':4 'charact':5 'monasteri':20
+978	WISDOM WORKER	A Unbelieveable Saga of a Forensic Psychologist And a Student who must Face a Squirrel in The First Manned Space Station	2006	1	\N	3	0.99	98	12.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'man':21 'face':15 'must':14 'saga':5 'first':20 'space':22 'forens':8 'wisdom':1 'worker':2 'station':23 'student':12 'squirrel':17 'unbeliev':4 'psychologist':9
+979	WITCHES PANIC	A Awe-Inspiring Drama of a Secret Agent And a Hunter who must Fight a Moose in Nigeria	2006	1	\N	6	4.99	100	10.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries,"Behind the Scenes"}	'awe':5 'moos':19 'must':16 'agent':11 'drama':7 'fight':17 'panic':2 'witch':1 'hunter':14 'inspir':6 'secret':10 'nigeria':21 'awe-inspir':4
+980	WIZARD COLDBLOODED	A Lacklusture Display of a Robot And a Girl who must Defeat a Sumo Wrestler in A MySQL Convention	2006	1	\N	4	4.99	75	12.99	PG	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes","Behind the Scenes"}	'girl':11 'must':13 'sumo':16 'mysql':20 'robot':8 'defeat':14 'wizard':1 'convent':21 'display':5 'wrestler':17 'coldblood':2 'lacklustur':4
+981	WOLVES DESIRE	A Fast-Paced Drama of a Squirrel And a Robot who must Succumb a Technical Writer in A Manhattan Penthouse	2006	1	\N	7	0.99	55	13.99	NC-17	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'fast':5 'must':15 'pace':6 'wolv':1 'desir':2 'drama':7 'robot':13 'writer':19 'succumb':16 'technic':18 'fast-pac':4 'penthous':23 'squirrel':10 'manhattan':22
+982	WOMEN DORADO	A Insightful Documentary of a Waitress And a Butler who must Vanquish a Composer in Australia	2006	1	\N	4	0.99	126	23.99	R	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'must':13 'women':1 'butler':11 'compos':16 'dorado':2 'insight':4 'vanquish':14 'waitress':8 'australia':18 'documentari':5
+983	WON DARES	A Unbelieveable Documentary of a Teacher And a Monkey who must Defeat a Explorer in A U-Boat	2006	1	\N	7	2.99	105	18.99	PG	2007-09-10 17:46:03.905795	{"Behind the Scenes"}	'u':20 'won':1 'boat':21 'dare':2 'must':13 'defeat':14 'explor':16 'monkey':11 'u-boat':19 'teacher':8 'unbeliev':4 'documentari':5
+984	WONDERFUL DROP	A Boring Panorama of a Woman And a Madman who must Overcome a Butler in A U-Boat	2006	1	\N	3	2.99	126	20.99	NC-17	2007-09-10 17:46:03.905795	{Commentaries}	'u':20 'boat':21 'bore':4 'drop':2 'must':13 'woman':8 'butler':16 'madman':11 'u-boat':19 'wonder':1 'overcom':14 'panorama':5
+985	WONDERLAND CHRISTMAS	A Awe-Inspiring Character Study of a Waitress And a Car who must Pursue a Mad Scientist in The First Manned Space Station	2006	1	\N	4	4.99	111	19.99	PG	2007-09-10 17:46:03.905795	{Commentaries}	'awe':5 'car':14 'mad':19 'man':24 'must':16 'first':23 'pursu':17 'space':25 'studi':8 'inspir':6 'charact':7 'station':26 'christma':2 'waitress':11 'scientist':20 'awe-inspir':4 'wonderland':1
+986	WONKA SEA	A Brilliant Saga of a Boat And a Mad Scientist who must Meet a Moose in Ancient India	2006	1	\N	6	2.99	85	24.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'mad':11 'sea':2 'boat':8 'meet':15 'moos':17 'must':14 'saga':5 'india':20 'wonka':1 'ancient':19 'brilliant':4 'scientist':12
+987	WORDS HUNTER	A Action-Packed Reflection of a Composer And a Mad Scientist who must Face a Pioneer in A MySQL Convention	2006	1	\N	3	2.99	116	13.99	PG	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'mad':13 'face':17 'must':16 'pack':6 'word':1 'mysql':22 'action':5 'compos':10 'hunter':2 'convent':23 'pioneer':19 'reflect':7 'scientist':14 'action-pack':4
+988	WORKER TARZAN	A Action-Packed Yarn of a Secret Agent And a Technical Writer who must Battle a Sumo Wrestler in The First Manned Space Station	2006	1	\N	7	2.99	139	26.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'man':25 'must':17 'pack':6 'sumo':20 'yarn':7 'agent':11 'battl':18 'first':24 'space':26 'action':5 'secret':10 'tarzan':2 'worker':1 'writer':15 'station':27 'technic':14 'wrestler':21 'action-pack':4
+989	WORKING MICROCOSMOS	A Stunning Epistle of a Dentist And a Dog who must Kill a Madman in Ancient China	2006	1	\N	4	4.99	74	22.99	R	2007-09-10 17:46:03.905795	{Commentaries,"Deleted Scenes"}	'dog':11 'kill':14 'must':13 'stun':4 'work':1 'china':19 'epistl':5 'madman':16 'ancient':18 'dentist':8 'microcosmo':2
+990	WORLD LEATHERNECKS	A Unbelieveable Tale of a Pioneer And a Astronaut who must Overcome a Robot in An Abandoned Amusement Park	2006	1	\N	3	0.99	171	13.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'amus':20 'must':13 'park':21 'tale':5 'robot':16 'world':1 'abandon':19 'overcom':14 'pioneer':8 'unbeliev':4 'astronaut':11 'leatherneck':2
+991	WORST BANGER	A Thrilling Drama of a Madman And a Dentist who must Conquer a Boy in The Outback	2006	1	\N	4	2.99	185	26.99	PG	2007-09-10 17:46:03.905795	{"Deleted Scenes","Behind the Scenes"}	'boy':16 'must':13 'drama':5 'worst':1 'banger':2 'madman':8 'thrill':4 'conquer':14 'dentist':11 'outback':19
+992	WRATH MILE	A Intrepid Reflection of a Technical Writer And a Hunter who must Defeat a Sumo Wrestler in A Monastery	2006	1	\N	5	0.99	176	17.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries}	'mile':2 'must':14 'sumo':17 'wrath':1 'defeat':15 'hunter':12 'writer':9 'reflect':5 'technic':8 'intrepid':4 'wrestler':18 'monasteri':21
+993	WRONG BEHAVIOR	A Emotional Saga of a Crocodile And a Sumo Wrestler who must Discover a Mad Cow in New Orleans	2006	1	\N	6	2.99	178	10.99	PG-13	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'cow':18 'mad':17 'new':20 'emot':4 'must':14 'saga':5 'sumo':11 'wrong':1 'discov':15 'orlean':21 'behavior':2 'crocodil':8 'wrestler':12
+994	WYOMING STORM	A Awe-Inspiring Panorama of a Robot And a Boat who must Overcome a Feminist in A U-Boat	2006	1	\N	6	4.99	100	29.99	PG-13	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'u':22 'awe':5 'boat':13,23 'must':15 'wyom':1 'robot':10 'storm':2 'inspir':6 'u-boat':21 'overcom':16 'feminist':18 'panorama':7 'awe-inspir':4
+995	YENTL IDAHO	A Amazing Display of a Robot And a Astronaut who must Fight a Womanizer in Berlin	2006	1	\N	5	4.99	86	11.99	R	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Deleted Scenes"}	'amaz':4 'must':13 'fight':14 'idaho':2 'robot':8 'woman':16 'yentl':1 'berlin':18 'display':5 'astronaut':11
+996	YOUNG LANGUAGE	A Unbelieveable Yarn of a Boat And a Database Administrator who must Meet a Boy in The First Manned Space Station	2006	1	\N	6	0.99	183	9.99	G	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'boy':17 'man':21 'boat':8 'meet':15 'must':14 'yarn':5 'first':20 'space':22 'young':1 'databas':11 'languag':2 'station':23 'unbeliev':4 'administr':12
+997	YOUTH KICK	A Touching Drama of a Teacher And a Cat who must Challenge a Technical Writer in A U-Boat	2006	1	\N	4	0.99	179	14.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,"Behind the Scenes"}	'u':21 'cat':11 'boat':22 'kick':2 'must':13 'drama':5 'touch':4 'youth':1 'u-boat':20 'writer':17 'teacher':8 'technic':16 'challeng':14
+998	ZHIVAGO CORE	A Fateful Yarn of a Composer And a Man who must Face a Boy in The Canadian Rockies	2006	1	\N	6	0.99	105	10.99	NC-17	2007-09-10 17:46:03.905795	{"Deleted Scenes"}	'boy':16 'man':11 'core':2 'face':14 'fate':4 'must':13 'yarn':5 'rocki':20 'compos':8 'zhivago':1 'canadian':19
+999	ZOOLANDER FICTION	A Fateful Reflection of a Waitress And a Boat who must Discover a Sumo Wrestler in Ancient China	2006	1	\N	5	2.99	101	28.99	R	2007-09-10 17:46:03.905795	{Trailers,"Deleted Scenes"}	'boat':11 'fate':4 'must':13 'sumo':16 'china':20 'discov':14 'ancient':19 'fiction':2 'reflect':5 'zooland':1 'waitress':8 'wrestler':17
+1000	ZORRO ARK	A Intrepid Panorama of a Mad Scientist And a Boy who must Redeem a Boy in A Monastery	2006	1	\N	3	4.99	50	18.99	NC-17	2007-09-10 17:46:03.905795	{Trailers,Commentaries,"Behind the Scenes"}	'ark':2 'boy':12,17 'mad':8 'must':14 'zorro':1 'redeem':15 'intrepid':4 'panorama':5 'monasteri':20 'scientist':9
 \.
 
 
+ALTER TABLE film ENABLE TRIGGER ALL;
+
 --
--- Data for Name: film_actor; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: film_actor; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.film_actor (actor_id, film_id, last_update) FROM stdin;
+ALTER TABLE film_actor DISABLE TRIGGER ALL;
+
+COPY film_actor (actor_id, film_id, last_update) FROM stdin;
 1	1	2006-02-15 10:05:03
 1	23	2006-02-15 10:05:03
 1	25	2006-02-15 10:05:03
@@ -9590,11 +10512,15 @@ COPY public.film_actor (actor_id, film_id, last_update) FROM stdin;
 \.
 
 
+ALTER TABLE film_actor ENABLE TRIGGER ALL;
+
 --
--- Data for Name: film_category; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: film_category; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.film_category (film_id, category_id, last_update) FROM stdin;
+ALTER TABLE film_category DISABLE TRIGGER ALL;
+
+COPY film_category (film_id, category_id, last_update) FROM stdin;
 1	6	2006-02-15 10:07:09
 2	11	2006-02-15 10:07:09
 3	6	2006-02-15 10:07:09
@@ -10598,11 +11524,15 @@ COPY public.film_category (film_id, category_id, last_update) FROM stdin;
 \.
 
 
+ALTER TABLE film_category ENABLE TRIGGER ALL;
+
 --
--- Data for Name: inventory; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: inventory; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.inventory (inventory_id, film_id, store_id, last_update) FROM stdin;
+ALTER TABLE inventory DISABLE TRIGGER ALL;
+
+COPY inventory (inventory_id, film_id, store_id, last_update) FROM stdin;
 1	1	1	2006-02-15 10:09:17
 2	1	1	2006-02-15 10:09:17
 3	1	1	2006-02-15 10:09:17
@@ -15187,11 +16117,15 @@ COPY public.inventory (inventory_id, film_id, store_id, last_update) FROM stdin;
 \.
 
 
+ALTER TABLE inventory ENABLE TRIGGER ALL;
+
 --
--- Data for Name: language; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: language; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.language (language_id, name, last_update) FROM stdin;
+ALTER TABLE language DISABLE TRIGGER ALL;
+
+COPY language (language_id, name, last_update) FROM stdin;
 1	English             	2006-02-15 10:02:19
 2	Italian             	2006-02-15 10:02:19
 3	Japanese            	2006-02-15 10:02:19
@@ -15201,11 +16135,1492 @@ COPY public.language (language_id, name, last_update) FROM stdin;
 \.
 
 
+ALTER TABLE language ENABLE TRIGGER ALL;
+
 --
--- Data for Name: payment; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: payment; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
+ALTER TABLE payment DISABLE TRIGGER ALL;
+
+COPY payment (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
+\.
+
+
+ALTER TABLE payment ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: payment_p2007_01; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+ALTER TABLE payment_p2007_01 DISABLE TRIGGER ALL;
+
+COPY payment_p2007_01 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
+16050	269	2	7	1.99	2007-01-24 21:40:19.996577
+16051	269	1	98	0.99	2007-01-25 15:16:50.996577
+16052	269	2	678	6.99	2007-01-28 21:44:14.996577
+16053	269	2	703	0.99	2007-01-29 00:58:02.996577
+16054	269	1	750	4.99	2007-01-29 08:10:06.996577
+16055	269	2	1099	2.99	2007-01-31 12:23:14.996577
+16056	270	1	193	1.99	2007-01-26 05:10:14.996577
+16057	270	1	1040	4.99	2007-01-31 04:03:42.996577
+16058	271	1	1096	8.99	2007-01-31 11:59:15.996577
+16059	272	1	33	0.99	2007-01-25 02:47:17.996577
+16060	272	1	405	6.99	2007-01-27 12:01:05.996577
+16061	272	1	1041	6.99	2007-01-31 04:14:49.996577
+16062	272	1	1072	0.99	2007-01-31 08:21:16.996577
+16063	273	2	122	3.99	2007-01-25 18:14:47.996577
+16064	273	2	980	0.99	2007-01-30 20:13:45.996577
+16065	274	1	147	2.99	2007-01-25 22:46:16.996577
+16066	274	1	208	4.99	2007-01-26 06:38:48.996577
+16067	274	2	301	2.99	2007-01-26 19:34:40.996577
+16068	274	1	394	5.99	2007-01-27 09:54:37.996577
+16069	274	2	474	2.99	2007-01-27 20:40:22.996577
+16070	274	1	892	4.99	2007-01-30 06:31:22.996577
+16071	275	2	336	2.99	2007-01-27 01:43:49.996577
+16072	276	1	736	3.99	2007-01-29 06:38:33.996577
+16073	276	1	860	10.99	2007-01-30 01:13:42.996577
+16074	277	2	308	6.99	2007-01-26 20:30:05.996577
+16075	278	1	1092	4.99	2007-01-31 10:44:23.996577
+16076	279	1	979	2.99	2007-01-30 20:05:37.996577
+16077	279	2	1019	0.99	2007-01-31 01:33:33.996577
+16078	280	1	1014	4.99	2007-01-31 01:07:42.996577
+16079	281	2	650	2.99	2007-01-28 18:14:06.996577
+16080	281	2	754	2.99	2007-01-29 08:47:25.996577
+16081	282	2	48	1.99	2007-01-25 04:49:12.996577
+16082	282	2	282	6.99	2007-01-26 17:24:52.996577
+16083	282	2	564	0.99	2007-01-28 07:40:35.996577
+16084	284	2	423	0.99	2007-01-27 14:01:23.996577
+16085	284	2	791	0.99	2007-01-29 14:59:08.996577
+16086	284	1	1145	6.99	2007-01-31 18:42:11.996577
+16087	286	2	81	6.99	2007-01-25 10:43:45.996577
+16088	287	2	498	0.99	2007-01-27 23:29:47.996577
+16089	287	1	655	2.99	2007-01-28 18:44:46.996577
+16090	287	2	964	2.99	2007-01-30 17:21:47.996577
+16091	288	2	93	3.99	2007-01-25 14:22:42.996577
+16092	288	2	427	6.99	2007-01-27 14:38:30.996577
+16093	288	1	503	4.99	2007-01-28 00:03:51.996577
+16094	288	2	565	5.99	2007-01-28 07:54:57.996577
+16095	290	1	160	2.99	2007-01-26 00:14:46.996577
+16096	291	1	54	4.99	2007-01-25 05:51:51.996577
+16097	291	2	747	4.99	2007-01-29 07:55:00.996577
+16098	291	1	1012	2.99	2007-01-31 00:46:31.996577
+16099	292	1	324	0.99	2007-01-26 23:28:30.996577
+16100	293	2	445	0.99	2007-01-27 17:11:23.996577
+16101	293	1	924	4.99	2007-01-30 10:39:25.996577
+16102	293	2	1034	8.99	2007-01-31 03:22:06.996577
+16103	294	1	595	1.99	2007-01-28 12:28:20.996577
+16104	295	2	371	3.99	2007-01-27 06:36:44.996577
+16105	296	2	162	4.99	2007-01-26 00:30:31.996577
+16106	296	1	511	5.99	2007-01-28 01:32:30.996577
+16107	296	1	869	4.99	2007-01-30 02:50:32.996577
+16108	296	2	956	2.99	2007-01-30 15:58:54.996577
+16109	297	2	143	0.99	2007-01-25 22:14:18.996577
+16110	297	1	954	3.99	2007-01-30 15:25:55.996577
+16111	298	1	383	3.99	2007-01-27 08:40:46.996577
+16112	299	1	332	5.99	2007-01-27 00:55:36.996577
+16113	299	2	606	8.99	2007-01-28 13:17:05.996577
+16114	300	2	457	0.99	2007-01-27 18:20:55.996577
+16115	300	1	780	3.99	2007-01-29 12:46:58.996577
+16116	300	1	1111	4.99	2007-01-31 13:52:45.996577
+16117	301	2	27	4.99	2007-01-25 02:10:16.996577
+16118	301	2	227	5.99	2007-01-26 09:20:12.996577
+16119	301	1	955	0.99	2007-01-30 15:27:29.996577
+16120	302	2	38	4.99	2007-01-25 03:16:10.996577
+16121	302	2	92	5.99	2007-01-25 14:07:12.996577
+16122	303	1	265	0.99	2007-01-26 14:36:04.996577
+16123	303	1	871	2.99	2007-01-30 03:29:56.996577
+16124	303	2	1050	4.99	2007-01-31 05:29:53.996577
+16125	304	1	135	10.99	2007-01-25 20:27:24.996577
+16126	304	1	415	0.99	2007-01-27 13:20:11.996577
+16127	304	2	937	2.99	2007-01-30 13:15:57.996577
+16128	305	2	69	2.99	2007-01-25 08:38:40.996577
+16129	306	2	375	3.99	2007-01-27 07:17:47.996577
+16130	306	2	672	6.99	2007-01-28 20:33:55.996577
+16131	307	2	413	4.99	2007-01-27 13:14:03.996577
+16132	307	1	535	4.99	2007-01-28 04:44:58.996577
+16133	307	1	614	1.99	2007-01-28 14:01:54.996577
+16134	307	1	970	6.99	2007-01-30 18:18:54.996577
+16135	308	2	589	3.99	2007-01-28 10:56:16.996577
+16136	309	2	218	6.99	2007-01-26 07:55:35.996577
+16137	309	2	723	0.99	2007-01-29 04:03:10.996577
+16138	310	2	104	0.99	2007-01-25 16:14:59.996577
+16139	311	2	274	5.99	2007-01-26 15:17:17.996577
+16140	311	2	544	6.99	2007-01-28 05:31:26.996577
+16141	311	1	952	2.99	2007-01-30 14:56:33.996577
+16142	311	2	990	3.99	2007-01-30 21:53:40.996577
+16143	311	2	1128	6.99	2007-01-31 16:17:52.996577
+16144	312	2	229	4.99	2007-01-26 09:47:46.996577
+16145	312	1	530	0.99	2007-01-28 03:41:27.996577
+16146	312	2	1049	4.99	2007-01-31 05:25:30.996577
+16147	312	2	1079	6.99	2007-01-31 09:16:43.996577
+16148	313	2	669	4.99	2007-01-28 20:31:51.996577
+16149	313	2	712	2.99	2007-01-29 02:30:50.996577
+16150	313	2	781	0.99	2007-01-29 12:52:24.996577
+16151	313	2	843	0.99	2007-01-29 23:12:50.996577
+16152	314	1	80	5.99	2007-01-25 10:40:33.996577
+16153	314	1	440	4.99	2007-01-27 16:29:01.996577
+16154	315	1	537	8.99	2007-01-28 04:49:21.996577
+16155	315	1	551	4.99	2007-01-28 06:12:44.996577
+16156	316	1	16	4.99	2007-01-24 23:11:37.996577
+16157	316	1	644	8.99	2007-01-28 17:27:38.996577
+16158	316	1	1065	1.99	2007-01-31 07:23:22.996577
+16159	317	1	107	6.99	2007-01-25 16:56:35.996577
+16160	318	1	224	9.99	2007-01-26 08:46:53.996577
+16161	319	1	15	9.99	2007-01-24 23:07:48.996577
+16162	319	1	149	3.99	2007-01-25 22:56:31.996577
+16163	319	1	439	2.99	2007-01-27 16:23:14.996577
+16164	321	2	200	4.99	2007-01-26 05:40:47.996577
+16165	321	1	620	5.99	2007-01-28 14:23:11.996577
+16166	321	2	818	4.99	2007-01-29 19:16:19.996577
+16167	322	2	166	0.99	2007-01-26 01:17:37.996577
+16168	322	1	269	4.99	2007-01-26 14:48:12.996577
+16169	323	1	58	4.99	2007-01-25 07:21:40.996577
+16170	323	2	729	2.99	2007-01-29 05:03:39.996577
+16171	323	1	878	5.99	2007-01-30 04:17:39.996577
+16172	324	2	563	3.99	2007-01-28 07:39:15.996577
+16173	325	1	131	5.99	2007-01-25 20:11:12.996577
+16174	326	1	875	6.99	2007-01-30 04:06:50.996577
+16175	326	2	981	4.99	2007-01-30 20:21:08.996577
+16176	326	2	1149	3.99	2007-01-31 19:31:43.996577
+16177	327	1	653	6.99	2007-01-28 18:40:46.996577
+16178	328	2	862	2.99	2007-01-30 01:37:37.996577
+16179	330	1	704	3.99	2007-01-29 01:13:09.996577
+16180	330	2	967	7.99	2007-01-30 17:40:32.996577
+16181	331	2	87	0.99	2007-01-25 12:21:09.996577
+16182	331	1	996	2.99	2007-01-30 22:34:46.996577
+16183	332	2	600	3.99	2007-01-28 12:36:45.996577
+16184	332	1	1000	6.99	2007-01-30 22:54:22.996577
+16185	333	1	4	4.99	2007-01-24 21:33:07.996577
+16186	334	1	13	6.99	2007-01-24 22:51:21.996577
+16187	334	1	431	8.99	2007-01-27 14:59:31.996577
+16188	337	1	374	6.99	2007-01-27 06:54:56.996577
+16189	337	1	572	4.99	2007-01-28 08:58:39.996577
+16190	337	1	839	8.99	2007-01-29 22:56:38.996577
+16191	338	1	675	0.99	2007-01-28 20:51:10.996577
+16192	339	1	876	5.99	2007-01-30 04:09:48.996577
+16193	343	2	102	3.99	2007-01-25 15:50:36.996577
+16194	343	1	455	3.99	2007-01-27 18:11:55.996577
+16195	344	2	157	2.99	2007-01-25 23:53:47.996577
+16196	344	2	813	5.99	2007-01-29 18:43:00.996577
+16197	345	1	206	0.99	2007-01-26 06:30:20.996577
+16198	345	1	363	0.99	2007-01-27 05:42:26.996577
+16199	346	1	65	4.99	2007-01-25 08:00:29.996577
+16200	346	1	810	4.99	2007-01-29 17:40:30.996577
+16201	348	2	153	0.99	2007-01-25 23:16:13.996577
+16202	348	2	821	0.99	2007-01-29 19:59:38.996577
+16203	349	1	890	4.99	2007-01-30 06:11:30.996577
+16204	350	1	24	4.99	2007-01-25 01:21:28.996577
+16205	350	1	802	4.99	2007-01-29 16:07:25.996577
+16206	351	1	1137	1.99	2007-01-31 17:48:40.996577
+16207	352	1	784	2.99	2007-01-29 13:12:48.996577
+16208	353	2	1103	6.99	2007-01-31 12:52:44.996577
+16209	354	1	140	0.99	2007-01-25 22:02:48.996577
+16210	354	2	158	1.99	2007-01-25 23:55:37.996577
+16211	354	2	402	0.99	2007-01-27 11:45:44.996577
+16212	355	1	1110	3.99	2007-01-31 13:51:17.996577
+16213	356	2	1088	4.99	2007-01-31 10:03:39.996577
+16214	357	1	144	2.99	2007-01-25 22:18:22.996577
+16215	357	1	824	4.99	2007-01-29 20:13:58.996577
+16216	357	2	945	0.99	2007-01-30 14:01:43.996577
+16217	358	2	858	4.99	2007-01-30 00:38:58.996577
+16218	359	1	284	8.99	2007-01-26 17:50:10.996577
+16219	359	2	392	2.99	2007-01-27 09:43:08.996577
+16220	359	1	528	3.99	2007-01-28 02:58:31.996577
+16221	360	1	633	0.99	2007-01-28 16:06:25.996577
+16222	360	2	777	4.99	2007-01-29 12:36:24.996577
+16223	361	1	368	5.99	2007-01-27 06:10:55.996577
+16224	361	2	1120	4.99	2007-01-31 15:05:40.996577
+16225	362	2	1035	4.99	2007-01-31 03:29:35.996577
+16226	363	1	733	3.99	2007-01-29 06:03:47.996577
+16227	364	1	462	5.99	2007-01-27 18:39:02.996577
+16228	365	2	120	5.99	2007-01-25 18:06:13.996577
+16229	365	1	231	4.99	2007-01-26 10:00:25.996577
+16230	366	2	911	6.99	2007-01-30 09:18:48.996577
+16231	367	1	939	0.99	2007-01-30 13:18:00.996577
+16232	367	1	1089	2.99	2007-01-31 10:06:55.996577
+16233	368	1	64	5.99	2007-01-25 07:49:55.996577
+16234	368	1	125	5.99	2007-01-25 19:17:16.996577
+16235	368	1	836	2.99	2007-01-29 22:25:08.996577
+16236	368	1	949	2.99	2007-01-30 14:19:05.996577
+16237	369	1	31	4.99	2007-01-25 02:33:43.996577
+16238	369	1	294	4.99	2007-01-26 18:58:23.996577
+16239	369	2	854	0.99	2007-01-30 00:24:37.996577
+16240	369	2	913	7.99	2007-01-30 09:33:24.996577
+16241	371	1	26	3.99	2007-01-25 02:05:16.996577
+16242	371	2	286	6.99	2007-01-26 18:13:17.996577
+16243	371	2	381	4.99	2007-01-27 08:11:51.996577
+16244	371	1	384	5.99	2007-01-27 08:46:46.996577
+16245	371	1	825	0.99	2007-01-29 20:18:07.996577
+16246	371	1	829	2.99	2007-01-29 20:45:08.996577
+16247	372	1	617	2.99	2007-01-28 14:17:40.996577
+16248	372	1	638	2.99	2007-01-28 16:53:09.996577
+16249	373	2	257	4.99	2007-01-26 13:55:31.996577
+16250	374	1	521	0.99	2007-01-28 02:00:48.996577
+16251	374	2	910	2.99	2007-01-30 09:14:42.996577
+16252	374	2	919	0.99	2007-01-30 10:03:32.996577
+16253	375	2	307	8.99	2007-01-26 20:16:39.996577
+16254	375	1	412	4.99	2007-01-27 12:45:49.996577
+16255	375	2	749	4.99	2007-01-29 08:01:59.996577
+16256	375	1	873	2.99	2007-01-30 03:43:46.996577
+16257	376	1	554	0.99	2007-01-28 06:51:42.996577
+16258	378	1	347	0.99	2007-01-27 03:08:59.996577
+16259	379	2	209	4.99	2007-01-26 06:42:27.996577
+16260	379	1	863	4.99	2007-01-30 01:43:25.996577
+16261	380	1	847	3.99	2007-01-29 23:46:41.996577
+16262	381	2	169	0.99	2007-01-26 01:37:56.996577
+16263	381	2	406	2.99	2007-01-27 12:15:12.996577
+16264	381	1	835	2.99	2007-01-29 22:05:26.996577
+16265	382	2	356	2.99	2007-01-27 05:00:56.996577
+16266	382	1	522	2.99	2007-01-28 02:01:46.996577
+16267	383	2	63	0.99	2007-01-25 07:47:42.996577
+16268	383	1	766	8.99	2007-01-29 10:15:28.996577
+16269	384	2	103	4.99	2007-01-25 15:59:08.996577
+16270	384	2	279	2.99	2007-01-26 16:31:16.996577
+16271	384	1	898	0.99	2007-01-30 07:54:45.996577
+16272	384	2	1013	2.99	2007-01-31 01:05:26.996577
+16273	385	1	917	2.99	2007-01-30 09:55:32.996577
+16274	385	2	1038	4.99	2007-01-31 03:52:13.996577
+16275	386	1	583	7.99	2007-01-28 10:17:21.996577
+16276	387	2	302	4.99	2007-01-26 19:42:12.996577
+16277	387	1	697	7.99	2007-01-29 00:32:30.996577
+16278	387	1	841	4.99	2007-01-29 22:59:43.996577
+16279	387	1	1127	3.99	2007-01-31 16:14:15.996577
+16280	388	2	21	4.99	2007-01-25 00:28:12.996577
+16281	388	2	411	4.99	2007-01-27 12:42:40.996577
+16282	389	1	998	4.99	2007-01-30 22:45:23.996577
+16283	390	1	254	4.99	2007-01-26 13:12:14.996577
+16284	390	2	912	4.99	2007-01-30 09:26:59.996577
+16285	391	2	73	4.99	2007-01-25 09:28:33.996577
+16286	391	1	210	2.99	2007-01-26 06:42:41.996577
+16287	391	1	317	5.99	2007-01-26 21:52:22.996577
+16288	391	2	870	2.99	2007-01-30 02:54:13.996577
+16289	391	1	891	7.99	2007-01-30 06:11:38.996577
+16290	393	1	599	4.99	2007-01-28 12:34:23.996577
+16291	393	2	886	0.99	2007-01-30 05:23:17.996577
+16292	394	1	213	3.99	2007-01-26 07:12:34.996577
+16293	394	1	977	2.99	2007-01-30 19:50:52.996577
+16294	396	2	641	5.99	2007-01-28 17:14:13.996577
+16295	397	2	1002	0.99	2007-01-30 23:16:22.996577
+16296	398	1	486	4.99	2007-01-27 22:19:38.996577
+16297	399	2	10	5.99	2007-01-24 22:30:47.996577
+16298	399	2	694	6.99	2007-01-29 00:18:09.996577
+16299	399	2	883	4.99	2007-01-30 04:49:31.996577
+16300	400	1	95	3.99	2007-01-25 14:41:18.996577
+16301	400	2	171	6.99	2007-01-26 01:42:41.996577
+16302	400	2	516	1.99	2007-01-28 01:40:13.996577
+16303	400	2	894	5.99	2007-01-30 06:59:57.996577
+16304	401	2	167	4.99	2007-01-26 01:18:57.996577
+16305	401	2	446	4.99	2007-01-27 17:17:07.996577
+16306	401	2	811	1.99	2007-01-29 17:59:08.996577
+16307	402	2	801	1.99	2007-01-29 16:04:16.996577
+16308	403	1	442	2.99	2007-01-27 16:40:39.996577
+16309	403	1	517	0.99	2007-01-28 01:46:23.996577
+16310	404	2	1081	5.99	2007-01-31 09:24:58.996577
+16311	405	1	121	2.99	2007-01-25 18:09:55.996577
+16312	405	2	770	4.99	2007-01-29 11:25:16.996577
+16313	406	1	855	0.99	2007-01-30 00:28:54.996577
+16314	407	1	619	7.99	2007-01-28 14:20:52.996577
+16315	408	2	3	3.99	2007-01-24 21:32:05.996577
+16316	408	2	59	5.99	2007-01-25 07:25:08.996577
+16317	408	1	526	2.99	2007-01-28 02:56:03.996577
+16318	409	1	310	6.99	2007-01-26 21:09:33.996577
+16319	411	2	686	4.99	2007-01-28 22:55:36.996577
+16320	411	2	972	1.99	2007-01-30 18:49:33.996577
+16321	412	2	191	0.99	2007-01-26 04:42:32.996577
+16322	412	1	333	4.99	2007-01-27 01:20:47.996577
+16323	412	1	717	0.99	2007-01-29 03:06:10.996577
+16324	412	2	1043	3.99	2007-01-31 04:40:06.996577
+16325	413	1	40	4.99	2007-01-25 03:37:30.996577
+16326	413	1	999	4.99	2007-01-30 22:53:36.996577
+16327	414	1	85	4.99	2007-01-25 11:34:00.996577
+16328	414	1	261	3.99	2007-01-26 14:12:49.996577
+16329	415	2	665	4.99	2007-01-28 20:07:05.996577
+16330	416	2	253	0.99	2007-01-26 13:11:40.996577
+16331	416	2	724	3.99	2007-01-29 04:21:49.996577
+16332	416	2	1031	2.99	2007-01-31 02:51:27.996577
+16333	417	1	267	4.99	2007-01-26 14:44:47.996577
+16334	417	2	630	8.99	2007-01-28 15:53:17.996577
+16335	417	2	833	4.99	2007-01-29 21:50:22.996577
+16336	419	1	62	2.99	2007-01-25 07:47:18.996577
+16337	420	2	744	4.99	2007-01-29 07:41:34.996577
+16338	421	1	507	0.99	2007-01-28 00:59:45.996577
+16339	421	1	931	0.99	2007-01-30 11:21:27.996577
+16340	422	1	398	0.99	2007-01-27 11:12:29.996577
+16341	424	2	403	0.99	2007-01-27 11:57:18.996577
+16342	425	2	1098	5.99	2007-01-31 12:20:14.996577
+16343	426	2	604	0.99	2007-01-28 13:05:33.996577
+16344	427	2	82	6.99	2007-01-25 10:46:12.996577
+16345	428	2	634	4.99	2007-01-28 16:09:01.996577
+16346	429	2	150	5.99	2007-01-25 22:57:05.996577
+16347	429	2	290	2.99	2007-01-26 18:36:59.996577
+16348	429	2	601	7.99	2007-01-28 12:36:48.996577
+16349	429	2	799	4.99	2007-01-29 15:53:14.996577
+16350	429	2	844	4.99	2007-01-29 23:26:46.996577
+16351	430	2	30	2.99	2007-01-25 02:29:58.996577
+16352	430	1	364	4.99	2007-01-27 05:48:38.996577
+16353	431	2	1126	2.99	2007-01-31 15:56:11.996577
+16354	432	2	326	7.99	2007-01-26 23:38:37.996577
+16355	432	1	550	5.99	2007-01-28 06:07:42.996577
+16356	432	1	897	8.99	2007-01-30 07:38:27.996577
+16357	433	2	146	8.99	2007-01-25 22:35:37.996577
+16358	433	1	691	10.99	2007-01-28 23:29:52.996577
+16359	434	2	508	5.99	2007-01-28 01:09:16.996577
+16360	435	1	757	7.99	2007-01-29 08:58:13.996577
+16361	435	1	806	4.99	2007-01-29 16:59:56.996577
+16362	436	1	45	7.99	2007-01-25 04:28:05.996577
+16363	436	1	256	3.99	2007-01-26 13:49:24.996577
+16364	436	1	848	5.99	2007-01-29 23:48:19.996577
+16365	437	1	192	2.99	2007-01-26 04:49:03.996577
+16366	437	2	656	4.99	2007-01-28 18:46:50.996577
+16367	437	1	666	5.99	2007-01-28 20:17:17.996577
+16368	438	2	23	4.99	2007-01-25 01:08:47.996577
+16369	438	2	1036	0.99	2007-01-31 03:49:36.996577
+16370	438	1	1138	6.99	2007-01-31 17:58:53.996577
+16371	439	1	126	2.99	2007-01-25 19:36:25.996577
+16372	439	2	367	0.99	2007-01-27 06:05:28.996577
+16373	439	1	786	9.99	2007-01-29 13:45:54.996577
+16374	440	2	957	4.99	2007-01-30 16:21:55.996577
+16375	441	1	823	4.99	2007-01-29 20:08:03.996577
+16376	442	2	466	0.99	2007-01-27 19:25:33.996577
+16377	442	2	558	6.99	2007-01-28 07:07:09.996577
+16378	442	1	632	5.99	2007-01-28 16:06:16.996577
+16379	443	2	1068	4.99	2007-01-31 08:00:41.996577
+16380	444	1	201	8.99	2007-01-26 05:42:11.996577
+16381	444	1	557	0.99	2007-01-28 07:04:48.996577
+16382	445	1	481	2.99	2007-01-27 21:17:53.996577
+16383	445	1	960	2.99	2007-01-30 16:41:49.996577
+16384	446	2	14	0.99	2007-01-24 22:59:41.996577
+16385	446	1	236	0.99	2007-01-26 10:22:15.996577
+16386	446	1	355	4.99	2007-01-27 04:43:59.996577
+16387	447	1	461	2.99	2007-01-27 18:37:21.996577
+16388	447	2	732	0.99	2007-01-29 06:01:17.996577
+16389	448	1	299	4.99	2007-01-26 19:24:02.996577
+16390	448	2	1123	2.99	2007-01-31 15:17:09.996577
+16391	449	2	263	4.99	2007-01-26 14:16:06.996577
+16392	449	2	325	5.99	2007-01-26 23:38:21.996577
+16393	449	1	849	7.99	2007-01-29 23:51:33.996577
+16394	450	2	548	3.99	2007-01-28 06:03:22.996577
+16395	451	2	77	0.99	2007-01-25 10:00:25.996577
+16396	451	2	328	2.99	2007-01-26 23:57:57.996577
+16397	451	2	1113	2.99	2007-01-31 14:27:10.996577
+16398	452	1	354	2.99	2007-01-27 04:40:52.996577
+16399	452	2	714	2.99	2007-01-29 02:43:47.996577
+16400	452	1	726	1.99	2007-01-29 04:33:55.996577
+16401	454	1	735	7.99	2007-01-29 06:36:39.996577
+16402	455	2	115	0.99	2007-01-25 17:41:51.996577
+16403	455	2	343	0.99	2007-01-27 02:42:07.996577
+16404	456	2	19	4.99	2007-01-24 23:45:50.996577
+16405	457	2	1024	7.99	2007-01-31 01:58:45.996577
+16406	459	2	2	2.99	2007-01-24 21:22:59.996577
+16407	460	1	223	4.99	2007-01-26 08:43:49.996577
+16408	460	2	298	0.99	2007-01-26 19:20:52.996577
+16409	460	1	880	0.99	2007-01-30 04:40:59.996577
+16410	460	2	1064	4.99	2007-01-31 07:18:33.996577
+16411	461	1	684	6.99	2007-01-28 22:41:41.996577
+16412	462	2	156	2.99	2007-01-25 23:47:31.996577
+16413	462	2	590	3.99	2007-01-28 11:35:16.996577
+16414	463	1	560	1.99	2007-01-28 07:21:28.996577
+16415	464	1	305	3.99	2007-01-26 19:50:33.996577
+16416	464	2	373	1.99	2007-01-27 06:44:51.996577
+16417	465	2	640	0.99	2007-01-28 17:11:52.996577
+16418	466	2	1104	2.99	2007-01-31 12:58:27.996577
+16419	467	2	225	4.99	2007-01-26 08:56:16.996577
+16420	468	2	101	6.99	2007-01-25 15:45:30.996577
+16421	468	1	186	4.99	2007-01-26 04:01:18.996577
+16422	468	2	296	6.99	2007-01-26 19:03:45.996577
+16423	468	2	459	0.99	2007-01-27 18:28:30.996577
+16424	468	1	673	0.99	2007-01-28 20:35:56.996577
+16425	469	1	168	0.99	2007-01-26 01:36:09.996577
+16426	469	2	506	7.99	2007-01-28 00:37:45.996577
+16427	469	2	529	4.99	2007-01-28 03:02:43.996577
+16428	469	2	936	1.99	2007-01-30 12:21:15.996577
+16429	469	1	1119	2.99	2007-01-31 15:02:53.996577
+16430	470	2	60	2.99	2007-01-25 07:26:51.996577
+16431	471	1	616	2.99	2007-01-28 14:14:05.996577
+16432	472	2	142	0.99	2007-01-25 22:12:13.996577
+16433	472	2	249	2.99	2007-01-26 12:47:35.996577
+16434	472	2	800	0.99	2007-01-29 15:56:38.996577
+16435	472	2	994	4.99	2007-01-30 22:24:02.996577
+16436	473	1	348	4.99	2007-01-27 03:19:22.996577
+16437	473	2	942	2.99	2007-01-30 13:34:13.996577
+16438	473	2	973	3.99	2007-01-30 18:56:11.996577
+16439	474	1	816	7.99	2007-01-29 18:55:05.996577
+16440	475	2	417	4.99	2007-01-27 13:35:53.996577
+16441	475	1	702	0.99	2007-01-29 00:55:56.996577
+16442	476	1	489	4.99	2007-01-27 22:37:38.996577
+16443	476	1	771	2.99	2007-01-29 11:27:40.996577
+16444	477	1	882	2.99	2007-01-30 04:44:32.996577
+16445	479	2	132	3.99	2007-01-25 20:15:20.996577
+16446	479	1	709	7.99	2007-01-29 02:16:27.996577
+16447	480	1	518	0.99	2007-01-28 01:46:28.996577
+16448	480	1	720	6.99	2007-01-29 03:45:56.996577
+16449	480	2	822	9.99	2007-01-29 20:04:26.996577
+16450	481	2	1109	5.99	2007-01-31 13:40:41.996577
+16451	482	1	259	8.99	2007-01-26 14:01:12.996577
+16452	482	2	680	2.99	2007-01-28 21:55:52.996577
+16453	482	2	879	0.99	2007-01-30 04:18:08.996577
+16454	483	2	742	6.99	2007-01-29 07:04:56.996577
+16455	484	2	35	4.99	2007-01-25 02:53:02.996577
+16456	484	2	668	2.99	2007-01-28 20:23:11.996577
+16457	484	2	727	2.99	2007-01-29 04:36:41.996577
+16458	485	1	1009	2.99	2007-01-31 00:16:01.996577
+16459	486	1	909	8.99	2007-01-30 09:12:04.996577
+16460	486	2	946	2.99	2007-01-30 14:03:34.996577
+16461	486	2	1129	0.99	2007-01-31 16:29:14.996577
+16462	489	1	219	4.99	2007-01-26 08:10:11.996577
+16463	489	2	513	2.99	2007-01-28 01:36:36.996577
+16464	490	2	585	6.99	2007-01-28 10:19:11.996577
+16465	490	2	676	4.99	2007-01-28 20:56:17.996577
+16466	491	1	484	2.99	2007-01-27 21:55:11.996577
+16467	491	2	1097	0.99	2007-01-31 12:07:08.996577
+16468	492	1	84	2.99	2007-01-25 11:04:56.996577
+16469	493	1	543	7.99	2007-01-28 05:12:00.996577
+16470	494	1	608	4.99	2007-01-28 13:32:10.996577
+16471	495	2	623	4.99	2007-01-28 14:29:54.996577
+16472	495	2	741	4.99	2007-01-29 07:04:15.996577
+16473	496	2	322	4.99	2007-01-26 23:16:01.996577
+16474	496	2	966	0.99	2007-01-30 17:29:03.996577
+16475	497	1	1100	7.99	2007-01-31 12:31:47.996577
+16476	498	2	49	2.99	2007-01-25 05:08:01.996577
+16477	498	1	429	8.99	2007-01-27 14:49:52.996577
+16478	498	2	718	2.99	2007-01-29 03:20:49.996577
+16479	499	2	89	2.99	2007-01-25 12:56:55.996577
+16480	500	1	112	8.99	2007-01-25 17:25:50.996577
+16481	500	1	389	8.99	2007-01-27 09:14:07.996577
+16482	500	1	610	0.99	2007-01-28 13:43:51.996577
+16483	501	1	493	0.99	2007-01-27 23:02:37.996577
+16484	501	1	605	1.99	2007-01-28 13:07:36.996577
+16485	502	2	258	2.99	2007-01-26 13:56:40.996577
+16486	502	1	861	0.99	2007-01-30 01:16:58.996577
+16487	502	1	893	2.99	2007-01-30 06:35:25.996577
+16488	502	2	965	0.99	2007-01-30 17:28:40.996577
+16489	503	2	109	1.99	2007-01-25 17:08:46.996577
+16490	503	1	353	5.99	2007-01-27 04:32:05.996577
+16491	503	1	631	2.99	2007-01-28 16:04:58.996577
+16492	503	1	1074	4.99	2007-01-31 08:33:08.996577
+16493	504	2	136	5.99	2007-01-25 20:30:56.996577
+16494	504	2	470	4.99	2007-01-27 19:45:34.996577
+16495	504	1	838	4.99	2007-01-29 22:56:23.996577
+16496	505	1	159	2.99	2007-01-26 00:02:54.996577
+16497	505	1	645	2.99	2007-01-28 17:42:35.996577
+16498	506	1	114	3.99	2007-01-25 17:41:08.996577
+16499	506	2	387	2.99	2007-01-27 09:03:53.996577
+16500	506	2	410	3.99	2007-01-27 12:39:48.996577
+16501	506	1	547	8.99	2007-01-28 05:52:54.996577
+16502	506	2	907	0.99	2007-01-30 09:05:53.996577
+16503	506	1	1042	2.99	2007-01-31 04:21:26.996577
+16504	506	2	1153	4.99	2007-01-31 20:05:10.996577
+16505	507	1	52	0.99	2007-01-25 05:19:55.996577
+16506	507	2	713	4.99	2007-01-29 02:38:43.996577
+16507	508	1	369	2.99	2007-01-27 06:15:15.996577
+16508	508	2	921	2.99	2007-01-30 10:21:35.996577
+16509	509	1	22	4.99	2007-01-25 00:47:49.996577
+16510	509	1	831	8.99	2007-01-29 21:18:51.996577
+16511	510	1	75	8.99	2007-01-25 09:42:00.996577
+16512	510	1	372	5.99	2007-01-27 06:42:24.996577
+16513	510	2	1118	4.99	2007-01-31 14:51:28.996577
+16514	511	1	56	2.99	2007-01-25 06:56:37.996577
+16515	511	1	819	3.99	2007-01-29 19:28:58.996577
+16516	513	2	993	4.99	2007-01-30 22:22:45.996577
+16517	514	2	536	4.99	2007-01-28 04:45:59.996577
+16518	515	2	187	8.99	2007-01-26 04:11:03.996577
+16519	515	2	292	6.99	2007-01-26 18:50:38.996577
+16520	516	2	339	3.99	2007-01-27 02:15:44.996577
+16521	516	1	571	1.99	2007-01-28 08:46:07.996577
+16522	517	2	850	4.99	2007-01-30 00:03:38.996577
+16523	518	1	710	2.99	2007-01-29 02:17:02.996577
+16524	519	1	1056	3.99	2007-01-31 06:16:33.996577
+16525	520	1	962	6.99	2007-01-30 17:13:43.996577
+16526	522	2	426	5.99	2007-01-27 14:25:23.996577
+16527	523	1	42	4.99	2007-01-25 03:53:24.996577
+16528	523	2	664	0.99	2007-01-28 19:59:34.996577
+16529	524	2	118	0.99	2007-01-25 17:59:44.996577
+16530	524	1	982	4.99	2007-01-30 20:43:50.996577
+16531	525	1	437	5.99	2007-01-27 16:15:48.996577
+16532	526	1	495	4.99	2007-01-27 23:09:14.996577
+16533	526	2	679	4.99	2007-01-28 21:53:23.996577
+16534	526	2	1015	2.99	2007-01-31 01:13:23.996577
+16535	528	1	204	0.99	2007-01-26 05:59:03.996577
+16536	528	2	472	0.99	2007-01-27 20:04:41.996577
+16537	528	1	533	5.99	2007-01-28 04:43:12.996577
+16538	528	2	695	3.99	2007-01-29 00:19:19.996577
+16539	528	2	793	5.99	2007-01-29 15:12:34.996577
+16540	529	1	453	2.99	2007-01-27 17:59:42.996577
+16541	530	1	851	0.99	2007-01-30 00:03:41.996577
+16542	531	1	233	4.99	2007-01-26 10:12:10.996577
+16543	531	1	681	2.99	2007-01-28 22:08:10.996577
+16544	532	1	43	2.99	2007-01-25 04:07:51.996577
+16545	533	1	173	0.99	2007-01-26 02:10:36.996577
+16546	533	2	190	1.99	2007-01-26 04:39:54.996577
+16547	533	1	615	5.99	2007-01-28 14:04:18.996577
+16548	534	2	304	5.99	2007-01-26 19:49:54.996577
+16549	534	2	940	0.99	2007-01-30 13:29:28.996577
+16550	535	1	37	0.99	2007-01-25 03:12:57.996577
+16551	535	2	541	2.99	2007-01-28 05:10:24.996577
+16552	535	1	778	3.99	2007-01-29 12:38:19.996577
+16553	535	2	959	4.99	2007-01-30 16:35:26.996577
+16554	536	1	237	0.99	2007-01-26 10:43:39.996577
+16555	536	1	929	6.99	2007-01-30 11:01:05.996577
+16556	537	2	603	4.99	2007-01-28 12:56:17.996577
+16557	538	2	594	2.99	2007-01-28 12:10:22.996577
+16558	538	2	734	4.99	2007-01-29 06:07:18.996577
+16559	539	2	250	4.99	2007-01-26 12:58:50.996577
+16560	539	1	342	0.99	2007-01-27 02:39:30.996577
+16561	541	1	1021	7.99	2007-01-31 01:44:41.996577
+16562	541	1	1066	4.99	2007-01-31 07:35:59.996577
+16563	542	1	220	4.99	2007-01-26 08:35:15.996577
+16564	542	2	376	4.99	2007-01-27 07:26:41.996577
+16565	543	1	243	6.99	2007-01-26 11:34:31.996577
+16566	543	2	476	1.99	2007-01-27 21:00:02.996577
+16567	544	1	397	2.99	2007-01-27 10:57:28.996577
+16568	544	1	864	2.99	2007-01-30 01:55:43.996577
+16569	545	2	248	0.99	2007-01-26 12:36:24.996577
+16570	545	2	715	3.99	2007-01-29 02:51:07.996577
+16571	546	1	197	5.99	2007-01-26 05:27:47.996577
+16572	546	1	482	6.99	2007-01-27 21:21:28.996577
+16573	547	1	306	0.99	2007-01-26 20:00:23.996577
+16574	547	2	443	8.99	2007-01-27 17:03:46.996577
+16575	547	2	1094	1.99	2007-01-31 11:32:15.996577
+16576	548	2	177	6.99	2007-01-26 02:42:55.996577
+16577	548	1	743	4.99	2007-01-29 07:07:28.996577
+16578	548	2	872	3.99	2007-01-30 03:31:30.996577
+16579	549	1	6	0.99	2007-01-24 21:36:33.996577
+16580	549	2	852	4.99	2007-01-30 00:05:23.996577
+16581	549	1	906	3.99	2007-01-30 08:59:04.996577
+16582	549	2	1086	4.99	2007-01-31 09:46:03.996577
+16583	550	2	922	7.99	2007-01-30 10:24:21.996577
+16584	551	2	155	7.99	2007-01-25 23:43:31.996577
+16585	551	1	728	2.99	2007-01-29 04:41:04.996577
+16586	551	1	795	0.99	2007-01-29 15:26:05.996577
+16587	551	2	969	4.99	2007-01-30 17:52:14.996577
+16588	551	2	1005	3.99	2007-01-30 23:21:51.996577
+16589	552	2	174	0.99	2007-01-26 02:12:36.996577
+16590	553	2	789	4.99	2007-01-29 14:45:33.996577
+16591	554	1	607	2.99	2007-01-28 13:31:07.996577
+16592	554	1	817	2.99	2007-01-29 19:07:40.996577
+16593	556	1	184	0.99	2007-01-26 03:58:15.996577
+16594	556	2	772	5.99	2007-01-29 11:36:32.996577
+16595	556	1	1083	3.99	2007-01-31 09:33:14.996577
+16596	557	2	467	4.99	2007-01-27 19:38:29.996577
+16597	557	1	478	4.99	2007-01-27 21:06:46.996577
+16598	560	1	137	2.99	2007-01-25 20:53:44.996577
+16599	561	1	902	4.99	2007-01-30 08:22:02.996577
+16600	561	2	971	4.99	2007-01-30 18:39:18.996577
+16601	562	2	788	2.99	2007-01-29 14:42:21.996577
+16602	562	1	941	2.99	2007-01-30 13:30:51.996577
+16603	562	1	1139	5.99	2007-01-31 18:03:18.996577
+16604	563	1	758	4.99	2007-01-29 09:00:22.996577
+16605	563	2	773	5.99	2007-01-29 11:46:31.996577
+16606	564	2	195	5.99	2007-01-26 05:21:02.996577
+16607	564	1	985	2.99	2007-01-30 20:47:01.996577
+16608	565	1	458	6.99	2007-01-27 18:27:02.996577
+16609	565	1	1004	0.99	2007-01-30 23:17:02.996577
+16610	566	2	234	5.99	2007-01-26 10:15:46.996577
+16611	566	2	768	4.99	2007-01-29 10:59:12.996577
+16612	569	2	53	4.99	2007-01-25 05:47:42.996577
+16613	569	1	487	4.99	2007-01-27 22:28:56.996577
+16614	569	1	624	4.99	2007-01-28 14:41:48.996577
+16615	569	1	647	1.99	2007-01-28 17:51:18.996577
+16616	569	2	1037	3.99	2007-01-31 03:50:51.996577
+16617	570	2	1060	7.99	2007-01-31 06:50:09.996577
+16618	571	1	228	9.99	2007-01-26 09:22:54.996577
+16619	571	2	689	3.99	2007-01-28 23:15:19.996577
+16620	572	2	559	7.99	2007-01-28 07:07:28.996577
+16621	573	2	827	2.99	2007-01-29 20:27:09.996577
+16622	574	2	433	0.99	2007-01-27 15:09:06.996577
+16623	575	1	17	2.99	2007-01-24 23:35:02.996577
+16624	575	1	395	0.99	2007-01-27 10:14:15.996577
+16625	575	2	454	4.99	2007-01-27 18:00:02.996577
+16626	575	2	769	2.99	2007-01-29 11:20:10.996577
+16627	575	1	774	4.99	2007-01-29 11:48:09.996577
+16628	576	2	755	2.99	2007-01-29 08:54:55.996577
+16629	576	1	968	0.99	2007-01-30 17:48:29.996577
+16630	577	2	291	5.99	2007-01-26 18:49:13.996577
+16631	578	2	660	0.99	2007-01-28 19:21:57.996577
+16632	580	1	611	0.99	2007-01-28 13:46:44.996577
+16633	581	1	976	4.99	2007-01-30 19:39:45.996577
+16634	581	1	1151	4.99	2007-01-31 19:57:26.996577
+16635	582	1	281	0.99	2007-01-26 17:18:01.996577
+16636	584	2	379	4.99	2007-01-27 07:53:58.996577
+16637	584	1	626	4.99	2007-01-28 15:26:35.996577
+16638	584	1	920	4.99	2007-01-30 10:12:27.996577
+16639	586	1	138	4.99	2007-01-25 21:16:48.996577
+16640	586	1	900	8.99	2007-01-30 08:07:07.996577
+16641	587	1	181	4.99	2007-01-26 03:15:32.996577
+16642	587	1	361	0.99	2007-01-27 05:31:54.996577
+16643	588	1	576	2.99	2007-01-28 09:24:36.996577
+16644	588	1	961	4.99	2007-01-30 16:45:10.996577
+16645	589	1	531	0.99	2007-01-28 03:52:04.996577
+16646	589	1	596	4.99	2007-01-28 12:28:29.996577
+16647	589	1	737	4.99	2007-01-29 06:39:57.996577
+16648	590	1	602	3.99	2007-01-28 12:44:20.996577
+16649	593	1	790	2.99	2007-01-29 14:47:55.996577
+16650	593	1	991	8.99	2007-01-30 21:57:48.996577
+16651	594	1	313	4.99	2007-01-26 21:24:45.996577
+16652	594	1	360	8.99	2007-01-27 05:19:40.996577
+16653	594	2	1018	0.99	2007-01-31 01:22:08.996577
+16654	594	1	1045	6.99	2007-01-31 04:57:27.996577
+16655	595	1	613	6.99	2007-01-28 13:55:48.996577
+16656	596	2	303	4.99	2007-01-26 19:45:18.996577
+16657	596	2	625	0.99	2007-01-28 15:04:12.996577
+16658	596	2	667	4.99	2007-01-28 20:17:28.996577
+16659	596	2	782	1.99	2007-01-29 13:07:23.996577
+16660	596	1	914	2.99	2007-01-30 09:34:26.996577
+16661	596	1	974	6.99	2007-01-30 18:57:08.996577
+16662	597	2	34	2.99	2007-01-25 02:47:54.996577
+16663	597	2	514	8.99	2007-01-28 01:37:54.996577
+16664	599	2	1008	4.99	2007-01-30 23:47:22.996577
+16665	203	1	314	0.99	2007-01-26 21:38:07.996577
+16666	204	2	251	0.99	2007-01-26 13:04:06.996577
+16667	204	2	399	4.99	2007-01-27 11:17:04.996577
+16668	204	2	857	4.99	2007-01-30 00:29:49.996577
+16669	204	1	1016	1.99	2007-01-31 01:18:09.996577
+16670	207	1	39	0.99	2007-01-25 03:20:12.996577
+16671	207	1	44	0.99	2007-01-25 04:21:49.996577
+16672	207	1	659	0.99	2007-01-28 18:56:19.996577
+16673	207	2	826	6.99	2007-01-29 20:24:41.996577
+16674	207	2	896	3.99	2007-01-30 07:32:18.996577
+16675	207	2	1144	3.99	2007-01-31 18:32:36.996577
+16676	208	1	100	4.99	2007-01-25 15:18:54.996577
+16677	1	1	76	2.99	2007-01-25 09:59:03.996577
+16678	1	1	573	0.99	2007-01-28 09:03:49.996577
+16679	2	1	320	4.99	2007-01-26 22:37:50.996577
+16680	3	1	435	1.99	2007-01-27 15:45:35.996577
+16681	3	1	830	2.99	2007-01-29 21:12:21.996577
+16682	5	1	731	0.99	2007-01-29 05:53:42.996577
+16683	5	1	1085	6.99	2007-01-31 09:44:09.996577
+16684	5	1	1142	1.99	2007-01-31 18:15:04.996577
+16685	6	2	57	4.99	2007-01-25 07:11:58.996577
+16686	6	1	577	2.99	2007-01-28 09:37:40.996577
+16687	6	2	916	0.99	2007-01-30 09:53:27.996577
+16688	7	2	46	5.99	2007-01-25 04:32:34.996577
+16689	7	2	117	0.99	2007-01-25 17:59:12.996577
+16690	7	2	748	2.99	2007-01-29 07:55:26.996577
+16691	7	1	975	4.99	2007-01-30 19:35:41.996577
+16692	7	1	1063	5.99	2007-01-31 07:12:55.996577
+16693	8	2	866	6.99	2007-01-30 02:12:20.996577
+16694	9	2	350	4.99	2007-01-27 03:29:54.996577
+16695	9	2	877	0.99	2007-01-30 04:17:25.996577
+16696	9	2	1075	4.99	2007-01-31 08:42:00.996577
+16697	10	2	1140	4.99	2007-01-31 18:04:56.996577
+16698	11	1	987	6.99	2007-01-30 21:27:38.996577
+16699	12	1	988	4.99	2007-01-30 21:36:29.996577
+16700	12	1	1084	4.99	2007-01-31 09:38:43.996577
+16701	14	1	151	0.99	2007-01-25 23:05:54.996577
+16702	14	1	346	9.99	2007-01-27 03:03:07.996577
+16703	14	1	525	5.99	2007-01-28 02:53:59.996577
+16704	14	1	671	2.99	2007-01-28 20:32:56.996577
+16705	14	2	815	0.99	2007-01-29 18:52:54.996577
+16706	16	1	335	3.99	2007-01-27 01:35:36.996577
+16707	16	1	593	2.99	2007-01-28 12:01:49.996577
+16708	16	2	887	0.99	2007-01-30 05:38:26.996577
+16709	16	1	1017	2.99	2007-01-31 01:22:02.996577
+16710	17	2	287	2.99	2007-01-26 18:13:20.996577
+16711	17	1	580	2.99	2007-01-28 09:48:19.996577
+16712	17	2	884	4.99	2007-01-30 05:09:58.996577
+16713	18	1	50	2.99	2007-01-25 05:13:19.996577
+16714	18	1	116	4.99	2007-01-25 17:56:17.996577
+16715	18	1	692	4.99	2007-01-29 00:00:36.996577
+16716	19	2	18	0.99	2007-01-24 23:39:13.996577
+16717	19	2	110	9.99	2007-01-25 17:12:15.996577
+16718	19	1	179	6.99	2007-01-26 02:54:32.996577
+16719	19	1	337	2.99	2007-01-27 01:50:56.996577
+16720	19	2	591	2.99	2007-01-28 11:39:30.996577
+16721	19	2	696	2.99	2007-01-29 00:27:36.996577
+16722	20	2	202	2.99	2007-01-26 05:56:02.996577
+16723	20	2	497	6.99	2007-01-27 23:23:05.996577
+16724	20	2	546	1.99	2007-01-28 05:44:51.996577
+16725	21	1	260	3.99	2007-01-26 14:10:46.996577
+16726	21	2	463	3.99	2007-01-27 18:40:13.996577
+16727	21	1	570	0.99	2007-01-28 08:43:30.996577
+16728	22	1	370	4.99	2007-01-27 06:18:09.996577
+16729	22	1	556	4.99	2007-01-28 07:00:02.996577
+16730	22	2	820	8.99	2007-01-29 19:35:48.996577
+16731	23	1	129	8.99	2007-01-25 19:48:29.996577
+16732	23	1	654	2.99	2007-01-28 18:43:56.996577
+16733	23	2	1090	0.99	2007-01-31 10:32:10.996577
+16734	24	2	1007	6.99	2007-01-30 23:30:54.996577
+16735	24	2	1077	2.99	2007-01-31 08:51:20.996577
+16736	25	1	90	7.99	2007-01-25 12:59:51.996577
+16737	25	2	1033	2.99	2007-01-31 03:18:33.996577
+16738	26	1	796	2.99	2007-01-29 15:28:10.996577
+16739	26	2	1105	2.99	2007-01-31 13:02:22.996577
+16740	27	2	787	2.99	2007-01-29 14:31:29.996577
+16741	28	2	388	2.99	2007-01-27 09:05:53.996577
+16742	28	1	868	2.99	2007-01-30 02:48:21.996577
+16743	29	2	194	1.99	2007-01-26 05:20:59.996577
+16744	32	2	483	4.99	2007-01-27 21:28:51.996577
+16745	32	2	803	4.99	2007-01-29 16:20:56.996577
+16746	32	2	1067	4.99	2007-01-31 07:40:39.996577
+16747	33	1	165	2.99	2007-01-26 00:57:02.996577
+16748	35	2	47	3.99	2007-01-25 04:33:46.996577
+16749	35	1	424	6.99	2007-01-27 14:02:27.996577
+16750	36	1	349	0.99	2007-01-27 03:21:37.996577
+16751	36	1	716	0.99	2007-01-29 03:03:55.996577
+16752	37	1	25	0.99	2007-01-25 01:49:46.996577
+16753	37	1	923	2.99	2007-01-30 10:27:16.996577
+16754	40	1	128	4.99	2007-01-25 19:48:19.996577
+16755	42	1	635	5.99	2007-01-28 16:15:23.996577
+16756	43	2	123	4.99	2007-01-25 18:55:08.996577
+16757	43	1	652	4.99	2007-01-28 18:37:13.996577
+16758	44	1	29	0.99	2007-01-25 02:15:38.996577
+16759	44	1	99	4.99	2007-01-25 15:18:46.996577
+16760	44	1	407	2.99	2007-01-27 12:26:04.996577
+16761	44	2	721	0.99	2007-01-29 03:57:13.996577
+16762	44	1	904	2.99	2007-01-30 08:48:08.996577
+16763	45	2	277	2.99	2007-01-26 16:00:37.996577
+16764	46	2	401	2.99	2007-01-27 11:26:21.996577
+16765	46	2	432	4.99	2007-01-27 15:08:55.996577
+16766	46	1	938	2.99	2007-01-30 13:15:57.996577
+16767	47	2	175	3.99	2007-01-26 02:14:52.996577
+16768	47	2	207	4.99	2007-01-26 06:33:04.996577
+16769	47	1	300	6.99	2007-01-26 19:25:26.996577
+16770	48	2	72	0.99	2007-01-25 09:20:39.996577
+16771	48	1	297	2.99	2007-01-26 19:17:14.996577
+16772	48	1	390	4.99	2007-01-27 09:30:52.996577
+16773	49	2	96	1.99	2007-01-25 15:00:45.996577
+16774	49	1	239	3.99	2007-01-26 10:58:52.996577
+16775	49	2	846	2.99	2007-01-29 23:46:11.996577
+16776	49	2	1010	4.99	2007-01-31 00:25:58.996577
+16777	50	1	763	4.99	2007-01-29 10:00:41.996577
+16778	50	1	794	4.99	2007-01-29 15:12:37.996577
+16779	50	1	905	4.99	2007-01-30 08:53:26.996577
+16780	50	1	1029	4.99	2007-01-31 02:20:28.996577
+16781	50	2	1136	4.99	2007-01-31 17:48:02.996577
+16782	51	2	119	4.99	2007-01-25 18:05:28.996577
+16783	51	1	661	4.99	2007-01-28 19:29:51.996577
+16784	51	2	1028	4.99	2007-01-31 02:16:31.996577
+16785	52	1	874	0.99	2007-01-30 04:04:47.996577
+16786	53	1	88	3.99	2007-01-25 12:42:20.996577
+16787	53	1	378	2.99	2007-01-27 07:51:48.996577
+16788	53	1	751	0.99	2007-01-29 08:24:09.996577
+16789	53	2	783	5.99	2007-01-29 13:09:44.996577
+16790	53	2	856	9.99	2007-01-30 00:29:47.996577
+16791	53	1	1107	2.99	2007-01-31 13:32:31.996577
+16792	54	2	198	4.99	2007-01-26 05:32:15.996577
+16793	54	2	441	4.99	2007-01-27 16:39:31.996577
+16794	54	2	545	3.99	2007-01-28 05:38:46.996577
+16795	55	1	555	4.99	2007-01-28 06:59:40.996577
+16796	55	1	1027	9.99	2007-01-31 02:14:45.996577
+16797	55	1	1048	0.99	2007-01-31 05:18:19.996577
+16798	56	1	130	3.99	2007-01-25 19:50:22.996577
+16799	56	1	341	5.99	2007-01-27 02:30:08.996577
+16800	56	1	496	2.99	2007-01-27 23:12:07.996577
+16801	56	1	569	6.99	2007-01-28 08:41:07.996577
+16802	57	2	152	9.99	2007-01-25 23:09:36.996577
+16803	57	2	943	4.99	2007-01-30 13:48:45.996577
+16804	58	1	230	0.99	2007-01-26 10:00:16.996577
+16805	58	2	276	7.99	2007-01-26 15:44:33.996577
+16806	58	2	761	0.99	2007-01-29 09:37:27.996577
+16807	59	2	212	4.99	2007-01-26 07:03:07.996577
+16808	59	2	951	2.99	2007-01-30 14:39:01.996577
+16809	59	1	1154	5.99	2007-01-31 20:10:35.996577
+16810	60	1	318	4.99	2007-01-26 22:06:05.996577
+16811	60	2	706	1.99	2007-01-29 01:34:15.996577
+16812	60	2	934	2.99	2007-01-30 11:53:12.996577
+16813	61	1	1157	0.99	2007-01-31 21:16:11.996577
+16814	62	2	885	0.99	2007-01-30 05:22:54.996577
+16815	62	1	947	4.99	2007-01-30 14:05:23.996577
+16816	64	1	494	4.99	2007-01-27 23:07:57.996577
+16817	64	1	587	0.99	2007-01-28 10:33:59.996577
+16818	64	1	1001	2.99	2007-01-30 23:14:57.996577
+16819	65	1	295	4.99	2007-01-26 19:01:46.996577
+16820	65	2	657	0.99	2007-01-28 18:51:35.996577
+16821	66	2	933	4.99	2007-01-30 11:37:11.996577
+16822	67	2	331	9.99	2007-01-27 00:50:52.996577
+16823	67	1	767	2.99	2007-01-29 10:48:45.996577
+16824	69	2	584	4.99	2007-01-28 10:17:26.996577
+16825	69	2	765	1.99	2007-01-29 10:07:00.996577
+16826	70	2	1044	4.99	2007-01-31 04:53:10.996577
+16827	71	1	199	2.99	2007-01-26 05:40:24.996577
+16828	71	1	272	9.99	2007-01-26 14:55:37.996577
+16829	72	2	785	4.99	2007-01-29 13:37:07.996577
+16830	72	2	845	4.99	2007-01-29 23:45:51.996577
+16831	72	2	1047	0.99	2007-01-31 05:14:23.996577
+16832	73	1	70	2.99	2007-01-25 08:43:49.996577
+16833	73	2	1133	4.99	2007-01-31 17:40:47.996577
+16834	74	2	1121	6.99	2007-01-31 15:06:02.996577
+16835	75	1	180	4.99	2007-01-26 03:14:49.996577
+16836	75	2	268	0.99	2007-01-26 14:47:34.996577
+16837	76	2	574	1.99	2007-01-28 09:12:54.996577
+16838	76	1	926	0.99	2007-01-30 10:44:20.996577
+16839	77	2	319	2.99	2007-01-26 22:20:39.996577
+16840	77	1	419	1.99	2007-01-27 13:43:37.996577
+16841	77	2	561	2.99	2007-01-28 07:22:32.996577
+16842	77	1	586	0.99	2007-01-28 10:31:26.996577
+16843	77	1	760	5.99	2007-01-29 09:35:51.996577
+16844	79	1	840	4.99	2007-01-29 22:57:07.996577
+16845	79	1	859	2.99	2007-01-30 01:04:46.996577
+16846	79	1	928	2.99	2007-01-30 10:55:40.996577
+16847	81	1	289	0.99	2007-01-26 18:29:35.996577
+16848	82	2	145	2.99	2007-01-25 22:27:29.996577
+16849	82	2	288	8.99	2007-01-26 18:16:15.996577
+16850	83	2	222	0.99	2007-01-26 08:43:04.996577
+16851	83	2	950	0.99	2007-01-30 14:34:34.996577
+16852	83	2	989	2.99	2007-01-30 21:40:17.996577
+16853	84	2	408	0.99	2007-01-27 12:26:05.996577
+16854	84	1	739	6.99	2007-01-29 06:56:44.996577
+16855	84	1	834	4.99	2007-01-29 21:52:56.996577
+16856	85	1	690	9.99	2007-01-28 23:23:19.996577
+16857	85	2	908	4.99	2007-01-30 09:07:03.996577
+16858	86	1	66	1.99	2007-01-25 08:03:38.996577
+16859	87	2	451	4.99	2007-01-27 17:56:20.996577
+16860	87	1	674	2.99	2007-01-28 20:40:01.996577
+16861	88	2	36	2.99	2007-01-25 03:04:52.996577
+16862	89	2	141	2.99	2007-01-25 22:03:19.996577
+16863	89	2	588	0.99	2007-01-28 10:37:03.996577
+16864	89	1	740	5.99	2007-01-29 06:59:02.996577
+16865	91	2	216	5.99	2007-01-26 07:46:09.996577
+16866	92	1	271	5.99	2007-01-26 14:50:27.996577
+16867	92	1	456	4.99	2007-01-27 18:18:32.996577
+16868	93	2	113	2.99	2007-01-25 17:36:06.996577
+16869	93	2	420	6.99	2007-01-27 13:48:04.996577
+16870	93	1	1025	4.99	2007-01-31 02:10:03.996577
+16871	94	1	127	2.99	2007-01-25 19:39:06.996577
+16872	94	2	629	4.99	2007-01-28 15:47:41.996577
+16873	95	1	490	4.99	2007-01-27 22:38:22.996577
+16874	98	2	214	3.99	2007-01-26 07:17:15.996577
+16875	99	2	867	0.99	2007-01-30 02:23:09.996577
+16876	100	1	71	0.99	2007-01-25 08:55:05.996577
+16877	101	1	468	9.99	2007-01-27 19:41:36.996577
+16878	102	1	247	4.99	2007-01-26 12:29:31.996577
+16879	102	1	358	0.99	2007-01-27 05:12:25.996577
+16880	102	2	562	1.99	2007-01-28 07:29:47.996577
+16881	103	1	240	7.99	2007-01-26 11:08:49.996577
+16882	103	1	658	9.99	2007-01-28 18:51:49.996577
+16883	104	1	163	10.99	2007-01-26 00:54:49.996577
+16884	104	2	808	3.99	2007-01-29 17:36:46.996577
+16885	105	1	327	8.99	2007-01-26 23:47:23.996577
+16886	105	2	473	7.99	2007-01-27 20:05:00.996577
+16887	105	1	485	2.99	2007-01-27 22:09:18.996577
+16888	105	1	779	6.99	2007-01-29 12:45:43.996577
+16889	106	2	552	3.99	2007-01-28 06:22:04.996577
+16890	106	2	1156	0.99	2007-01-31 21:06:00.996577
+16891	107	1	170	5.99	2007-01-26 01:39:38.996577
+16892	107	1	1026	5.99	2007-01-31 02:13:52.996577
+16893	108	1	105	4.99	2007-01-25 16:22:38.996577
+16894	108	2	1055	0.99	2007-01-31 06:15:44.996577
+16895	109	1	203	5.99	2007-01-26 05:56:23.996577
+16896	109	1	386	0.99	2007-01-27 08:54:57.996577
+16897	109	2	622	3.99	2007-01-28 14:26:48.996577
+16898	109	1	698	0.99	2007-01-29 00:39:18.996577
+16899	109	1	1061	7.99	2007-01-31 06:56:24.996577
+16900	109	1	1106	4.99	2007-01-31 13:05:18.996577
+16901	109	1	1115	2.99	2007-01-31 14:35:35.996577
+16902	110	1	515	7.99	2007-01-28 01:38:36.996577
+16903	110	2	538	1.99	2007-01-28 04:49:31.996577
+16904	111	2	505	2.99	2007-01-28 00:35:03.996577
+16905	112	1	396	0.99	2007-01-27 10:15:30.996577
+16906	112	2	701	2.99	2007-01-29 00:54:53.996577
+16907	113	1	510	0.99	2007-01-28 01:20:40.996577
+16908	113	2	776	0.99	2007-01-29 12:04:01.996577
+16909	114	1	205	4.99	2007-01-26 06:28:03.996577
+16910	114	1	255	4.99	2007-01-26 13:20:41.996577
+16911	114	2	889	2.99	2007-01-30 05:43:19.996577
+16912	115	1	915	0.99	2007-01-30 09:48:53.996577
+16913	115	1	983	0.99	2007-01-30 20:44:17.996577
+16914	115	1	1102	2.99	2007-01-31 12:48:55.996577
+16915	116	1	1058	4.99	2007-01-31 06:32:43.996577
+16916	117	1	700	0.99	2007-01-29 00:47:20.996577
+16917	117	2	1114	0.99	2007-01-31 14:28:59.996577
+16918	118	2	351	5.99	2007-01-27 04:07:29.996577
+16919	119	2	67	0.99	2007-01-25 08:09:27.996577
+16920	119	1	235	5.99	2007-01-26 10:19:35.996577
+16921	119	2	540	6.99	2007-01-28 05:08:51.996577
+16922	120	2	68	7.99	2007-01-25 08:15:57.996577
+16923	120	2	532	0.99	2007-01-28 04:05:24.996577
+16924	121	1	217	4.99	2007-01-26 07:52:52.996577
+16925	122	2	853	0.99	2007-01-30 00:11:57.996577
+16926	122	2	1135	4.99	2007-01-31 17:43:37.996577
+16927	123	1	992	2.99	2007-01-30 22:16:22.996577
+16928	124	1	775	0.99	2007-01-29 11:51:52.996577
+16929	124	2	1039	4.99	2007-01-31 04:00:55.996577
+16930	124	2	1057	3.99	2007-01-31 06:26:32.996577
+16931	124	2	1130	5.99	2007-01-31 16:42:23.996577
+16932	125	2	185	3.99	2007-01-26 03:58:29.996577
+16933	126	1	9	4.99	2007-01-24 22:29:06.996577
+16934	126	1	752	4.99	2007-01-29 08:42:41.996577
+16935	126	2	1054	4.99	2007-01-31 06:01:51.996577
+16936	127	1	452	0.99	2007-01-27 17:58:59.996577
+16937	127	1	708	0.99	2007-01-29 01:52:13.996577
+16938	128	2	888	5.99	2007-01-30 05:41:40.996577
+16939	128	2	1131	2.99	2007-01-31 17:12:45.996577
+16940	130	1	1	2.99	2007-01-24 21:21:56.996577
+16941	130	1	746	2.99	2007-01-29 07:53:36.996577
+16942	131	2	55	2.99	2007-01-25 06:54:39.996577
+16943	131	1	83	4.99	2007-01-25 10:58:41.996577
+16944	131	2	944	7.99	2007-01-30 13:54:50.996577
+16945	133	1	275	6.99	2007-01-26 15:38:19.996577
+16946	133	2	447	2.99	2007-01-27 17:25:28.996577
+16947	134	1	366	3.99	2007-01-27 06:02:20.996577
+16948	134	2	798	0.99	2007-01-29 15:52:09.996577
+16949	134	1	814	6.99	2007-01-29 18:44:38.996577
+16950	134	2	1124	4.99	2007-01-31 15:18:00.996577
+16951	135	1	78	5.99	2007-01-25 10:03:44.996577
+16952	135	2	753	3.99	2007-01-29 08:45:08.996577
+16953	136	2	1150	2.99	2007-01-31 19:48:35.996577
+16954	137	1	925	2.99	2007-01-30 10:42:18.996577
+16955	138	1	523	2.99	2007-01-28 02:21:52.996577
+16956	138	1	1020	0.99	2007-01-31 01:34:34.996577
+16957	141	2	930	2.99	2007-01-30 11:13:23.996577
+16958	142	2	11	8.99	2007-01-24 22:37:28.996577
+16959	142	1	148	0.99	2007-01-25 22:53:49.996577
+16960	142	1	575	9.99	2007-01-28 09:24:35.996577
+16961	143	1	221	2.99	2007-01-26 08:42:35.996577
+16962	143	1	312	2.99	2007-01-26 21:20:45.996577
+16963	144	1	323	2.99	2007-01-26 23:17:53.996577
+16964	144	2	345	2.99	2007-01-27 03:00:51.996577
+16965	145	1	500	0.99	2007-01-27 23:33:51.996577
+16966	146	2	762	7.99	2007-01-29 09:44:17.996577
+16967	146	1	1073	4.99	2007-01-31 08:23:30.996577
+16968	147	1	362	0.99	2007-01-27 05:38:51.996577
+16969	147	1	509	0.99	2007-01-28 01:19:38.996577
+16970	148	1	682	4.99	2007-01-28 22:21:44.996577
+16971	149	1	764	4.99	2007-01-29 10:06:01.996577
+16972	150	1	422	3.99	2007-01-27 14:00:21.996577
+16973	150	1	609	2.99	2007-01-28 13:32:28.996577
+16974	150	1	995	3.99	2007-01-30 22:34:28.996577
+16975	151	2	164	4.99	2007-01-26 00:55:15.996577
+16976	151	2	418	5.99	2007-01-27 13:41:43.996577
+16977	152	2	359	4.99	2007-01-27 05:16:59.996577
+16978	152	1	745	4.99	2007-01-29 07:51:23.996577
+16979	154	1	469	5.99	2007-01-27 19:42:52.996577
+16980	154	2	865	7.99	2007-01-30 02:08:10.996577
+16981	154	2	978	5.99	2007-01-30 19:59:18.996577
+16982	155	1	568	2.99	2007-01-28 08:26:02.996577
+16983	156	2	899	6.99	2007-01-30 07:57:56.996577
+16984	156	1	1052	4.99	2007-01-31 05:35:29.996577
+16985	157	2	352	0.99	2007-01-27 04:16:45.996577
+16986	157	1	642	4.99	2007-01-28 17:17:38.996577
+16987	158	2	245	4.99	2007-01-26 12:15:25.996577
+16988	158	1	293	5.99	2007-01-26 18:55:28.996577
+16989	159	2	475	2.99	2007-01-27 20:44:52.996577
+16990	159	2	549	1.99	2007-01-28 06:04:03.996577
+16991	159	1	598	0.99	2007-01-28 12:33:16.996577
+16992	159	1	832	3.99	2007-01-29 21:19:46.996577
+16993	161	2	428	2.99	2007-01-27 14:39:24.996577
+16994	161	2	477	3.99	2007-01-27 21:01:59.996577
+16995	161	1	520	5.99	2007-01-28 01:56:03.996577
+16996	161	2	539	0.99	2007-01-28 04:54:42.996577
+16997	161	1	612	2.99	2007-01-28 13:53:20.996577
+16998	161	1	1003	0.99	2007-01-30 23:16:46.996577
+16999	162	1	285	1.99	2007-01-26 18:10:06.996577
+17000	162	1	501	4.99	2007-01-27 23:38:02.996577
+17001	162	1	688	4.99	2007-01-28 23:13:50.996577
+17002	164	2	1011	1.99	2007-01-31 00:34:05.996577
+17003	165	2	338	4.99	2007-01-27 02:11:18.996577
+17004	166	1	662	1.99	2007-01-28 19:37:57.996577
+17005	167	1	280	2.99	2007-01-26 17:05:24.996577
+17006	167	1	365	2.99	2007-01-27 05:59:46.996577
+17007	167	1	927	4.99	2007-01-30 10:45:06.996577
+17008	168	2	404	0.99	2007-01-27 12:00:17.996577
+17009	168	1	488	4.99	2007-01-27 22:36:16.996577
+17010	169	2	527	3.99	2007-01-28 02:57:04.996577
+17011	169	1	1087	4.99	2007-01-31 09:46:34.996577
+17012	170	1	211	2.99	2007-01-26 07:01:36.996577
+17013	170	1	377	5.99	2007-01-27 07:32:31.996577
+17014	170	2	504	0.99	2007-01-28 00:34:00.996577
+17015	171	2	804	9.99	2007-01-29 16:38:50.996577
+17016	172	2	449	3.99	2007-01-27 17:41:41.996577
+17017	172	1	685	6.99	2007-01-28 22:46:17.996577
+17018	172	1	837	0.99	2007-01-29 22:30:34.996577
+17019	173	2	578	2.99	2007-01-28 09:44:14.996577
+17020	173	1	628	4.99	2007-01-28 15:34:12.996577
+17021	174	1	41	5.99	2007-01-25 03:40:55.996577
+17022	174	2	1071	4.99	2007-01-31 08:17:22.996577
+17023	176	1	172	0.99	2007-01-26 01:46:08.996577
+17024	176	2	380	6.99	2007-01-27 08:03:05.996577
+17025	176	1	553	3.99	2007-01-28 06:43:10.996577
+17026	176	1	663	1.99	2007-01-28 19:51:28.996577
+17027	176	1	1062	7.99	2007-01-31 07:06:46.996577
+17028	179	1	502	0.99	2007-01-28 00:03:09.996577
+17029	179	1	759	6.99	2007-01-29 09:26:23.996577
+17030	179	1	1046	4.99	2007-01-31 05:10:56.996577
+17031	180	1	1122	2.99	2007-01-31 15:07:59.996577
+17032	181	2	579	6.99	2007-01-28 09:47:49.996577
+17033	182	2	161	0.99	2007-01-26 00:20:14.996577
+17034	182	2	425	3.99	2007-01-27 14:19:56.996577
+17035	183	1	382	0.99	2007-01-27 08:40:26.996577
+17036	184	1	196	2.99	2007-01-26 05:24:24.996577
+17037	184	2	534	4.99	2007-01-28 04:43:51.996577
+17038	184	1	567	1.99	2007-01-28 08:24:46.996577
+17039	185	2	20	2.99	2007-01-25 00:17:07.996577
+17040	185	2	154	0.99	2007-01-25 23:24:22.996577
+17041	185	1	646	0.99	2007-01-28 17:44:40.996577
+17042	186	1	581	1.99	2007-01-28 09:48:55.996577
+17043	186	2	958	0.99	2007-01-30 16:26:29.996577
+17044	187	1	252	7.99	2007-01-26 13:08:19.996577
+17045	189	2	1117	5.99	2007-01-31 14:43:57.996577
+17046	190	2	430	4.99	2007-01-27 14:50:36.996577
+17047	190	1	693	2.99	2007-01-29 00:10:57.996577
+17048	191	1	1134	2.99	2007-01-31 17:42:41.996577
+17049	191	2	1152	4.99	2007-01-31 20:00:43.996577
+17050	192	1	895	1.99	2007-01-30 07:19:09.996577
+17051	193	2	273	2.99	2007-01-26 14:58:02.996577
+17052	193	2	464	0.99	2007-01-27 19:11:10.996577
+17053	194	2	334	4.99	2007-01-27 01:31:33.996577
+17054	194	2	677	7.99	2007-01-28 21:28:34.996577
+17055	196	2	106	11.99	2007-01-25 16:46:45.996577
+17056	196	2	178	5.99	2007-01-26 02:50:12.996577
+17057	196	2	491	2.99	2007-01-27 22:42:01.996577
+17058	196	1	1053	1.99	2007-01-31 05:41:10.996577
+17059	197	2	94	2.99	2007-01-25 14:32:08.996577
+17060	197	1	215	0.99	2007-01-26 07:31:13.996577
+17061	197	1	391	2.99	2007-01-27 09:32:21.996577
+17062	197	2	649	1.99	2007-01-28 18:04:11.996577
+17063	197	1	683	2.99	2007-01-28 22:38:14.996577
+17064	197	2	730	3.99	2007-01-29 05:29:25.996577
+17065	197	1	903	3.99	2007-01-30 08:39:55.996577
+17066	197	1	918	0.99	2007-01-30 10:00:50.996577
+17067	198	1	357	0.99	2007-01-27 05:05:41.996577
+17068	198	1	582	4.99	2007-01-28 10:02:12.996577
+17069	198	2	639	2.99	2007-01-28 16:53:28.996577
+17070	198	1	932	2.99	2007-01-30 11:24:02.996577
+17071	198	2	1132	4.99	2007-01-31 17:13:19.996577
+17072	199	1	499	7.99	2007-01-27 23:33:33.996577
+17073	200	2	270	9.99	2007-01-26 14:49:22.996577
+17074	201	1	311	3.99	2007-01-26 21:20:03.996577
+17075	201	1	670	6.99	2007-01-28 20:32:29.996577
+17076	201	2	756	5.99	2007-01-29 08:57:11.996577
+17077	209	2	340	9.99	2007-01-27 02:23:51.996577
+17078	209	1	471	0.99	2007-01-27 20:01:08.996577
+17079	209	2	1143	2.99	2007-01-31 18:21:29.996577
+17080	210	1	953	2.99	2007-01-30 15:02:28.996577
+17081	211	1	238	4.99	2007-01-26 10:58:48.996577
+17082	213	2	385	0.99	2007-01-27 08:51:51.996577
+17083	214	1	242	1.99	2007-01-26 11:33:34.996577
+17084	214	1	278	3.99	2007-01-26 16:09:24.996577
+17085	214	1	1076	2.99	2007-01-31 08:42:57.996577
+17086	214	2	1093	2.99	2007-01-31 11:00:52.996577
+17087	214	2	1112	0.99	2007-01-31 14:20:05.996577
+17088	215	1	711	4.99	2007-01-29 02:17:29.996577
+17089	215	2	1080	4.99	2007-01-31 09:23:52.996577
+17090	216	1	997	4.99	2007-01-30 22:36:51.996577
+17091	217	2	828	2.99	2007-01-29 20:43:21.996577
+17092	217	2	1141	8.99	2007-01-31 18:10:28.996577
+17093	219	1	414	0.99	2007-01-27 13:16:46.996577
+17094	220	2	409	0.99	2007-01-27 12:39:24.996577
+17095	220	1	480	3.99	2007-01-27 21:16:05.996577
+17096	221	2	226	4.99	2007-01-26 09:12:30.996577
+17097	222	1	5	6.99	2007-01-24 21:33:47.996577
+17098	222	1	134	4.99	2007-01-25 20:17:07.996577
+17099	222	2	416	0.99	2007-01-27 13:30:36.996577
+17100	222	2	809	3.99	2007-01-29 17:38:46.996577
+17101	222	2	1006	2.99	2007-01-30 23:25:34.996577
+17102	223	2	524	2.99	2007-01-28 02:25:54.996577
+17103	225	1	812	4.99	2007-01-29 18:28:56.996577
+17104	225	1	963	3.99	2007-01-30 17:21:19.996577
+17105	227	1	111	4.99	2007-01-25 17:13:45.996577
+17106	227	1	1023	3.99	2007-01-31 01:55:16.996577
+17107	228	2	492	4.99	2007-01-27 22:53:24.996577
+17108	228	2	1070	0.99	2007-01-31 08:08:22.996577
+17109	230	1	32	0.99	2007-01-25 02:34:47.996577
+17110	230	1	1078	4.99	2007-01-31 08:56:59.996577
+17111	231	1	329	5.99	2007-01-27 00:25:40.996577
+17112	231	1	479	6.99	2007-01-27 21:07:36.996577
+17113	231	1	512	8.99	2007-01-28 01:36:16.996577
+17114	232	1	28	4.99	2007-01-25 02:11:03.996577
+17115	232	1	805	3.99	2007-01-29 16:46:44.996577
+17116	234	2	1125	4.99	2007-01-31 15:52:10.996577
+17117	235	2	807	2.99	2007-01-29 17:19:16.996577
+17118	235	1	1148	0.99	2007-01-31 19:07:06.996577
+17119	236	2	262	2.99	2007-01-26 14:15:22.996577
+17120	236	2	344	2.99	2007-01-27 02:58:48.996577
+17121	236	1	1032	2.99	2007-01-31 02:57:09.996577
+17122	237	2	133	0.99	2007-01-25 20:16:56.996577
+17123	237	1	182	4.99	2007-01-26 03:17:43.996577
+17124	238	2	315	4.99	2007-01-26 21:41:21.996577
+17125	238	1	842	2.99	2007-01-29 23:00:30.996577
+17126	239	2	8	4.99	2007-01-24 22:00:12.996577
+17127	239	1	444	2.99	2007-01-27 17:07:41.996577
+17128	239	1	621	4.99	2007-01-28 14:26:38.996577
+17129	239	1	636	6.99	2007-01-28 16:16:24.996577
+17130	239	1	1022	7.99	2007-01-31 01:45:11.996577
+17131	239	2	1082	5.99	2007-01-31 09:30:27.996577
+17132	240	1	246	2.99	2007-01-26 12:25:33.996577
+17133	240	1	460	2.99	2007-01-27 18:30:29.996577
+17134	240	1	643	4.99	2007-01-28 17:20:37.996577
+17135	241	1	627	7.99	2007-01-28 15:33:09.996577
+17136	241	1	1059	3.99	2007-01-31 06:49:09.996577
+17137	242	1	108	2.99	2007-01-25 16:58:31.996577
+17138	242	2	283	3.99	2007-01-26 17:33:31.996577
+17139	242	2	881	4.99	2007-01-30 04:44:02.996577
+17140	243	1	188	4.99	2007-01-26 04:15:38.996577
+17141	244	2	592	4.99	2007-01-28 11:49:34.996577
+17142	244	1	797	1.99	2007-01-29 15:40:43.996577
+17143	245	2	79	4.99	2007-01-25 10:39:33.996577
+17144	245	1	241	0.99	2007-01-26 11:17:27.996577
+17145	245	1	519	7.99	2007-01-28 01:50:59.996577
+17146	245	1	719	2.99	2007-01-29 03:44:31.996577
+17147	245	2	725	2.99	2007-01-29 04:32:07.996577
+17148	245	2	948	8.99	2007-01-30 14:12:53.996577
+17149	246	1	124	6.99	2007-01-25 19:14:37.996577
+17150	246	2	421	8.99	2007-01-27 13:58:39.996577
+17151	246	2	434	5.99	2007-01-27 15:22:53.996577
+17152	246	1	699	3.99	2007-01-29 00:40:10.996577
+17153	246	1	1051	4.99	2007-01-31 05:30:35.996577
+17154	247	1	189	4.99	2007-01-26 04:30:07.996577
+17155	247	2	448	3.99	2007-01-27 17:31:34.996577
+17156	247	1	450	6.99	2007-01-27 17:47:20.996577
+17157	248	2	330	7.99	2007-01-27 00:43:56.996577
+17158	248	1	618	4.99	2007-01-28 14:18:33.996577
+17159	249	2	316	4.99	2007-01-26 21:51:21.996577
+17160	249	2	400	2.99	2007-01-27 11:20:10.996577
+17161	249	1	438	6.99	2007-01-27 16:21:00.996577
+17162	249	1	597	3.99	2007-01-28 12:29:28.996577
+17163	250	1	61	5.99	2007-01-25 07:30:23.996577
+17164	250	1	176	3.99	2007-01-26 02:16:05.996577
+17165	250	1	637	4.99	2007-01-28 16:42:55.996577
+17166	250	2	687	0.99	2007-01-28 23:00:35.996577
+17167	250	1	1146	2.99	2007-01-31 19:03:11.996577
+17168	251	1	264	2.99	2007-01-26 14:29:15.996577
+17169	251	1	309	1.99	2007-01-26 21:06:36.996577
+17170	251	2	393	2.99	2007-01-27 09:46:51.996577
+17171	251	2	1069	3.99	2007-01-31 08:00:57.996577
+17172	251	1	1091	4.99	2007-01-31 10:39:30.996577
+17173	251	2	1155	2.99	2007-01-31 20:45:37.996577
+17174	252	1	707	4.99	2007-01-29 01:46:45.996577
+17175	252	1	1095	0.99	2007-01-31 11:44:07.996577
+17176	253	1	566	6.99	2007-01-28 08:20:05.996577
+17177	253	1	648	0.99	2007-01-28 17:54:20.996577
+17178	253	1	986	2.99	2007-01-30 20:51:18.996577
+17179	254	1	183	2.99	2007-01-26 03:29:44.996577
+17180	254	1	1108	5.99	2007-01-31 13:33:38.996577
+17181	256	1	51	4.99	2007-01-25 05:17:36.996577
+17182	256	1	232	0.99	2007-01-26 10:06:31.996577
+17183	256	2	738	4.99	2007-01-29 06:48:34.996577
+17184	256	1	935	2.99	2007-01-30 11:58:02.996577
+17185	256	1	1116	0.99	2007-01-31 14:39:12.996577
+17186	257	2	139	2.99	2007-01-25 21:28:47.996577
+17187	257	2	244	2.99	2007-01-26 12:09:06.996577
+17188	257	2	705	2.99	2007-01-29 01:17:18.996577
+17189	259	2	722	6.99	2007-01-29 03:58:57.996577
+17190	259	2	901	2.99	2007-01-30 08:09:06.996577
+17191	259	1	1147	5.99	2007-01-31 19:06:18.996577
+17192	260	1	1101	8.99	2007-01-31 12:42:25.996577
+17193	261	1	12	4.99	2007-01-24 22:47:53.996577
+17194	261	2	465	3.99	2007-01-27 19:13:02.996577
+17195	261	2	542	6.99	2007-01-28 05:10:39.996577
+17196	261	1	792	0.99	2007-01-29 15:00:36.996577
+17197	262	2	984	4.99	2007-01-30 20:45:43.996577
+17198	263	1	97	4.99	2007-01-25 15:02:50.996577
+17199	263	1	266	0.99	2007-01-26 14:36:31.996577
+17200	265	2	74	0.99	2007-01-25 09:38:14.996577
+17201	266	1	86	1.99	2007-01-25 12:04:38.996577
+17202	266	2	651	2.99	2007-01-28 18:15:16.996577
+17203	267	2	91	6.99	2007-01-25 13:25:48.996577
+17204	267	1	436	4.99	2007-01-27 15:49:30.996577
+17205	267	2	1030	4.99	2007-01-31 02:35:13.996577
+17206	577	2	4591	0.99	2007-01-26 23:15:05.996577
+\.
+
+
+ALTER TABLE payment_p2007_01 ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: payment_p2007_02; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+ALTER TABLE payment_p2007_02 DISABLE TRIGGER ALL;
+
+COPY payment_p2007_02 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
+17207	268	1	1394	2.99	2007-02-15 14:45:47.996577
+17208	268	2	1450	4.99	2007-02-15 17:50:34.996577
+17209	268	2	1551	3.99	2007-02-16 00:29:41.996577
+17210	268	1	2133	0.99	2007-02-17 19:38:31.996577
+17211	268	2	2324	4.99	2007-02-18 08:28:59.996577
+17212	268	2	2858	2.99	2007-02-19 21:45:37.996577
+17213	268	1	3066	3.99	2007-02-20 12:24:07.996577
+17214	268	1	3361	1.99	2007-02-21 10:42:49.996577
+17215	269	1	1334	3.99	2007-02-15 10:11:35.996577
+17216	269	2	1909	2.99	2007-02-17 03:39:30.996577
+17217	269	2	2493	6.99	2007-02-18 20:40:35.996577
+17218	270	1	1345	4.99	2007-02-15 11:00:39.996577
+17219	270	1	1896	6.99	2007-02-17 02:54:12.996577
+17220	270	1	2115	3.99	2007-02-17 18:30:42.996577
+17221	270	2	3164	5.99	2007-02-20 19:57:26.996577
+17222	271	2	1852	2.99	2007-02-16 23:06:46.996577
+17223	272	2	1604	4.99	2007-02-16 04:42:51.996577
+17224	272	2	2546	5.99	2007-02-19 01:08:05.996577
+17225	272	1	3323	5.99	2007-02-21 07:13:59.996577
+17226	273	2	1391	6.99	2007-02-15 14:39:47.996577
+17227	273	2	1747	6.99	2007-02-16 15:21:59.996577
+17228	273	2	1765	4.99	2007-02-16 16:24:36.996577
+17229	273	1	2301	1.99	2007-02-18 06:52:29.996577
+17230	273	1	3202	0.99	2007-02-20 23:02:13.996577
+17231	274	1	2098	0.99	2007-02-17 17:10:35.996577
+17232	274	2	3291	9.99	2007-02-21 05:24:02.996577
+17233	275	2	1797	3.99	2007-02-16 18:41:29.996577
+17234	275	2	2414	0.99	2007-02-18 15:30:21.996577
+17235	275	1	2646	4.99	2007-02-19 08:24:27.996577
+17236	275	1	3355	2.99	2007-02-21 09:59:13.996577
+17237	276	1	1352	0.99	2007-02-15 11:26:53.996577
+17238	276	2	2763	4.99	2007-02-19 15:52:00.996577
+17239	276	2	3064	6.99	2007-02-20 12:21:39.996577
+17240	277	1	1331	2.99	2007-02-15 10:02:59.996577
+17241	277	2	1717	2.99	2007-02-16 13:15:42.996577
+17242	277	2	2162	3.99	2007-02-17 22:14:13.996577
+17243	277	2	2723	4.99	2007-02-19 13:23:49.996577
+17244	277	1	3247	5.99	2007-02-21 01:40:41.996577
+17245	277	2	3274	4.99	2007-02-21 03:59:02.996577
+17246	277	1	3344	2.99	2007-02-21 09:25:53.996577
+17247	278	2	1387	0.99	2007-02-15 14:09:22.996577
+17248	278	1	1978	2.99	2007-02-17 08:11:00.996577
+17249	278	2	2078	4.99	2007-02-17 15:17:21.996577
+17250	278	1	3453	2.99	2007-02-21 19:40:37.996577
+17251	279	1	1178	2.99	2007-02-14 23:05:06.996577
+17252	279	1	2147	4.99	2007-02-17 20:56:39.996577
+17253	279	1	3215	0.99	2007-02-20 23:39:58.996577
+17254	279	1	3374	2.99	2007-02-21 12:04:56.996577
+17255	279	1	3375	4.99	2007-02-21 12:05:44.996577
+17256	280	1	2656	3.99	2007-02-19 09:10:59.996577
+17257	280	2	3009	4.99	2007-02-20 08:53:10.996577
+17258	280	2	3097	0.99	2007-02-20 14:54:40.996577
+17259	281	2	1485	5.99	2007-02-15 19:52:36.996577
+17260	281	1	2254	5.99	2007-02-18 03:43:40.996577
+17261	282	1	2016	2.99	2007-02-17 10:47:02.996577
+17262	282	2	2176	2.99	2007-02-17 22:58:17.996577
+17263	282	2	3408	4.99	2007-02-21 14:43:37.996577
+17264	282	1	3417	2.99	2007-02-21 15:34:46.996577
+17265	283	1	1749	0.99	2007-02-16 15:24:26.996577
+17266	283	2	1796	2.99	2007-02-16 18:39:09.996577
+17267	283	2	2333	2.99	2007-02-18 09:24:20.996577
+17268	283	1	2685	2.99	2007-02-19 11:03:47.996577
+17269	283	2	2849	7.99	2007-02-19 21:34:26.996577
+17270	284	1	1171	0.99	2007-02-14 22:18:37.996577
+17271	284	2	2813	6.99	2007-02-19 18:30:13.996577
+17272	284	2	3296	0.99	2007-02-21 05:33:19.996577
+17273	285	2	1161	7.99	2007-02-14 21:35:34.996577
+17274	285	2	1302	3.99	2007-02-15 08:17:03.996577
+17275	285	1	2249	5.99	2007-02-18 03:31:34.996577
+17276	286	1	1690	8.99	2007-02-16 10:52:44.996577
+17277	286	1	2195	4.99	2007-02-18 00:13:12.996577
+17278	287	1	1247	7.99	2007-02-15 03:45:06.996577
+17279	287	2	1642	2.99	2007-02-16 07:22:41.996577
+17280	287	2	2286	9.99	2007-02-18 05:30:58.996577
+17281	287	2	2612	6.99	2007-02-19 05:48:07.996577
+17282	288	1	1466	5.99	2007-02-15 19:14:30.996577
+17283	289	2	1880	4.99	2007-02-17 01:37:25.996577
+17284	289	2	2316	0.99	2007-02-18 07:33:25.996577
+17285	289	1	2387	6.99	2007-02-18 13:52:45.996577
+17286	289	1	2784	10.99	2007-02-19 17:08:55.996577
+17287	289	2	2948	6.99	2007-02-20 04:31:01.996577
+17288	289	2	3123	6.99	2007-02-20 16:54:40.996577
+17289	290	1	1220	6.99	2007-02-15 01:54:41.996577
+17290	290	2	1336	8.99	2007-02-15 10:30:00.996577
+17291	290	2	1496	4.99	2007-02-15 20:24:24.996577
+17292	290	2	1532	0.99	2007-02-15 23:09:57.996577
+17293	290	1	3013	3.99	2007-02-20 09:13:35.996577
+17294	291	1	1191	2.99	2007-02-14 23:39:01.996577
+17295	291	1	2300	2.99	2007-02-18 06:51:00.996577
+17296	291	2	3042	2.99	2007-02-20 11:06:53.996577
+17297	292	1	1901	3.99	2007-02-17 03:03:45.996577
+17298	292	2	2258	3.99	2007-02-18 03:59:02.996577
+17299	292	1	2838	3.99	2007-02-19 20:34:32.996577
+17300	292	2	3328	2.99	2007-02-21 07:37:10.996577
+17301	293	1	1589	9.99	2007-02-16 03:26:29.996577
+17302	293	1	1829	5.99	2007-02-16 20:42:47.996577
+17303	293	2	1860	4.99	2007-02-16 23:45:38.996577
+17304	293	1	2386	4.99	2007-02-18 13:51:17.996577
+17305	293	2	3025	2.99	2007-02-20 10:15:14.996577
+17306	293	1	3290	1.99	2007-02-21 05:14:00.996577
+17307	293	2	3452	4.99	2007-02-21 19:39:53.996577
+17308	294	1	2900	2.99	2007-02-20 01:08:30.996577
+17309	294	2	3330	2.99	2007-02-21 07:51:03.996577
+17310	295	1	1184	5.99	2007-02-14 23:18:02.996577
+17311	295	1	1328	2.99	2007-02-15 09:51:53.996577
+17312	295	2	1935	2.99	2007-02-17 05:42:41.996577
+17313	295	1	2054	2.99	2007-02-17 13:55:03.996577
+17314	295	1	2431	1.99	2007-02-18 16:21:29.996577
+17315	295	1	2638	1.99	2007-02-19 07:51:56.996577
+17316	295	1	2999	2.99	2007-02-20 07:59:00.996577
+17317	295	1	3198	1.99	2007-02-20 22:37:20.996577
+17318	295	2	3394	8.99	2007-02-21 13:46:05.996577
+17319	296	2	1659	4.99	2007-02-16 08:40:12.996577
+17320	296	1	3034	0.99	2007-02-20 10:44:16.996577
+17321	296	2	3119	0.99	2007-02-20 16:40:10.996577
+17322	297	1	1409	3.99	2007-02-15 15:26:38.996577
+17323	297	1	2067	2.99	2007-02-17 14:39:34.996577
+17324	297	1	2202	8.99	2007-02-18 00:37:50.996577
+17325	297	1	2260	2.99	2007-02-18 04:07:02.996577
+17326	297	2	2339	4.99	2007-02-18 09:57:48.996577
+17327	298	2	1454	4.99	2007-02-15 18:18:07.996577
+17328	298	2	2385	3.99	2007-02-18 13:51:06.996577
+17329	298	2	3095	4.99	2007-02-20 14:45:19.996577
+17330	298	2	3400	4.99	2007-02-21 14:18:56.996577
+17331	299	1	1650	8.99	2007-02-16 07:51:46.996577
+17332	299	2	2664	4.99	2007-02-19 09:39:49.996577
+17333	299	1	2774	2.99	2007-02-19 16:33:37.996577
+17334	299	2	2791	4.99	2007-02-19 17:19:53.996577
+17335	299	1	3074	0.99	2007-02-20 13:10:07.996577
+17336	299	2	3223	2.99	2007-02-21 00:35:11.996577
+17337	299	1	3288	5.99	2007-02-21 05:05:25.996577
+17338	300	2	1381	0.99	2007-02-15 13:45:47.996577
+17339	300	1	3177	2.99	2007-02-20 21:01:10.996577
+17340	301	1	1853	0.99	2007-02-16 23:08:20.996577
+17341	301	1	2611	4.99	2007-02-19 05:46:43.996577
+17342	301	2	2925	2.99	2007-02-20 02:52:15.996577
+17343	302	1	1231	2.99	2007-02-15 02:33:07.996577
+17344	303	2	1970	4.99	2007-02-17 07:51:42.996577
+17345	303	1	2223	8.99	2007-02-18 01:55:29.996577
+17346	303	1	3077	3.99	2007-02-20 13:33:44.996577
+17347	303	1	3107	2.99	2007-02-20 15:54:31.996577
+17348	304	1	1414	6.99	2007-02-15 15:54:58.996577
+17349	304	2	1525	4.99	2007-02-15 22:54:33.996577
+17350	304	1	2039	3.99	2007-02-17 12:32:09.996577
+17351	304	2	2902	4.99	2007-02-20 01:14:01.996577
+17352	305	1	1574	4.99	2007-02-16 02:08:22.996577
+17353	305	2	1884	0.99	2007-02-17 01:47:46.996577
+17354	305	1	2166	11.99	2007-02-17 22:19:47.996577
+17355	305	1	3387	0.99	2007-02-21 12:50:15.996577
+17356	306	2	1172	0.99	2007-02-14 22:23:00.996577
+17357	306	2	2836	6.99	2007-02-19 20:26:47.996577
+17358	307	2	2152	2.99	2007-02-17 21:21:53.996577
+17359	307	1	2167	0.99	2007-02-17 22:19:54.996577
+17360	307	1	2787	4.99	2007-02-19 17:15:26.996577
+17361	307	1	2881	2.99	2007-02-19 23:54:44.996577
+17362	307	2	3057	5.99	2007-02-20 11:51:14.996577
+17363	307	1	3209	4.99	2007-02-20 23:19:32.996577
+17364	308	1	2037	0.99	2007-02-17 12:22:46.996577
+17365	308	1	2094	0.99	2007-02-17 16:47:22.996577
+17366	308	2	2168	4.99	2007-02-17 22:21:50.996577
+17367	308	1	2346	7.99	2007-02-18 10:36:42.996577
+17368	308	2	2448	4.99	2007-02-18 17:42:11.996577
+17369	309	1	1837	4.99	2007-02-16 21:44:41.996577
+17370	309	2	2560	9.99	2007-02-19 01:41:08.996577
+17371	309	2	2644	3.99	2007-02-19 08:10:56.996577
+17372	309	2	2688	6.99	2007-02-19 11:19:22.996577
+17373	310	2	1162	4.99	2007-02-14 21:38:04.996577
+17374	310	2	1333	2.99	2007-02-15 10:05:34.996577
+17375	310	2	1918	3.99	2007-02-17 04:08:40.996577
+17376	310	2	2088	6.99	2007-02-17 16:03:56.996577
+17377	310	1	2480	5.99	2007-02-18 19:32:35.996577
+17378	310	1	2618	2.99	2007-02-19 06:31:27.996577
+17379	311	1	1622	4.99	2007-02-16 06:01:44.996577
+17380	311	2	1955	0.99	2007-02-17 07:08:48.996577
+17381	311	2	2967	6.99	2007-02-20 06:09:01.996577
+17382	312	2	1419	0.99	2007-02-15 16:23:16.996577
+17383	312	2	3457	3.99	2007-02-21 20:10:59.996577
+17384	313	2	1312	2.99	2007-02-15 08:44:53.996577
+17385	313	1	2617	7.99	2007-02-19 06:16:57.996577
+17386	313	2	2711	4.99	2007-02-19 12:40:48.996577
+17387	314	1	1598	3.99	2007-02-16 04:31:05.996577
+17388	314	1	1624	2.99	2007-02-16 06:17:23.996577
+17389	315	1	1701	2.99	2007-02-16 11:47:14.996577
+17390	316	1	1317	4.99	2007-02-15 08:58:45.996577
+17391	316	2	1350	4.99	2007-02-15 11:18:51.996577
+17392	316	1	2032	4.99	2007-02-17 11:52:33.996577
+17393	316	2	2338	4.99	2007-02-18 09:53:20.996577
+17394	316	2	2491	1.99	2007-02-18 20:29:57.996577
+17395	316	1	2820	4.99	2007-02-19 18:48:59.996577
+17396	316	2	3373	8.99	2007-02-21 12:03:58.996577
+17397	317	2	2287	6.99	2007-02-18 05:33:02.996577
+17398	317	2	3029	2.99	2007-02-20 10:19:56.996577
+17399	317	1	3251	0.99	2007-02-21 01:49:03.996577
+17400	318	1	2634	2.99	2007-02-19 07:23:43.996577
+17401	318	1	2643	2.99	2007-02-19 08:07:53.996577
+17402	318	2	3337	0.99	2007-02-21 08:53:01.996577
+17403	318	2	3376	7.99	2007-02-21 12:11:28.996577
+17404	319	1	1632	2.99	2007-02-16 06:32:08.996577
+17405	319	1	1892	4.99	2007-02-17 02:45:59.996577
+17406	319	2	2021	3.99	2007-02-17 11:09:44.996577
+17407	319	2	2703	4.99	2007-02-19 12:04:32.996577
+17408	319	2	2884	0.99	2007-02-19 23:59:42.996577
+17409	319	2	3256	3.99	2007-02-21 02:14:08.996577
+17410	320	2	1258	4.99	2007-02-15 04:49:56.996577
+17411	320	2	1484	3.99	2007-02-15 19:51:01.996577
+17412	320	2	1567	1.99	2007-02-16 01:41:56.996577
+17413	320	1	2216	4.99	2007-02-18 01:36:43.996577
+17414	320	2	2883	7.99	2007-02-19 23:57:36.996577
+17415	321	2	1750	5.99	2007-02-16 15:26:02.996577
+17416	321	1	3410	0.99	2007-02-21 14:49:13.996577
+17417	322	1	1386	2.99	2007-02-15 14:07:24.996577
+17418	322	1	1588	8.99	2007-02-16 03:21:47.996577
+17419	322	2	2481	4.99	2007-02-18 19:36:56.996577
+17420	322	1	2554	0.99	2007-02-19 01:34:04.996577
+17421	322	1	2983	7.99	2007-02-20 07:10:08.996577
+17422	322	2	3054	5.99	2007-02-20 11:45:07.996577
+17423	322	2	3413	8.99	2007-02-21 15:25:33.996577
+17424	323	2	1167	0.99	2007-02-14 21:54:24.996577
+17425	323	2	1786	2.99	2007-02-16 17:59:20.996577
+17426	323	1	2933	4.99	2007-02-20 03:20:49.996577
+17427	324	1	1740	0.99	2007-02-16 14:57:26.996577
+17428	324	2	2590	2.99	2007-02-19 04:00:06.996577
+17429	325	2	2502	4.99	2007-02-18 21:40:39.996577
+17430	325	2	2507	4.99	2007-02-18 22:07:48.996577
+17431	325	2	2808	2.99	2007-02-19 18:03:11.996577
+17432	326	1	1311	4.99	2007-02-15 08:40:25.996577
+17433	326	2	2086	0.99	2007-02-17 16:00:33.996577
+17434	326	2	2317	4.99	2007-02-18 07:40:44.996577
+17435	326	1	3441	4.99	2007-02-21 18:28:38.996577
+17436	327	1	1294	4.99	2007-02-15 07:37:53.996577
+17437	327	2	1577	3.99	2007-02-16 02:31:54.996577
+17438	327	2	1929	6.99	2007-02-17 05:17:56.996577
+17439	327	1	2273	4.99	2007-02-18 04:58:28.996577
+17440	327	2	2304	5.99	2007-02-18 06:58:41.996577
+17441	327	2	2637	3.99	2007-02-19 07:49:22.996577
+17442	328	2	1670	2.99	2007-02-16 08:54:59.996577
+17443	328	2	1980	6.99	2007-02-17 08:16:31.996577
+17444	328	2	2243	5.99	2007-02-18 03:01:29.996577
+17445	328	1	3024	4.99	2007-02-20 09:57:43.996577
+17446	328	1	3239	0.99	2007-02-21 01:17:06.996577
+17447	329	1	1183	2.99	2007-02-14 23:17:45.996577
+17448	329	1	2010	5.99	2007-02-17 10:22:41.996577
+17449	329	2	2024	0.99	2007-02-17 11:29:17.996577
+17450	329	1	2151	0.99	2007-02-17 21:21:03.996577
+17451	329	1	2303	2.99	2007-02-18 06:56:25.996577
+17452	329	2	2702	2.99	2007-02-19 12:04:22.996577
+17453	329	1	3052	5.99	2007-02-20 11:37:45.996577
+17454	329	2	3053	0.99	2007-02-20 11:38:56.996577
+17455	329	2	3268	4.99	2007-02-21 03:24:15.996577
+17456	330	1	1219	6.99	2007-02-15 01:54:25.996577
+17457	330	2	1511	5.99	2007-02-15 21:13:32.996577
+17458	330	2	2885	0.99	2007-02-20 00:02:08.996577
+17459	330	1	2936	4.99	2007-02-20 03:37:53.996577
+17460	330	2	3061	2.99	2007-02-20 12:16:47.996577
+17461	331	1	1415	2.99	2007-02-15 16:00:23.996577
+17462	331	2	2528	6.99	2007-02-18 23:42:38.996577
+17463	331	1	2587	2.99	2007-02-19 03:34:40.996577
+17464	333	1	1667	2.99	2007-02-16 08:47:25.996577
+17465	333	1	2149	6.99	2007-02-17 21:18:26.996577
+17466	333	1	2929	1.99	2007-02-20 03:16:05.996577
+17467	333	1	3110	2.99	2007-02-20 16:08:38.996577
+17468	334	2	1187	4.99	2007-02-14 23:27:16.996577
+17469	334	1	1298	4.99	2007-02-15 08:01:19.996577
+17470	334	2	2476	0.99	2007-02-18 19:25:38.996577
+17471	335	1	3329	4.99	2007-02-21 07:48:57.996577
+17472	336	1	1478	2.99	2007-02-15 19:40:39.996577
+17473	336	2	2212	2.99	2007-02-18 01:04:36.996577
+17474	336	2	2475	2.99	2007-02-18 19:21:12.996577
+17475	336	1	2575	2.99	2007-02-19 03:01:18.996577
+17476	336	2	2719	4.99	2007-02-19 13:18:45.996577
+17477	336	1	2954	2.99	2007-02-20 05:13:26.996577
+17478	336	2	3204	4.99	2007-02-20 23:06:16.996577
+17479	336	2	3349	0.99	2007-02-21 09:46:01.996577
+17480	337	2	1969	4.99	2007-02-17 07:50:48.996577
+17481	337	1	2014	5.99	2007-02-17 10:31:54.996577
+17482	338	2	1510	4.99	2007-02-15 21:08:00.996577
+17483	338	1	1807	5.99	2007-02-16 19:27:25.996577
+17484	338	2	1952	4.99	2007-02-17 07:01:28.996577
+17485	338	1	2148	6.99	2007-02-17 21:13:01.996577
+17486	338	1	2179	0.99	2007-02-17 23:10:02.996577
+17487	338	1	2495	4.99	2007-02-18 20:44:08.996577
+17488	338	1	3458	5.99	2007-02-21 20:11:15.996577
+17489	339	2	1432	3.99	2007-02-15 16:55:50.996577
+17490	339	1	1536	4.99	2007-02-15 23:20:48.996577
+17491	339	2	1629	4.99	2007-02-16 06:22:13.996577
+17492	339	1	3146	6.99	2007-02-20 18:50:14.996577
+17493	339	1	3335	4.99	2007-02-21 08:37:34.996577
+17494	340	2	1205	4.99	2007-02-15 00:54:22.996577
+17495	340	1	1697	3.99	2007-02-16 11:23:46.996577
+17496	340	1	2177	5.99	2007-02-17 23:03:11.996577
+17497	340	2	2183	4.99	2007-02-17 23:34:27.996577
+17498	340	2	2607	5.99	2007-02-19 05:23:27.996577
+17499	340	1	2653	5.99	2007-02-19 09:05:19.996577
+17500	340	1	3264	0.99	2007-02-21 02:47:29.996577
+17501	340	1	3455	2.99	2007-02-21 19:46:17.996577
+17502	341	1	1318	2.99	2007-02-15 09:02:52.996577
 17503	341	2	1520	7.99	2007-02-15 22:25:46.996577
 17504	341	1	1778	1.99	2007-02-16 17:23:14.996577
 17505	341	1	1849	7.99	2007-02-16 22:41:45.996577
@@ -17222,6 +19637,18 @@ COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payme
 19516	267	1	2877	1.99	2007-02-19 23:35:42.996577
 19517	267	2	3090	0.99	2007-02-20 14:28:45.996577
 19518	16	1	4591	1.99	2007-02-18 03:24:38.996577
+\.
+
+
+ALTER TABLE payment_p2007_02 ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: payment_p2007_03; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+ALTER TABLE payment_p2007_03 DISABLE TRIGGER ALL;
+
+COPY payment_p2007_03 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
 19519	267	1	10343	2.99	2007-03-01 03:44:13.996577
 19520	267	2	11373	0.99	2007-03-02 16:42:38.996577
 19521	267	1	11690	6.99	2007-03-17 05:12:48.996577
@@ -22866,6 +25293,18 @@ COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payme
 25160	266	1	15181	2.99	2007-03-22 14:14:46.996577
 25161	266	1	15346	4.99	2007-03-22 19:34:26.996577
 25162	259	2	4591	1.99	2007-03-23 04:41:42.996577
+\.
+
+
+ALTER TABLE payment_p2007_03 ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: payment_p2007_04; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+ALTER TABLE payment_p2007_04 DISABLE TRIGGER ALL;
+
+COPY payment_p2007_04 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
 25163	267	2	9807	2.99	2007-04-30 09:42:18.996577
 25164	267	2	10048	4.99	2007-04-30 17:37:22.996577
 25165	268	2	3670	4.99	2007-04-06 07:25:09.996577
@@ -29620,6 +32059,18 @@ COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payme
 31914	267	1	6706	3.99	2007-04-12 11:27:42.996577
 31915	267	1	8190	4.99	2007-04-28 21:15:32.996577
 31916	267	1	8572	1.99	2007-04-29 10:19:50.996577
+\.
+
+
+ALTER TABLE payment_p2007_04 ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: payment_p2007_05; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+ALTER TABLE payment_p2007_05 DISABLE TRIGGER ALL;
+
+COPY payment_p2007_05 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
 31917	267	2	12066	7.98	2007-05-14 13:44:29.996577
 31918	267	2	13713	0.00	2007-05-14 13:44:29.996577
 31919	269	1	13025	3.98	2007-05-14 13:44:29.996577
@@ -29805,11 +32256,27 @@ COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payme
 \.
 
 
+ALTER TABLE payment_p2007_05 ENABLE TRIGGER ALL;
+
 --
--- Data for Name: rental; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: payment_p2007_06; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_date, staff_id, last_update) FROM stdin;
+ALTER TABLE payment_p2007_06 DISABLE TRIGGER ALL;
+
+COPY payment_p2007_06 (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
+\.
+
+
+ALTER TABLE payment_p2007_06 ENABLE TRIGGER ALL;
+
+--
+-- Data for Name: rental; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+ALTER TABLE rental DISABLE TRIGGER ALL;
+
+COPY rental (rental_id, rental_date, inventory_id, customer_id, return_date, staff_id, last_update) FROM stdin;
 2	2005-05-24 22:54:33	1525	459	2005-05-28 19:40:33	1	2006-02-16 02:30:53
 3	2005-05-24 23:03:39	1711	408	2005-06-01 22:12:39	1	2006-02-16 02:30:53
 4	2005-05-24 23:04:41	2452	333	2005-06-03 01:43:41	2	2006-02-16 02:30:53
@@ -41366,7 +43833,6 @@ COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_da
 11559	2005-08-17 01:20:26	1812	385	2005-08-24 03:11:26	1	2006-02-16 02:30:53
 11560	2005-08-17 01:20:30	2316	320	2005-08-18 04:29:30	2	2006-02-16 02:30:53
 11561	2005-08-17 01:23:09	189	149	2005-08-23 21:02:09	2	2006-02-16 02:30:53
-12101	2006-02-14 15:16:03	1556	479	\N	1	2006-02-16 02:30:53
 11562	2005-08-17 01:23:39	2992	424	2005-08-26 06:16:39	1	2006-02-16 02:30:53
 11563	2006-02-14 15:16:03	1545	83	\N	1	2006-02-16 02:30:53
 11564	2005-08-17 01:27:49	2237	332	2005-08-19 22:07:49	1	2006-02-16 02:30:53
@@ -41475,7 +43941,6 @@ COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_da
 11667	2005-08-17 05:46:55	1516	582	2005-08-26 08:19:55	1	2006-02-16 02:30:53
 11668	2005-08-17 05:47:32	2162	249	2005-08-20 03:11:32	1	2006-02-16 02:30:53
 11669	2005-08-17 05:48:51	3224	487	2005-08-22 01:22:51	1	2006-02-16 02:30:53
-13719	2006-02-14 15:16:03	3547	208	\N	1	2006-02-16 02:30:53
 11670	2005-08-17 05:48:59	4437	286	2005-08-19 08:51:59	1	2006-02-16 02:30:53
 11671	2005-08-17 05:50:21	3569	338	2005-08-20 03:43:21	1	2006-02-16 02:30:53
 11672	2006-02-14 15:16:03	3947	521	\N	2	2006-02-16 02:30:53
@@ -41907,6 +44372,7 @@ COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_da
 12098	2005-08-17 22:38:31	534	545	2005-08-20 01:56:31	1	2006-02-16 02:30:53
 12099	2005-08-17 22:38:54	1743	195	2005-08-18 21:29:54	2	2006-02-16 02:30:53
 12100	2005-08-17 22:41:10	4365	391	2005-08-24 21:31:10	2	2006-02-16 02:30:53
+12101	2006-02-14 15:16:03	1556	479	\N	1	2006-02-16 02:30:53
 12102	2005-08-17 22:45:26	4268	392	2005-08-24 01:47:26	2	2006-02-16 02:30:53
 12103	2005-08-17 22:49:09	4363	153	2005-08-24 21:53:09	1	2006-02-16 02:30:53
 12104	2005-08-17 22:53:00	4551	16	2005-08-23 19:49:00	1	2006-02-16 02:30:53
@@ -43524,6 +45990,7 @@ COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_da
 13716	2005-08-20 09:48:32	86	386	2005-08-26 07:20:32	2	2006-02-16 02:30:53
 13717	2005-08-20 09:50:52	1629	300	2005-08-28 11:32:52	2	2006-02-16 02:30:53
 13718	2005-08-20 09:53:44	205	19	2005-08-29 13:46:44	2	2006-02-16 02:30:53
+13719	2006-02-14 15:16:03	3547	208	\N	1	2006-02-16 02:30:53
 13720	2005-08-20 10:01:39	813	427	2005-08-27 08:26:39	1	2006-02-16 02:30:53
 13721	2005-08-20 10:02:59	1444	297	2005-08-24 07:02:59	2	2006-02-16 02:30:53
 13722	2005-08-20 10:03:45	1581	422	2005-08-25 04:26:45	1	2006-02-16 02:30:53
@@ -45857,606 +48324,39 @@ COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_da
 \.
 
 
+ALTER TABLE rental ENABLE TRIGGER ALL;
+
 --
--- Data for Name: staff; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: staff; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.staff (staff_id, first_name, last_name, address_id, email, store_id, active, username, password, last_update, picture) FROM stdin;
-1	Mike	Hillyer	3	Mike.Hillyer@sakilastaff.com	1	t	Mike	8cb2237d0679ca88db6464eac60da96345513964	2006-05-16 16:13:11.79328	\\x89504e470d0a5a0a
+ALTER TABLE staff DISABLE TRIGGER ALL;
+
+COPY staff (staff_id, first_name, last_name, address_id, email, store_id, active, username, password, last_update, picture) FROM stdin;
+1	Mike	Hillyer	3	Mike.Hillyer@sakilastaff.com	1	t	Mike	8cb2237d0679ca88db6464eac60da96345513964	2006-05-16 16:13:11.79328	\\211PNG\\015\\012Z\\012
 2	Jon	Stephens	4	Jon.Stephens@sakilastaff.com	2	t	Jon	8cb2237d0679ca88db6464eac60da96345513964	2006-05-16 16:13:11.79328	\N
 \.
 
 
+ALTER TABLE staff ENABLE TRIGGER ALL;
+
 --
--- Data for Name: store; Type: TABLE DATA; Schema: public; Owner: dvdrental
+-- Data for Name: store; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.store (store_id, manager_staff_id, address_id, last_update) FROM stdin;
+ALTER TABLE store DISABLE TRIGGER ALL;
+
+COPY store (store_id, manager_staff_id, address_id, last_update) FROM stdin;
 1	1	1	2006-02-15 09:57:12
 2	2	2	2006-02-15 09:57:12
 \.
 
 
---
--- Name: actor_actor_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.actor_actor_id_seq', 200, true);
-
-
---
--- Name: address_address_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.address_address_id_seq', 605, true);
-
-
---
--- Name: category_category_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.category_category_id_seq', 16, true);
-
-
---
--- Name: city_city_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.city_city_id_seq', 600, true);
-
-
---
--- Name: country_country_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.country_country_id_seq', 109, true);
-
-
---
--- Name: customer_customer_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.customer_customer_id_seq', 599, true);
-
-
---
--- Name: film_film_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.film_film_id_seq', 1000, true);
-
-
---
--- Name: inventory_inventory_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.inventory_inventory_id_seq', 4581, true);
-
-
---
--- Name: language_language_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.language_language_id_seq', 6, true);
-
-
---
--- Name: payment_payment_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.payment_payment_id_seq', 32098, true);
-
-
---
--- Name: rental_rental_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.rental_rental_id_seq', 16049, true);
-
-
---
--- Name: staff_staff_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.staff_staff_id_seq', 2, true);
-
-
---
--- Name: store_store_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.store_store_id_seq', 2, true);
-
-
---
--- Name: actor actor_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.actor
-    ADD CONSTRAINT actor_pkey PRIMARY KEY (actor_id);
-
-
---
--- Name: address address_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.address
-    ADD CONSTRAINT address_pkey PRIMARY KEY (address_id);
-
-
---
--- Name: category category_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.category
-    ADD CONSTRAINT category_pkey PRIMARY KEY (category_id);
-
-
---
--- Name: city city_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.city
-    ADD CONSTRAINT city_pkey PRIMARY KEY (city_id);
-
-
---
--- Name: country country_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.country
-    ADD CONSTRAINT country_pkey PRIMARY KEY (country_id);
-
-
---
--- Name: customer customer_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.customer
-    ADD CONSTRAINT customer_pkey PRIMARY KEY (customer_id);
-
-
---
--- Name: film_actor film_actor_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.film_actor
-    ADD CONSTRAINT film_actor_pkey PRIMARY KEY (actor_id, film_id);
-
-
---
--- Name: film_category film_category_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.film_category
-    ADD CONSTRAINT film_category_pkey PRIMARY KEY (film_id, category_id);
-
-
---
--- Name: film film_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.film
-    ADD CONSTRAINT film_pkey PRIMARY KEY (film_id);
-
-
---
--- Name: inventory inventory_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.inventory
-    ADD CONSTRAINT inventory_pkey PRIMARY KEY (inventory_id);
-
-
---
--- Name: language language_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.language
-    ADD CONSTRAINT language_pkey PRIMARY KEY (language_id);
-
-
---
--- Name: payment payment_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.payment
-    ADD CONSTRAINT payment_pkey PRIMARY KEY (payment_id);
-
-
---
--- Name: rental rental_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.rental
-    ADD CONSTRAINT rental_pkey PRIMARY KEY (rental_id);
-
-
---
--- Name: staff staff_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.staff
-    ADD CONSTRAINT staff_pkey PRIMARY KEY (staff_id);
-
-
---
--- Name: store store_pkey; Type: CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.store
-    ADD CONSTRAINT store_pkey PRIMARY KEY (store_id);
-
-
---
--- Name: film_fulltext_idx; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);
-
-
---
--- Name: idx_actor_last_name; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_actor_last_name ON public.actor USING btree (last_name);
-
-
---
--- Name: idx_fk_address_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_address_id ON public.customer USING btree (address_id);
-
-
---
--- Name: idx_fk_city_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_city_id ON public.address USING btree (city_id);
-
-
---
--- Name: idx_fk_country_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_country_id ON public.city USING btree (country_id);
-
-
---
--- Name: idx_fk_customer_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_customer_id ON public.payment USING btree (customer_id);
-
-
---
--- Name: idx_fk_film_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_film_id ON public.film_actor USING btree (film_id);
-
-
---
--- Name: idx_fk_inventory_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_inventory_id ON public.rental USING btree (inventory_id);
-
-
---
--- Name: idx_fk_language_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_language_id ON public.film USING btree (language_id);
-
-
---
--- Name: idx_fk_rental_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_rental_id ON public.payment USING btree (rental_id);
-
-
---
--- Name: idx_fk_staff_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_staff_id ON public.payment USING btree (staff_id);
-
-
---
--- Name: idx_fk_store_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_fk_store_id ON public.customer USING btree (store_id);
-
-
---
--- Name: idx_last_name; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_last_name ON public.customer USING btree (last_name);
-
-
---
--- Name: idx_store_id_film_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_store_id_film_id ON public.inventory USING btree (store_id, film_id);
-
-
---
--- Name: idx_title; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE INDEX idx_title ON public.film USING btree (title);
-
-
---
--- Name: idx_unq_manager_staff_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE UNIQUE INDEX idx_unq_manager_staff_id ON public.store USING btree (manager_staff_id);
-
-
---
--- Name: idx_unq_rental_rental_date_inventory_id_customer_id; Type: INDEX; Schema: public; Owner: dvdrental
---
-
-CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental USING btree (rental_date, inventory_id, customer_id);
-
-
---
--- Name: film film_fulltext_trigger; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER film_fulltext_trigger BEFORE INSERT OR UPDATE ON public.film FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('fulltext', 'pg_catalog.english', 'title', 'description');
-
-
---
--- Name: actor last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.actor FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: address last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.address FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: category last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.category FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: city last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.city FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: country last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.country FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: customer last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.customer FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: film last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.film FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: film_actor last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.film_actor FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: film_category last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.film_category FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: inventory last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.inventory FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: language last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.language FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: rental last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.rental FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: staff last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.staff FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: store last_updated; Type: TRIGGER; Schema: public; Owner: dvdrental
---
-
-CREATE TRIGGER last_updated BEFORE UPDATE ON public.store FOR EACH ROW EXECUTE PROCEDURE public.last_updated();
-
-
---
--- Name: customer customer_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.customer
-    ADD CONSTRAINT customer_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film_actor film_actor_actor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.film_actor
-    ADD CONSTRAINT film_actor_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.actor(actor_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film_actor film_actor_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.film_actor
-    ADD CONSTRAINT film_actor_film_id_fkey FOREIGN KEY (film_id) REFERENCES public.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film_category film_category_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.film_category
-    ADD CONSTRAINT film_category_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.category(category_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film_category film_category_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.film_category
-    ADD CONSTRAINT film_category_film_id_fkey FOREIGN KEY (film_id) REFERENCES public.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: film film_language_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.film
-    ADD CONSTRAINT film_language_id_fkey FOREIGN KEY (language_id) REFERENCES public.language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: address fk_address_city; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.address
-    ADD CONSTRAINT fk_address_city FOREIGN KEY (city_id) REFERENCES public.city(city_id);
-
-
---
--- Name: city fk_city; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.city
-    ADD CONSTRAINT fk_city FOREIGN KEY (country_id) REFERENCES public.country(country_id);
-
-
---
--- Name: inventory inventory_film_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.inventory
-    ADD CONSTRAINT inventory_film_id_fkey FOREIGN KEY (film_id) REFERENCES public.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: payment payment_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.payment
-    ADD CONSTRAINT payment_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(customer_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: payment payment_rental_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.payment
-    ADD CONSTRAINT payment_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES public.rental(rental_id) ON UPDATE CASCADE ON DELETE SET NULL;
-
-
---
--- Name: payment payment_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.payment
-    ADD CONSTRAINT payment_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES public.staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: rental rental_customer_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.rental
-    ADD CONSTRAINT rental_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(customer_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: rental rental_inventory_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.rental
-    ADD CONSTRAINT rental_inventory_id_fkey FOREIGN KEY (inventory_id) REFERENCES public.inventory(inventory_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: rental rental_staff_id_key; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.rental
-    ADD CONSTRAINT rental_staff_id_key FOREIGN KEY (staff_id) REFERENCES public.staff(staff_id);
-
-
---
--- Name: staff staff_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.staff
-    ADD CONSTRAINT staff_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: store store_address_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.store
-    ADD CONSTRAINT store_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
-
---
--- Name: store store_manager_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: dvdrental
---
-
-ALTER TABLE ONLY public.store
-    ADD CONSTRAINT store_manager_staff_id_fkey FOREIGN KEY (manager_staff_id) REFERENCES public.staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;
-
+ALTER TABLE store ENABLE TRIGGER ALL;
 
 --
 -- PostgreSQL database dump complete
 --
+
+
 
